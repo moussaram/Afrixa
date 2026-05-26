@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { X, ArrowLeft, Phone, Minus, Plus, MapPin, MessageSquare, ShieldCheck, Loader2, Check, PartyPopper } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { YangoDeliveryStep, buildYangoDeepLink, type DeliveryMethod } from './YangoDeliveryStep';
+import { YangoDeliveryStep } from './YangoDeliveryStep';
+import { buildYangoDeepLink, type DeliveryMethod } from './yango';
 
 
 interface PaymentProduct {

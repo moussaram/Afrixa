@@ -8,7 +8,7 @@ import { formatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
 import { ProfileMenuDrawer } from '@/components/profile-menu/ProfileMenuDrawer';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/useAuth';
 import { ProfileShareSheet } from '@/components/profile/ProfileShareSheet';
 
 const tabs = [

@@ -22,7 +22,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/useAuth';
 import { useChatMessages } from '@/hooks/useChatMessages';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import { useUserPresence, usePresenceHeartbeat } from '@/hooks/usePresence';

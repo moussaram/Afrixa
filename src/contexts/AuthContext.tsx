@@ -1,50 +1,7 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-
-interface Profile {
-  id: string;
-  user_id: string;
-  nom: string | null;
-  prenom: string | null;
-  deuxieme_prenom: string | null;
-  date_naissance: string | null;
-  lieu_naissance: string | null;
-  profession: string | null;
-  numero_mobile: string | null;
-  mobile_verifie: boolean;
-  email_verifie: boolean;
-  avatar_url: string | null;
-  bio: string | null;
-  username: string | null;
-  nationalite: string | null;
-  nationalite_flag: string | null;
-  inscription_complete: boolean;
-}
-
-interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  profile: Profile | null;
-  loading: boolean;
-  signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  session: null,
-  profile: null,
-  loading: true,
-  signOut: async () => {},
-  refreshProfile: async () => {},
-});
-
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
-};
+import { AuthContext, type Profile } from './auth';
 
 const DEV_MODE = import.meta.env.DEV;
 

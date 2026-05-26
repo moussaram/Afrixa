@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/useAuth';
 
 export interface MessageRow {
   id: string;

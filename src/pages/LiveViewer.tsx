@@ -4,8 +4,10 @@ import {
   ArrowLeft, Heart, Share2, Users, UserPlus, Flag, MoreVertical,
 } from 'lucide-react';
 import { LiveChat, LiveMessage, COLORS } from '@/components/live/LiveChat';
-import { LiveReactions, useReactions } from '@/components/live/LiveReactions';
-import { GiftAnimation, GiftItem, GIFTS } from '@/components/live/GiftAnimation';
+import { LiveReactions } from '@/components/live/LiveReactions';
+import { useReactions } from '@/components/live/useReactions';
+import { GiftAnimation } from '@/components/live/GiftAnimation';
+import { type GiftItem, GIFTS } from '@/components/live/gifts';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 

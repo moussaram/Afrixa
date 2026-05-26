@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Check, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-
-export type DeliveryMethod = 'yango' | 'pickup';
+import { type DeliveryMethod } from './yango';
 
 interface YangoDeliveryStepProps {
   defaultAddress?: string;
@@ -107,10 +106,4 @@ export const YangoDeliveryStep = ({ defaultAddress = '', onContinue }: YangoDeli
       </button>
     </div>
   );
-};
-
-export const buildYangoDeepLink = (sellerAddress: string, buyerAddress: string) => {
-  const s = encodeURIComponent(sellerAddress || '');
-  const b = encodeURIComponent(buyerAddress || '');
-  return `https://ya.cc/maps/?rtext=${s}~${b}&rtt=auto`;
 };

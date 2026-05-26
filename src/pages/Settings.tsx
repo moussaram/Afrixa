@@ -64,7 +64,7 @@ import {
 } from '@/components/ui/accordion';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { africanCountries, type AfricanCountry } from '@/data/africanCountries';
 

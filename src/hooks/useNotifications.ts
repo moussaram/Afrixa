@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/useAuth';
 import { mockNotifications } from '@/data/mockData';
 import type { Notification as AppNotification } from '@/types';
 

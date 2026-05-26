@@ -4,7 +4,7 @@ import { ArrowRight, Search, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/useAuth';
 import { africanCountries, type AfricanCountry } from '@/data/africanCountries';
 import { toast } from 'sonner';
 

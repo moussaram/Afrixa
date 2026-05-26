@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Share2, Download, Camera, ScanLine, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/useAuth';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 

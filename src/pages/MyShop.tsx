@@ -6,7 +6,7 @@ import { formatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { CreateGroupBuyForm } from '@/components/groupbuy/CreateGroupBuyForm';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/useAuth';
 import { toast } from 'sonner';
 import { SkeletonList } from '@/components/common/SkeletonLoader';
 import { ErrorWithRetry } from '@/components/common/ErrorWithRetry';

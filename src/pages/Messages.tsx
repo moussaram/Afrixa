@@ -9,7 +9,7 @@ import { useConversations, ConversationWithProfile } from '@/hooks/useConversati
 import { usePresenceHeartbeat } from '@/hooks/usePresence';
 import { SkeletonList } from '@/components/common/SkeletonLoader';
 import { ErrorWithRetry } from '@/components/common/ErrorWithRetry';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/useAuth';
 
 type TabType = 'all' | 'unread';
 

@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, XCircle, User, MapPin, Briefcase, Globe, FileText, Calendar, Phone, Mail, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/useAuth';
 import { cn } from '@/lib/utils';
 
 interface InfoRowProps {
