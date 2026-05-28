@@ -4,12 +4,36 @@ import { mockVideos, categories, trendingHashtags, mockUsers } from '@/data/mock
 import { VideoThumbnail } from '@/components/video/VideoThumbnail';
 import { MarketplaceContent } from '@/components/marketplace/MarketplaceContent';
 import { GroupBuyList } from '@/components/groupbuy/GroupBuyList';
+import { ChallengeCard } from '@/components/creators/ChallengeCard';
+import { SpotlightBanner } from '@/components/creators/SpotlightBanner';
 import { cn } from '@/lib/utils';
 import { formatNumber } from '@/lib/formatters';
 
 const boutiqueCategory = { id: 'boutique', name: 'Boutique', icon: '🛍️' };
 const groupBuyCategory = { id: 'groupbuy', name: 'Group Buy', icon: '⚡' };
-const allCategories = [boutiqueCategory, groupBuyCategory, ...categories];
+const challengesCategory = { id: 'challenges', name: 'Challenges', icon: '🏆' };
+const allCategories = [boutiqueCategory, groupBuyCategory, challengesCategory, ...categories];
+
+const featuredChallenges = [
+  {
+    id: 'discover-danse-afrixa',
+    title: 'Danse Afrixa',
+    hashtag: '#DanseAfrixa',
+    description: 'Le defi officiel pour faire monter ton meilleur pas dans les tendances.',
+    prize_description: '50 000 FCFA a gagner',
+    participants_count: 1280,
+    views_count: 340000,
+  },
+  {
+    id: 'discover-talent-afrixa',
+    title: 'Talents de chez nous',
+    hashtag: '#TalentAfrixa',
+    description: 'Cuisine, humour, musique ou artisanat : montre ce que tu sais faire.',
+    prize_description: 'Spotlight officiel Afrixa',
+    participants_count: 640,
+    views_count: 185000,
+  },
+];
 
 const Discover = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,8 +94,20 @@ const Discover = () => {
       {/* Group Buy Tab */}
       {activeCategory === 'groupbuy' && <GroupBuyList />}
 
+      {/* Challenges Tab */}
+      {activeCategory === 'challenges' && (
+        <div className="px-4 py-4">
+          <SpotlightBanner />
+          <div className="grid gap-4 md:grid-cols-2">
+            {featuredChallenges.map((challenge) => (
+              <ChallengeCard key={challenge.id} challenge={challenge} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Default discover content */}
-      {activeCategory !== 'boutique' && activeCategory !== 'groupbuy' && (
+      {activeCategory !== 'boutique' && activeCategory !== 'groupbuy' && activeCategory !== 'challenges' && (
         <>
           {(isSearchFocused || searchQuery) && (
             <div className="px-4 py-4 border-b border-border/30 animate-fade-in">

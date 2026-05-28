@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { SplashScreen } from "@/components/common/SplashScreen";
+import { OfflineBanner } from "@/components/common/OfflineBanner";
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/useAuth";
@@ -44,12 +46,27 @@ const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/auth/ResetPassword"));
 const AuthCallback = lazy(() => import("./pages/auth/AuthCallback"));
 const CompleteProfile = lazy(() => import("./pages/auth/CompleteProfile"));
+const Onboarding = lazy(() => import("./pages/onboarding/Onboarding"));
+const UploadVideo = lazy(() => import("./pages/UploadVideo"));
+const SearchAdvanced = lazy(() => import("./pages/SearchAdvanced"));
+const Sounds = lazy(() => import("./pages/Sounds"));
+const Premium = lazy(() => import("./pages/Premium"));
+const Coins = lazy(() => import("./pages/Coins"));
+const AdsManager = lazy(() => import("./pages/AdsManager"));
+const CreatorProgramPage = lazy(() => import("./pages/creators/CreatorProgramPage"));
+const AfrixaStudioPage = lazy(() => import("./pages/creators/AfrixaStudioPage"));
+const CreatorWalletPage = lazy(() => import("./pages/creators/CreatorWalletPage"));
+const ChallengesPage = lazy(() => import("./pages/creators/ChallengesPage"));
+const SeriesPage = lazy(() => import("./pages/creators/SeriesPage"));
+const FanClubPage = lazy(() => import("./pages/creators/FanClubPage"));
+const CollabsPage = lazy(() => import("./pages/creators/CollabsPage"));
+const SpotlightPage = lazy(() => import("./pages/creators/SpotlightPage"));
 
 const AppContent = () => {
   const location = useLocation();
   const { user, loading } = useAuth();
 
-  const hideNavPaths = ['/create', '/settings', '/messages', '/chat', '/live', '/auth'];
+  const hideNavPaths = ['/create', '/settings', '/messages', '/chat', '/live', '/auth', '/onboarding'];
   const hideNav = hideNavPaths.some(path => location.pathname.startsWith(path));
 
   // Redirect to login if not authenticated (sauf pages auth)
@@ -70,6 +87,13 @@ const AppContent = () => {
           <Route path="/auth/reset-password" element={<ResetPassword />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/auth/complete-profile" element={<CompleteProfile />} />
+          <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/upload-video" element={<UploadVideo />} />
+          <Route path="/search" element={<SearchAdvanced />} />
+          <Route path="/sounds" element={<Sounds />} />
+          <Route path="/premium" element={<Premium />} />
+          <Route path="/coins" element={<Coins />} />
+          <Route path="/ads" element={<AdsManager />} />
 
           {/* App routes */}
           <Route path="/" element={<Index />} />
@@ -94,6 +118,14 @@ const AppContent = () => {
           <Route path="/seller-sales" element={<SellerSales />} />
           <Route path="/seller-wallet" element={<SellerWallet />} />
           <Route path="/help-support" element={<HelpSupport />} />
+          <Route path="/creators/program" element={<CreatorProgramPage />} />
+          <Route path="/creators/studio" element={<AfrixaStudioPage />} />
+          <Route path="/creators/wallet" element={<CreatorWalletPage />} />
+          <Route path="/creators/challenges" element={<ChallengesPage />} />
+          <Route path="/creators/series" element={<SeriesPage />} />
+          <Route path="/creators/fan-club" element={<FanClubPage />} />
+          <Route path="/creators/collabs" element={<CollabsPage />} />
+          <Route path="/creators/spotlight" element={<SpotlightPage />} />
           {/* Route aliases for convenience */}
           <Route path="/home" element={<Navigate to="/" replace />} />
           <Route path="/login" element={<Navigate to="/auth/login" replace />} />
@@ -119,12 +151,14 @@ const App = () => {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
+          <OfflineBanner />
           <Toaster />
           <Sonner />
           {!splashDone && <SplashScreen onFinish={() => setSplashDone(true)} />}
           <BrowserRouter>
             <AuthProvider>
               <AppContent />
+              <InstallPrompt />
             </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>

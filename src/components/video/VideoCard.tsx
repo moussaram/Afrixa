@@ -9,6 +9,9 @@ import { ProductBottomSheet } from '@/components/marketplace/ProductBottomSheet'
 import { useSocialInteractions, useFollow } from '@/hooks/useSocialInteractions';
 import { useNavigate } from 'react-router-dom';
 import { currentUser } from '@/data/mockData';
+import { CreatorBadge } from '@/components/creators/CreatorBadge';
+import { CreatorTipButton } from '@/components/creators/CreatorTipButton';
+import { AdvancedVideoControls } from '@/components/video/AdvancedVideoControls';
 
 // Mock: some videos have tagged products
 const taggedProducts: Record<string, { name: string; price: number; currency: string; imageUrl: string; sellerName: string }> = {
@@ -135,6 +138,7 @@ export const VideoCard = ({
         onTimeUpdate={handleTimeUpdate}
         poster={video.thumbnailUrl}
       />
+      <AdvancedVideoControls videoRef={videoRef} videoId={video.id} />
 
       {/* Play/Pause overlay */}
       {!isPlaying && (
@@ -179,6 +183,9 @@ export const VideoCard = ({
                 <div className="w-4 h-4 rounded-full gradient-primary flex items-center justify-center">
                   <span className="text-[10px]">✓</span>
                 </div>
+              )}
+              {video.user.followers >= 500 && (
+                <CreatorBadge level={video.user.followers >= 500000 ? 'elite' : video.user.followers >= 50000 ? 'verified' : 'rising'} compact />
               )}
             </div>
             {/* Inline follow button */}
@@ -289,6 +296,12 @@ export const VideoCard = ({
           </div>
           <span className="text-xs text-foreground">{formatNumber(video.comments)}</span>
         </button>
+
+        {/* Tip */}
+        <div className="interaction-btn">
+          <CreatorTipButton creatorId={video.user.id} videoId={video.id} compact />
+          <span className="text-xs text-foreground">Tip</span>
+        </div>
 
         {/* Like */}
         <button

@@ -16,6 +16,10 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { useFollow } from '@/hooks/useSocialInteractions';
 import { ProfileShareSheet } from '@/components/profile/ProfileShareSheet';
+import { CreatorBadge } from '@/components/creators/CreatorBadge';
+import { SuperNotificationButton } from '@/components/creators/SuperNotificationButton';
+import { CollabRequestButton } from '@/components/creators/CollabRequestButton';
+import { FanClubCard } from '@/components/creators/FanClubCard';
 
 const tabs = [
   { id: 'videos', icon: Grid3X3 },
@@ -114,6 +118,15 @@ const UserProfile = () => {
           <h2 className="text-xl font-bold text-foreground mb-1">@{user.username}</h2>
           <p className="text-foreground font-medium">{user.displayName}</p>
 
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <CreatorBadge level={user.followers >= 500000 ? 'elite' : user.followers >= 50000 ? 'verified' : 'rising'} />
+            {user.followers >= 500000 && (
+              <span className="inline-flex items-center rounded-full border border-[#F59E0B]/30 bg-[#F59E0B]/15 px-3 py-1 text-xs font-bold text-[#F59E0B]">
+                Spotlight Afrixa
+              </span>
+            )}
+          </div>
+
           {/* Public info badges - simulated for mock users */}
           <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/40 text-sm text-foreground">
@@ -161,9 +174,23 @@ const UserProfile = () => {
               <MessageCircle className="w-4 h-4 mr-2" />
               Message
             </Button>
+            <SuperNotificationButton creatorId={user.id} />
+          </div>
+
+          <div className="mt-3 grid w-full max-w-sm grid-cols-2 gap-3">
+            <CollabRequestButton receiverId={user.id} />
+            <Button variant="glass" onClick={() => navigate('/creators/fan-club')}>
+              Fan Club
+            </Button>
           </div>
         </div>
       </section>
+
+      {user.followers >= 500000 && (
+        <section className="px-4 pb-4">
+          <FanClubCard name={`VIP ${user.username}`} priceMonthly={1000} />
+        </section>
+      )}
 
       {/* Tabs */}
       <div className="flex border-b border-border/30">

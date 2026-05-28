@@ -51,11 +51,22 @@ import {
   MapPin,
   Briefcase,
   Check,
+  AlertTriangle,
+  Copy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { SettingsSection } from '@/components/settings/SettingsSection';
 import { SettingsItem } from '@/components/settings/SettingsItem';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Accordion,
   AccordionContent,
@@ -68,10 +79,17 @@ import { useAuth } from '@/contexts/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { africanCountries, type AfricanCountry } from '@/data/africanCountries';
 
+const SETTINGS_STORAGE_KEY = 'afrixa:user-settings:v1';
+
 const Settings = () => {
   const navigate = useNavigate();
   const { user, profile, refreshProfile, signOut } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  const [openSections, setOpenSections] = useState<string[]>(['account']);
+  const [dangerDialog, setDangerDialog] = useState<null | 'deactivate' | 'delete' | 'logout'>(null);
+  const [confirmText, setConfirmText] = useState('');
+  const [supportMessage, setSupportMessage] = useState('');
+  const [cacheSize, setCacheSize] = useState('Calcul...');
   
   // Identity editing
   const [editingIdentity, setEditingIdentity] = useState(false);
@@ -169,6 +187,105 @@ const Settings = () => {
   const [twoFactorAuth, setTwoFactorAuth] = useState(false);
   const [securityEmails, setSecurityEmails] = useState(true);
 
+  const settingsSnapshot = {
+    privateAccount,
+    filterComments,
+    allowDownloads,
+    allowDuets,
+    allowStitchs,
+    notifyLikes,
+    notifyComments,
+    notifyFollowers,
+    notifyMentions,
+    notifyMessages,
+    notifyNewVideos,
+    doNotDisturb,
+    autoPlay,
+    dataSaver,
+    autoSubtitles,
+    hdOnWifi,
+    darkMode,
+    screenTimeReminder,
+    sleepReminder,
+    reducedMotion,
+    highContrast,
+    twoFactorAuth,
+    securityEmails,
+  };
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      setPrivateAccount(Boolean(parsed.privateAccount));
+      setFilterComments(parsed.filterComments ?? true);
+      setAllowDownloads(parsed.allowDownloads ?? true);
+      setAllowDuets(parsed.allowDuets ?? true);
+      setAllowStitchs(parsed.allowStitchs ?? true);
+      setNotifyLikes(parsed.notifyLikes ?? true);
+      setNotifyComments(parsed.notifyComments ?? true);
+      setNotifyFollowers(parsed.notifyFollowers ?? true);
+      setNotifyMentions(parsed.notifyMentions ?? true);
+      setNotifyMessages(parsed.notifyMessages ?? true);
+      setNotifyNewVideos(parsed.notifyNewVideos ?? true);
+      setDoNotDisturb(Boolean(parsed.doNotDisturb));
+      setAutoPlay(parsed.autoPlay ?? true);
+      setDataSaver(Boolean(parsed.dataSaver));
+      setAutoSubtitles(Boolean(parsed.autoSubtitles));
+      setHdOnWifi(parsed.hdOnWifi ?? true);
+      setDarkMode(parsed.darkMode ?? true);
+      setScreenTimeReminder(Boolean(parsed.screenTimeReminder));
+      setSleepReminder(Boolean(parsed.sleepReminder));
+      setReducedMotion(Boolean(parsed.reducedMotion));
+      setHighContrast(Boolean(parsed.highContrast));
+      setTwoFactorAuth(Boolean(parsed.twoFactorAuth));
+      setSecurityEmails(parsed.securityEmails ?? true);
+    } catch {
+      toast.error('Impossible de charger les préférences locales');
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settingsSnapshot));
+    document.documentElement.classList.toggle('reduce-motion', reducedMotion);
+    document.documentElement.classList.toggle('high-contrast', highContrast);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, Object.values(settingsSnapshot));
+
+  useEffect(() => {
+    const bytes = Object.keys(localStorage).reduce((sum, key) => {
+      const value = localStorage.getItem(key) || '';
+      return sum + key.length + value.length;
+    }, 0);
+    setCacheSize(bytes > 1024 ? `${Math.round(bytes / 1024)} KB` : `${bytes} B`);
+  }, [searchQuery]);
+
+  const settingsSearchIndex = [
+    { section: 'account', title: 'Gérer le compte', terms: 'profil email telephone mot de passe verification compte createur donnees suppression' },
+    { section: 'privacy', title: 'Confidentialité', terms: 'compte prive commentaires duets stitch telechargement blocage interactions' },
+    { section: 'notifications', title: 'Notifications', terms: 'push email ne pas deranger likes commentaires abonnes mentions messages videos' },
+    { section: 'content', title: 'Contenu et affichage', terms: 'lecture automatique economie donnees wifi sous titres theme sombre apparence langue' },
+    { section: 'wellbeing', title: 'Bien-être numérique', terms: 'temps ecran pause sommeil supervision familiale' },
+    { section: 'creator', title: 'Créateur & Outils', terms: 'analytics monetisation portefeuille studio fan club challenges cadeaux live' },
+    { section: 'accessibility', title: 'Accessibilité', terms: 'contraste animations sous titres lisibilite' },
+    { section: 'language', title: 'Langue et région', terms: 'francais pays region heure devise' },
+    { section: 'storage', title: 'Stockage et données', terms: 'cache telechargements preload donnees export' },
+    { section: 'security', title: 'Sécurité', terms: 'appareils connectes permissions camera micro localisation emails securite 2fa' },
+    { section: 'support', title: 'Aide et signalement', terms: 'support signaler probleme commentaires aide contact' },
+    { section: 'legal', title: 'Informations légales', terms: 'conditions confidentialite licences version mentions legales' },
+  ];
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const searchResults = normalizedSearch
+    ? settingsSearchIndex.filter((item) => `${item.title} ${item.terms}`.toLowerCase().includes(normalizedSearch))
+    : [];
+
+  const openSearchResult = (section: string) => {
+    setOpenSections((current) => Array.from(new Set([...current, section])));
+    toast.info(`Section ouverte : ${settingsSearchIndex.find((item) => item.section === section)?.title}`);
+  };
+
   const handleLogout = async () => {
     await signOut();
     toast.success('Déconnexion réussie');
@@ -176,7 +293,61 @@ const Settings = () => {
   };
 
   const handleDeleteAccount = () => {
-    toast.error('Cette action est irréversible. Veuillez confirmer dans les paramètres du compte.');
+    setConfirmText('');
+    setDangerDialog('delete');
+  };
+
+  const handleDeactivateAccount = () => {
+    setConfirmText('');
+    setDangerDialog('deactivate');
+  };
+
+  const exportSettings = async () => {
+    const payload = {
+      exported_at: new Date().toISOString(),
+      user: {
+        id: user?.id,
+        email: user?.email,
+        username: profile?.username,
+      },
+      profile,
+      preferences: settingsSnapshot,
+    };
+    await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+    toast.success('Données copiées dans le presse-papiers');
+  };
+
+  const clearAppCache = () => {
+    const preserved = new Set([SETTINGS_STORAGE_KEY]);
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith('afrixa:') && !preserved.has(key))
+      .forEach((key) => localStorage.removeItem(key));
+    setCacheSize('0 B');
+    toast.success('Cache Afrixa vidé');
+  };
+
+  const confirmDangerAction = async () => {
+    if (dangerDialog === 'logout') {
+      await handleLogout();
+      return;
+    }
+    if (dangerDialog === 'deactivate') {
+      if (confirmText.toLowerCase() !== 'desactiver') {
+        toast.error('Tapez DESACTIVER pour confirmer');
+        return;
+      }
+      setDangerDialog(null);
+      toast.success('Demande de désactivation enregistrée pour 30 jours');
+      return;
+    }
+    if (dangerDialog === 'delete') {
+      if (confirmText.toLowerCase() !== 'supprimer') {
+        toast.error('Tapez SUPPRIMER pour confirmer');
+        return;
+      }
+      setDangerDialog(null);
+      toast.error('Suppression programmée. Une vérification support sera requise.');
+    }
   };
 
   return (
@@ -203,12 +374,48 @@ const Settings = () => {
               className="pl-10 bg-muted/30 border-border/30"
             />
           </div>
+          {searchResults.length > 0 && (
+            <div className="mt-2 rounded-2xl border border-border/30 bg-card/95 p-2 shadow-lg">
+              {searchResults.slice(0, 5).map((result) => (
+                <button
+                  key={result.section}
+                  onClick={() => openSearchResult(result.section)}
+                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-muted/40"
+                >
+                  <span className="font-medium text-foreground">{result.title}</span>
+                  <ChevronDown className="h-4 w-4 -rotate-90 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </header>
 
       {/* Settings Content */}
       <div className="py-4">
-        <Accordion type="multiple" className="space-y-2">
+        <div className="mx-4 mb-4 grid grid-cols-2 gap-3">
+          <button
+            onClick={() => {
+              setOpenSections(['privacy', 'security']);
+              toast.info('Audit confidentialité ouvert');
+            }}
+            className="rounded-2xl border border-border/30 bg-card/40 p-4 text-left"
+          >
+            <ShieldCheck className="mb-3 h-5 w-5 text-emerald-500" />
+            <p className="text-sm font-bold text-foreground">Audit confidentialité</p>
+            <p className="mt-1 text-xs text-muted-foreground">Compte, interactions, permissions</p>
+          </button>
+          <button
+            onClick={exportSettings}
+            className="rounded-2xl border border-border/30 bg-card/40 p-4 text-left"
+          >
+            <Download className="mb-3 h-5 w-5 text-primary" />
+            <p className="text-sm font-bold text-foreground">Exporter mes données</p>
+            <p className="mt-1 text-xs text-muted-foreground">Profil et préférences</p>
+          </button>
+        </div>
+
+        <Accordion type="multiple" value={openSections} onValueChange={setOpenSections} className="space-y-2">
           {/* 1. Account Management */}
           <AccordionItem value="account" className="border-none">
             <AccordionTrigger className="px-4 py-3 hover:bg-muted/30 [&[data-state=open]]:bg-muted/20">
@@ -347,13 +554,13 @@ const Settings = () => {
               </SettingsSection>
 
               <SettingsSection title="Type de compte">
-                <SettingsItem icon={Sparkles} label="Passer en compte créateur" description="Accès aux analytics et outils" type="navigate" onClick={() => toast.info('Devenir créateur')} />
-                <SettingsItem icon={BarChart3} label="Passer en compte professionnel" description="Outils marketing et publicités" type="navigate" onClick={() => toast.info('Devenir professionnel')} />
+                <SettingsItem icon={Sparkles} label="Passer en compte créateur" description="Accès aux analytics et outils" type="navigate" onClick={() => navigate('/creators/program')} />
+                <SettingsItem icon={BarChart3} label="Passer en compte professionnel" description="Outils marketing et publicités" type="navigate" onClick={() => navigate('/boost')} />
               </SettingsSection>
 
               <SettingsSection title="Données et compte">
-                <SettingsItem icon={Download} label="Télécharger mes données" type="navigate" onClick={() => toast.info('Demande de téléchargement envoyée')} />
-                <SettingsItem icon={Timer} label="Désactiver le compte" description="Désactivation temporaire 30 jours" type="navigate" onClick={() => toast.info('Désactiver le compte')} />
+                <SettingsItem icon={Download} label="Télécharger mes données" type="navigate" onClick={exportSettings} />
+                <SettingsItem icon={Timer} label="Désactiver le compte" description="Désactivation temporaire 30 jours" type="navigate" onClick={handleDeactivateAccount} />
                 <SettingsItem icon={UserX} label="Supprimer le compte" danger type="navigate" onClick={handleDeleteAccount} />
               </SettingsSection>
             </AccordionContent>
@@ -631,15 +838,15 @@ const Settings = () => {
             </AccordionTrigger>
             <AccordionContent className="pb-0">
               <SettingsSection title="Analytics">
-                <SettingsItem icon={BarChart3} label="Vue d'ensemble" type="navigate" />
-                <SettingsItem icon={Video} label="Performance du contenu" type="navigate" />
-                <SettingsItem icon={Users} label="Données abonnés" type="navigate" />
+                <SettingsItem icon={BarChart3} label="Vue d'ensemble" type="navigate" onClick={() => navigate('/creators/studio')} />
+                <SettingsItem icon={Video} label="Performance du contenu" type="navigate" onClick={() => navigate('/creators/studio')} />
+                <SettingsItem icon={Users} label="Données abonnés" type="navigate" onClick={() => navigate('/creators/studio')} />
               </SettingsSection>
 
               <SettingsSection title="Monétisation">
-                <SettingsItem icon={DollarSign} label="Fonds pour créateurs" type="navigate" />
-                <SettingsItem icon={Sparkles} label="Cadeaux Live" type="navigate" />
-                <SettingsItem icon={DollarSign} label="Informations bancaires" type="navigate" />
+                <SettingsItem icon={DollarSign} label="Fonds pour créateurs" type="navigate" onClick={() => navigate('/creators/wallet')} />
+                <SettingsItem icon={Sparkles} label="Cadeaux Live" type="navigate" onClick={() => navigate('/creators/wallet')} />
+                <SettingsItem icon={DollarSign} label="Informations bancaires" type="navigate" onClick={() => navigate('/creators/wallet')} />
               </SettingsSection>
 
               <SettingsSection title="Outils créatifs">
@@ -721,8 +928,8 @@ const Settings = () => {
             </AccordionTrigger>
             <AccordionContent className="pb-0">
               <SettingsSection title="Stockage">
-                <SettingsItem icon={HardDrive} label="Cache" value="124 MB" type="navigate" />
-                <SettingsItem icon={Trash2} label="Vider le cache" type="action" onClick={() => toast.success('Cache vidé')} />
+                <SettingsItem icon={HardDrive} label="Cache local" value={cacheSize} type="info" />
+                <SettingsItem icon={Trash2} label="Vider le cache Afrixa" type="action" onClick={clearAppCache} />
                 <SettingsItem icon={Video} label="Vidéos téléchargées" value="3 vidéos" type="navigate" />
               </SettingsSection>
 
@@ -796,6 +1003,31 @@ const Settings = () => {
                 <SettingsItem icon={MessageSquare} label="Contacter le support" type="navigate" onClick={() => navigate('/help-support')} />
                 <SettingsItem icon={FileText} label="Envoyer des commentaires" type="navigate" onClick={() => navigate('/help-support')} />
               </SettingsSection>
+
+              <SettingsSection title="Message rapide">
+                <div className="space-y-3 px-4 py-4">
+                  <Textarea
+                    value={supportMessage}
+                    onChange={(event) => setSupportMessage(event.target.value)}
+                    placeholder="Décrivez le problème ou votre suggestion..."
+                    className="min-h-24 bg-muted/30"
+                  />
+                  <Button
+                    className="w-full"
+                    variant="gradient"
+                    onClick={() => {
+                      if (!supportMessage.trim()) {
+                        toast.error('Ajoutez un message avant l’envoi');
+                        return;
+                      }
+                      setSupportMessage('');
+                      toast.success('Message transmis au support Afrixa');
+                    }}
+                  >
+                    Envoyer au support
+                  </Button>
+                </div>
+              </SettingsSection>
             </AccordionContent>
           </AccordionItem>
 
@@ -821,7 +1053,7 @@ const Settings = () => {
               </SettingsSection>
 
               <SettingsSection title="À propos">
-                <SettingsItem icon={Info} label="Version" value="1.0.0" type="info" />
+                <SettingsItem icon={Info} label="Version" value="2.0.0" type="info" />
                 <SettingsItem icon={Info} label="Mentions légales" type="navigate" />
               </SettingsSection>
             </AccordionContent>
@@ -833,7 +1065,7 @@ const Settings = () => {
           <Button 
             variant="outline" 
             className="w-full border-destructive/30 text-destructive hover:bg-destructive/10"
-            onClick={handleLogout}
+            onClick={() => setDangerDialog('logout')}
           >
             <LogOut className="w-5 h-5 mr-2" />
             Se déconnecter
@@ -842,10 +1074,56 @@ const Settings = () => {
 
         {/* Footer */}
         <div className="mt-8 pb-8 text-center">
-          <p className="text-xs text-muted-foreground">Afrixa v1.0.0</p>
-          <p className="text-xs text-muted-foreground mt-1">© 2025 Afrixa. Tous droits réservés.</p>
+          <p className="text-xs text-muted-foreground">Afrixa v2.0.0</p>
+          <p className="text-xs text-muted-foreground mt-1">© 2026 Afrixa. Tous droits réservés.</p>
         </div>
       </div>
+
+      <Dialog open={dangerDialog !== null} onOpenChange={(open) => !open && setDangerDialog(null)}>
+        <DialogContent className="border-border/30 bg-background text-foreground">
+          <DialogHeader>
+            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-destructive/10">
+              {dangerDialog === 'logout' ? (
+                <LogOut className="h-6 w-6 text-destructive" />
+              ) : (
+                <AlertTriangle className="h-6 w-6 text-destructive" />
+              )}
+            </div>
+            <DialogTitle>
+              {dangerDialog === 'logout' && 'Se déconnecter'}
+              {dangerDialog === 'deactivate' && 'Désactiver le compte'}
+              {dangerDialog === 'delete' && 'Supprimer le compte'}
+            </DialogTitle>
+            <DialogDescription>
+              {dangerDialog === 'logout' && 'Vous devrez vous reconnecter pour accéder à votre compte Afrixa.'}
+              {dangerDialog === 'deactivate' && 'Votre profil sera masqué temporairement. Tapez DESACTIVER pour confirmer.'}
+              {dangerDialog === 'delete' && 'Cette demande est critique. Tapez SUPPRIMER pour confirmer la procédure.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {dangerDialog !== 'logout' && (
+            <Input
+              value={confirmText}
+              onChange={(event) => setConfirmText(event.target.value)}
+              placeholder={dangerDialog === 'deactivate' ? 'DESACTIVER' : 'SUPPRIMER'}
+              className="bg-muted/30"
+            />
+          )}
+
+          {dangerDialog === 'delete' && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              Les retraits, commandes et litiges doivent être vérifiés avant suppression définitive.
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDangerDialog(null)}>Annuler</Button>
+            <Button variant="destructive" onClick={confirmDangerAction}>
+              Confirmer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

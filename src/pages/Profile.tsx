@@ -10,12 +10,16 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ProfileMenuDrawer } from '@/components/profile-menu/ProfileMenuDrawer';
 import { useAuth } from '@/contexts/useAuth';
 import { ProfileShareSheet } from '@/components/profile/ProfileShareSheet';
+import { CreatorBadge } from '@/components/creators/CreatorBadge';
+import { ProfileCompletionBanner } from '@/components/onboarding/ProfileCompletionBanner';
 
 const tabs = [
   { id: 'videos', icon: Grid3X3, label: 'Vidéos' },
   { id: 'likes', icon: Heart, label: 'J\'aime' },
   { id: 'saved', icon: Bookmark, label: 'Enregistré' },
 ];
+
+type VendorProfile = { is_vendor?: boolean };
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState('videos');
@@ -59,6 +63,8 @@ const Profile = () => {
         </div>
       </header>
 
+      <ProfileCompletionBanner />
+
       {/* Profile info */}
       <section className="px-4 py-6">
         <div className="flex flex-col items-center">
@@ -79,6 +85,15 @@ const Profile = () => {
             @{username}
           </h2>
           <p className="text-foreground font-medium">{displayName}</p>
+
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <CreatorBadge level="starter" />
+            {(profile as VendorProfile | null)?.is_vendor && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-400/30 bg-orange-500/15 px-3 py-1 text-xs font-bold text-orange-300">
+                Vendeur
+              </span>
+            )}
+          </div>
 
           {/* Public info badges */}
           <div className="flex flex-wrap items-center justify-center gap-2 mt-3">

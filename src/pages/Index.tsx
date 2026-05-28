@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { VideoCard } from '@/components/video/VideoCard';
 import { AdCard } from '@/components/video/AdCard';
+import { FeedTutorialOverlay } from '@/components/onboarding/FeedTutorialOverlay';
+import { StoriesRail } from '@/components/stories/StoriesRail';
 import { mockVideos } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 
@@ -98,6 +100,7 @@ const Index = () => {
           />
         </div>
       </header>
+      {activeTab === 'foryou' && <StoriesRail />}
 
       {/* Video Feed */}
       <div
@@ -132,6 +135,7 @@ const Index = () => {
           </div>
         ))}
       </div>
+      {activeTab === 'foryou' && <FeedTutorialOverlay />}
     </div>
   );
 };

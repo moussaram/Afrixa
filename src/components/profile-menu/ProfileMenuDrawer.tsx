@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Activity, WifiOff, QrCode, Building2, Clapperboard, ChevronRight, ArrowLeft, Store, Zap, Package, Wallet } from 'lucide-react';
+import { X, Activity, WifiOff, QrCode, Building2, Clapperboard, ChevronRight, ArrowLeft, Store, Zap, Package, Wallet, Star, Trophy, PlaySquare, Crown, Users, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { ActivityCenter } from './ActivityCenter';
@@ -8,7 +8,7 @@ import { QRCodePanel } from './QRCodePanel';
 import { BusinessSuite } from './BusinessSuite';
 import { EnetStudio } from './EnetStudio';
 
-type MenuSection = null | 'activity' | 'offline' | 'qr' | 'business' | 'studio' | 'myshop' | 'boostprod' | 'orders' | 'wallet';
+type MenuSection = null | 'activity' | 'offline' | 'qr' | 'business' | 'studio' | 'creatorProgram' | 'creatorWallet' | 'challenges' | 'series' | 'fanClub' | 'collabs' | 'spotlight' | 'myshop' | 'boostprod' | 'orders' | 'wallet';
 
 interface MenuItem {
   id: MenuSection;
@@ -67,6 +67,55 @@ const section2: MenuItem[] = [
     gradient: 'from-green-500 to-teal-400',
     badge: 'NEW',
   },
+  {
+    id: 'creatorProgram',
+    icon: Star,
+    label: 'Creator Program',
+    description: 'Badge officiel, niveaux et avantages',
+    gradient: 'from-violet-600 to-purple-400',
+  },
+  {
+    id: 'creatorWallet',
+    icon: Wallet,
+    label: 'Portefeuille createur',
+    description: 'Gains videos, tips, cadeaux et retraits',
+    gradient: 'from-emerald-500 to-teal-400',
+  },
+  {
+    id: 'challenges',
+    icon: Trophy,
+    label: 'Challenges',
+    description: 'Defis officiels et tendances Afrixa',
+    gradient: 'from-amber-500 to-orange-400',
+  },
+  {
+    id: 'series',
+    icon: PlaySquare,
+    label: 'Series',
+    description: 'Regrouper tes videos en episodes',
+    gradient: 'from-sky-500 to-blue-400',
+  },
+  {
+    id: 'fanClub',
+    icon: Crown,
+    label: 'Fan Club',
+    description: 'Abonnements premium et contenu exclusif',
+    gradient: 'from-yellow-500 to-amber-400',
+  },
+  {
+    id: 'collabs',
+    icon: Users,
+    label: 'Collabs',
+    description: 'Duo, Duet, Stitch et demandes recues',
+    gradient: 'from-fuchsia-500 to-pink-400',
+  },
+  {
+    id: 'spotlight',
+    icon: Sparkles,
+    label: 'Spotlight Afrixa',
+    description: 'Mise en avant officielle de la semaine',
+    gradient: 'from-indigo-500 to-violet-400',
+  },
 ];
 
 const section3: MenuItem[] = [
@@ -100,6 +149,13 @@ const sectionTitles: Record<Exclude<MenuSection, null>, string> = {
   qr: 'Mon code QR',
   business: 'Ensemble entreprise',
   studio: 'Afrixa Studio',
+  creatorProgram: 'Creator Program',
+  creatorWallet: 'Portefeuille createur',
+  challenges: 'Challenges',
+  series: 'Series',
+  fanClub: 'Fan Club',
+  collabs: 'Collabs',
+  spotlight: 'Spotlight Afrixa',
   myshop: 'Ma Boutique',
   wallet: 'Portefeuille vendeur',
   boostprod: 'Boost Produit',
@@ -214,7 +270,24 @@ export const ProfileMenuDrawer = ({ open, onClose }: ProfileMenuDrawerProps) => 
                   return (
                     <button
                       key={item.id}
-                      onClick={() => setActiveSection(item.id)}
+                      onClick={() => {
+                        const creatorRoutes: Partial<Record<Exclude<MenuSection, null>, string>> = {
+                          studio: '/creators/studio',
+                          creatorProgram: '/creators/program',
+                          creatorWallet: '/creators/wallet',
+                          challenges: '/creators/challenges',
+                          series: '/creators/series',
+                          fanClub: '/creators/fan-club',
+                          collabs: '/creators/collabs',
+                          spotlight: '/creators/spotlight',
+                        };
+                        if (item.id && creatorRoutes[item.id]) {
+                          handleClose();
+                          navigate(creatorRoutes[item.id] as string);
+                        } else {
+                          setActiveSection(item.id);
+                        }
+                      }}
                       className="w-full flex items-center gap-4 px-4 py-4 hover:bg-muted/30 active:bg-muted/50 transition-colors text-left"
                     >
                       <div className={cn('w-11 h-11 rounded-xl bg-gradient-to-br flex items-center justify-center shrink-0', item.gradient)}>
