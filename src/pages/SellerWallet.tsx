@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Clock, Check, Phone, X } from 'lucide-react';
+import { ArrowLeft, Clock, Check, Phone, X, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -11,6 +11,23 @@ const paymentMethods = [
   { id: 'wave', name: 'Wave', emoji: '🔵' },
   { id: 'mtn', name: 'MTN MoMo', emoji: '🟡' },
   { id: 'moov', name: 'Moov Money', emoji: '🔵' },
+];
+
+const fedapayPayoutMethods = [
+  { id: 'mtn_open', name: 'MTN Bénin' },
+  { id: 'moov', name: 'Moov Bénin' },
+  { id: 'sbin', name: 'Celtis Bénin' },
+  { id: 'mtn_ci', name: 'MTN Côte d’Ivoire' },
+  { id: 'moov_ci', name: 'Moov Côte d’Ivoire' },
+  { id: 'wave_ci', name: 'Wave Côte d’Ivoire' },
+  { id: 'orange_ci', name: 'Orange Côte d’Ivoire' },
+  { id: 'moov_tg', name: 'Moov Togo' },
+  { id: 'togocel', name: 'Togocel' },
+  { id: 'orange-bf', name: 'Orange Burkina Faso' },
+  { id: 'moov_bf', name: 'Moov Burkina Faso' },
+  { id: 'mtn_open_gn', name: 'MTN Guinée' },
+  { id: 'wave_sn', name: 'Wave Sénégal' },
+  { id: 'orange_sn', name: 'Orange Sénégal' },
 ];
 
 interface Payout {
@@ -31,6 +48,9 @@ const SellerWallet = () => {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
+  const [payoutMethod, setPayoutMethod] = useState('');
+  const [payoutPhone, setPayoutPhone] = useState('');
+  const [savingPayoutInfo, setSavingPayoutInfo] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [availableBalance, setAvailableBalance] = useState(0);
@@ -45,7 +65,7 @@ const SellerWallet = () => {
         const uid = userData?.user?.id;
         if (!uid) return;
 
-        const [payoutsRes, ordersRes] = await Promise.all([
+        const [payoutsRes, ordersRes, profileRes] = await Promise.all([
           supabase
             .from('seller_payouts')
             .select('*')
@@ -55,7 +75,11 @@ const SellerWallet = () => {
             .from('orders')
             .select('seller_amount, status, escrow_released')
             .eq('seller_id', uid),
+          supabase.from('profiles').select('numero_mobile, numero_mobile_operateur').eq('user_id', uid).maybeSingle(),
         ]);
+
+        setPayoutMethod(profileRes.data?.numero_mobile_operateur ?? '');
+        setPayoutPhone(profileRes.data?.numero_mobile ?? '');
 
         const list = (payoutsRes.data ?? []) as Payout[];
         setPayouts(list);
@@ -82,10 +106,27 @@ const SellerWallet = () => {
     const amount = parseInt(withdrawAmount);
     if (!amount || amount <= 0) return toast.error('Montant invalide');
     if (amount > availableBalance) return toast.error('Solde insuffisant');
-    if (!selectedMethod) return toast.error('Choisissez un opérateur');
-    if (phone.length < 8) return toast.error('Numéro invalide');
-    setShowWithdraw(false);
-    toast.success('Demande de retrait envoyée ! Vous recevrez votre argent sous 24-48h.');
+    toast.error('Les retraits manuels ne sont pas encore disponibles.');
+  };
+
+  const savePayoutDetails = async () => {
+    if (!payoutMethod) return toast.error('Choisissez votre opérateur de versement');
+    if (payoutPhone.replace(/\D/g, '').length < 8) return toast.error('Numéro de versement invalide');
+    setSavingPayoutInfo(true);
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error('Session utilisateur indisponible');
+      const { error } = await supabase.from('profiles').update({
+        numero_mobile: payoutPhone.trim(),
+        numero_mobile_operateur: payoutMethod,
+      }).eq('user_id', user.id);
+      if (error) throw error;
+      toast.success('Coordonnées de versement enregistrées');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Impossible d’enregistrer les coordonnées');
+    } finally {
+      setSavingPayoutInfo(false);
+    }
   };
 
   return (
@@ -112,6 +153,21 @@ const SellerWallet = () => {
             Retirer mes gains
           </button>
         </div>
+
+        <section className="rounded-2xl bg-[#1A1A2E] border border-border/20 p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Coordonnées pour recevoir vos versements</h2>
+            <p className="text-xs text-muted-foreground mt-1">Ces informations servent aux versements FedaPay après livraison confirmée.</p>
+          </div>
+          <select value={payoutMethod} onChange={(event) => setPayoutMethod(event.target.value)} className="w-full p-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground text-sm">
+            <option value="">Choisir un opérateur</option>
+            {fedapayPayoutMethods.map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
+          </select>
+          <input type="tel" value={payoutPhone} onChange={(event) => setPayoutPhone(event.target.value)} placeholder="Numéro Mobile Money destinataire" className="w-full p-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground placeholder:text-muted-foreground text-sm" />
+          <button onClick={savePayoutDetails} disabled={savingPayoutInfo} className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm disabled:opacity-50">
+            <Save className="w-4 h-4 inline mr-2" />{savingPayoutInfo ? 'Enregistrement…' : 'Enregistrer les coordonnées'}
+          </button>
+        </section>
 
         <div className="p-4 rounded-2xl bg-[#0c1a2e] border border-[#3B82F6]/30 flex items-center justify-between">
           <div className="flex items-center gap-3">

@@ -26,8 +26,7 @@ const CreatorWalletPage = () => {
       toast({ title: 'Information manquante', description: "Choisis un opérateur et renseigne ton numéro.", variant: 'destructive' });
       return;
     }
-    setOpen(false);
-    toast({ title: 'Demande de retrait envoyée', description: 'Le transfert Mobile Money sera traité via Flutterwave.' });
+    toast({ title: 'Retraits temporairement indisponibles', description: "Les versements créateur seront activés après l'autorisation des paiements sortants par FedaPay.", variant: 'destructive' });
   };
 
   return (

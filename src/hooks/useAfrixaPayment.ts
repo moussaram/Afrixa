@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { calculateSplit, CommissionType, generateOrderRef, verifyFlutterwavePayment } from '@/lib/flutterwave';
+import { calculateSplit, CommissionType, generateOrderRef, verifyFedaPayPayment } from '@/lib/fedapay';
 
 export type PaymentStatus = 'idle' | 'processing' | 'success' | 'failed';
 
@@ -18,7 +18,7 @@ export interface InitPaymentData {
 }
 
 /**
- * Centralise toute la logique de paiement Afrixa (Flutterwave + escrow Supabase).
+ * Centralise toute la logique de paiement Afrixa (FedaPay + escrow Supabase).
  */
 export const useAfrixaPayment = () => {
   const [paymentStep, setPaymentStep] = useState<number>(1);
@@ -75,7 +75,7 @@ export const useAfrixaPayment = () => {
         .from('payment_transactions')
         .insert({
           order_id: order.id,
-          flutterwave_ref: ref,
+          fedapay_ref: ref,
           amount: totalPrice,
           commission_amount: commissionAmount,
           seller_amount: sellerAmount,
@@ -101,9 +101,9 @@ export const useAfrixaPayment = () => {
     }
   };
 
-  const handleSuccess = async (flutterwaveTxId: string | number) => {
+  const handleSuccess = async (fedaPayTransactionId: string | number) => {
     try {
-      const result = await verifyFlutterwavePayment(flutterwaveTxId, orderRef);
+      const result = await verifyFedaPayPayment(fedaPayTransactionId, orderRef);
       if (!result.verified) {
         setPaymentStatus('failed');
         toast.error('Paiement non vérifié. Contactez le support.');

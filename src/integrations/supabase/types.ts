@@ -425,9 +425,10 @@ export type Database = {
           created_at: string
           currency: string
           escrow_status: string
-          flutterwave_ref: string
-          flutterwave_response: Json | null
-          flutterwave_tx_id: string | null
+          fedapay_ref: string
+          fedapay_payment_ref: string | null
+          fedapay_response: Json | null
+          fedapay_transaction_id: string | null
           id: string
           operator: string | null
           order_id: string
@@ -442,9 +443,10 @@ export type Database = {
           created_at?: string
           currency?: string
           escrow_status?: string
-          flutterwave_ref: string
-          flutterwave_response?: Json | null
-          flutterwave_tx_id?: string | null
+          fedapay_ref: string
+          fedapay_payment_ref?: string | null
+          fedapay_response?: Json | null
+          fedapay_transaction_id?: string | null
           id?: string
           operator?: string | null
           order_id: string
@@ -459,9 +461,10 @@ export type Database = {
           created_at?: string
           currency?: string
           escrow_status?: string
-          flutterwave_ref?: string
-          flutterwave_response?: Json | null
-          flutterwave_tx_id?: string | null
+          fedapay_ref?: string
+          fedapay_payment_ref?: string | null
+          fedapay_response?: Json | null
+          fedapay_transaction_id?: string | null
           id?: string
           operator?: string | null
           order_id?: string
@@ -569,6 +572,7 @@ export type Database = {
           nationalite_flag: string | null
           nom: string | null
           numero_mobile: string | null
+          numero_mobile_operateur: string | null
           prenom: string | null
           profession: string | null
           updated_at: string
@@ -591,6 +595,7 @@ export type Database = {
           nationalite_flag?: string | null
           nom?: string | null
           numero_mobile?: string | null
+          numero_mobile_operateur?: string | null
           prenom?: string | null
           profession?: string | null
           updated_at?: string
@@ -613,6 +618,7 @@ export type Database = {
           nationalite_flag?: string | null
           nom?: string | null
           numero_mobile?: string | null
+          numero_mobile_operateur?: string | null
           prenom?: string | null
           profession?: string | null
           updated_at?: string
@@ -670,6 +676,9 @@ export type Database = {
           phone: string | null
           seller_id: string
           status: string
+          fedapay_response: Json | null
+          fedapay_transfer_id: string | null
+          fedapay_transfer_ref: string | null
         }
         Insert: {
           amount: number
@@ -681,6 +690,9 @@ export type Database = {
           phone?: string | null
           seller_id: string
           status?: string
+          fedapay_response?: Json | null
+          fedapay_transfer_id?: string | null
+          fedapay_transfer_ref?: string | null
         }
         Update: {
           amount?: number
@@ -692,6 +704,9 @@ export type Database = {
           phone?: string | null
           seller_id?: string
           status?: string
+          fedapay_response?: Json | null
+          fedapay_transfer_id?: string | null
+          fedapay_transfer_ref?: string | null
         }
         Relationships: [
           {

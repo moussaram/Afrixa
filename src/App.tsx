@@ -61,6 +61,7 @@ const SeriesPage = lazy(() => import("./pages/creators/SeriesPage"));
 const FanClubPage = lazy(() => import("./pages/creators/FanClubPage"));
 const CollabsPage = lazy(() => import("./pages/creators/CollabsPage"));
 const SpotlightPage = lazy(() => import("./pages/creators/SpotlightPage"));
+const FedaPayReturn = lazy(() => import("./pages/FedaPayReturn"));
 
 const AppContent = () => {
   const location = useLocation();
@@ -71,7 +72,8 @@ const AppContent = () => {
 
   // Redirect to login if not authenticated (sauf pages auth)
   const isAuthPage = location.pathname.startsWith('/auth');
-  if (!loading && !user && !isAuthPage) {
+  const isPaymentReturn = location.pathname === '/payment/return';
+  if (!loading && !user && !isAuthPage && !isPaymentReturn) {
     return <Navigate to="/auth/login" replace />;
   }
 
@@ -87,6 +89,7 @@ const AppContent = () => {
           <Route path="/auth/reset-password" element={<ResetPassword />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/auth/complete-profile" element={<CompleteProfile />} />
+          <Route path="/payment/return" element={<FedaPayReturn />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/upload-video" element={<UploadVideo />} />
           <Route path="/search" element={<SearchAdvanced />} />

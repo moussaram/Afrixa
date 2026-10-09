@@ -1,4 +1,4 @@
 project_id = "tktsjjrvclkhgpemmzgr"
 
-[functions.flutterwave-webhook]
+[functions.fedapay-webhook]
 verify_jwt = false

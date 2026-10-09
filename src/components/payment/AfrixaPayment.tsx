@@ -1,19 +1,15 @@
 import { useEffect, useState } from 'react';
 import { X, ArrowLeft, Phone, Minus, Plus, MapPin, MessageSquare, ShieldCheck, Loader2, Check } from 'lucide-react';
-import { useFlutterwave, closePaymentModal } from 'flutterwave-react-v3';
-import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import {
   calculateSplit,
   generateOrderRef,
-  getFlutterwaveConfig,
-  fetchFlutterwavePublicKey,
-  verifyFlutterwavePayment,
+  createFedaPayCheckout,
   maskPhone,
   type CommissionType,
-} from '@/lib/flutterwave';
+} from '@/lib/fedapay';
 
 interface PaymentProduct {
   id?: string;
@@ -47,13 +43,9 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
   const [operator, setOperator] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
   const [processing, setProcessing] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [orderId, setOrderId] = useState('');
-  const [flwTxId, setFlwTxId] = useState('');
   const [orderRef, setOrderRef] = useState(() => generateOrderRef());
-  const [publicKey, setPublicKey] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
-  const [buyerName, setBuyerName] = useState('Client Afrixa');
 
   const unit = customPrice ?? product.price;
   const total = unit * quantity;
@@ -63,51 +55,19 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
 
   useEffect(() => {
     let active = true;
-    Promise.all([fetchFlutterwavePublicKey(), supabase.auth.getUser()])
-      .then(([key, { data, error }]) => {
+    supabase.auth.getUser()
+      .then(({ data, error }) => {
         if (!active) return;
         if (error || !data.user) throw new Error('Session utilisateur indisponible');
-        setPublicKey(key);
         setBuyerEmail(data.user.email ?? '');
-        const name = [data.user.user_metadata?.prenom, data.user.user_metadata?.nom]
-          .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
-          .join(' ') || data.user.user_metadata?.full_name || data.user.email?.split('@')[0];
-        setBuyerName(name || 'Client Afrixa');
       })
       .catch(() => {
-        if (active) toast.error('Configuration de paiement indisponible');
+        if (active) toast.error('Connectez-vous pour poursuivre le paiement');
       });
     return () => { active = false; };
   }, []);
 
-  const flwConfig = getFlutterwaveConfig({
-    amount: total,
-    currency,
-    buyerEmail,
-    buyerPhone: phone,
-    buyerName,
-    orderRef,
-    operator: operator ?? 'orange_money',
-    metadata: { product_name: product.name, seller: product.sellerName, quantity },
-    publicKey,
-  });
-
-  const handleFlutterPayment = useFlutterwave(flwConfig);
-
-  const fireConfetti = () => {
-    const end = Date.now() + 2500;
-    const interval = setInterval(() => {
-      if (Date.now() > end) return clearInterval(interval);
-      confetti({ particleCount: 4, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#10b981', '#6366F1', '#8B5CF6'] });
-      confetti({ particleCount: 4, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#10b981', '#6366F1', '#8B5CF6'] });
-    }, 150);
-  };
-
   const startPayment = async () => {
-    if (!publicKey) {
-      toast.error('Configuration en cours, réessayez');
-      return;
-    }
     if (!operator || !phone.trim()) {
       toast.error('Choisissez un opérateur et saisissez votre numéro');
       return;
@@ -156,7 +116,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
       // 2. Create payment_transactions row
       const { error: transactionError } = await supabase.from('payment_transactions').insert({
         order_id: order.id,
-        flutterwave_ref: orderRef,
+        fedapay_ref: orderRef,
         amount: total,
         commission_amount: commissionAmount,
         seller_amount: sellerAmount,
@@ -168,36 +128,8 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
       });
       if (transactionError) throw transactionError;
 
-      // 3. Launch Flutterwave
-      handleFlutterPayment({
-        callback: async (response) => {
-          closePaymentModal();
-          if (response.status === 'successful') {
-            const txId = String(response.transaction_id);
-            setFlwTxId(txId);
-
-            // Verify server-side
-            const verifyRes = await verifyFlutterwavePayment(txId, orderRef).catch(() => null);
-
-            if (verifyRes?.verified) {
-              setSuccess(true);
-              setProcessing(false);
-              fireConfetti();
-              toast.success('Paiement confirmé !');
-            } else {
-              failOrder();
-            }
-          } else {
-            failOrder();
-          }
-        },
-        onClose: () => {
-          setOrderRef(generateOrderRef());
-          setProcessing(false);
-          setStep(3);
-          toast.info('Paiement annulé');
-        },
-      });
+      const checkout = await createFedaPayCheckout(order.id);
+      window.location.assign(checkout.checkoutUrl);
     } catch (e) {
       console.error(e);
       toast.error(e instanceof Error ? e.message : 'Erreur lors du paiement');
@@ -206,20 +138,11 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
     }
   };
 
-  const failOrder = () => {
-    // A failed or abandoned attempt keeps its order for reconciliation. Give
-    // the next attempt a fresh reference so it can create a separate order.
-    setOrderRef(generateOrderRef());
-    setProcessing(false);
-    setStep(3);
-    toast.error('Paiement échoué, réessayez');
-  };
-
   const goBack = () => { if (step > 1 && !processing) setStep((step - 1) as 1 | 2 | 3); };
 
   return (
     <>
-      <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm" onClick={success || !processing ? onClose : undefined} />
+      <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm" onClick={!processing ? onClose : undefined} />
       <div className="fixed inset-x-0 bottom-0 z-[60] bg-[#1A1A2E] rounded-t-[20px] border-t border-border/30 max-h-[90vh] overflow-y-auto animate-slide-up">
         <div className="w-12 h-1.5 bg-muted rounded-full mx-auto mt-3" />
 
@@ -234,7 +157,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
               {step === 1 && 'Résumé commande'}
               {step === 2 && 'Moyen de paiement'}
               {step === 3 && 'Récapitulatif final'}
-              {step === 4 && (success ? 'Paiement confirmé' : 'Traitement...')}
+              {step === 4 && 'Redirection vers FedaPay…'}
             </h3>
           </div>
           <button onClick={onClose} className="p-1 rounded-full hover:bg-muted">
@@ -350,11 +273,11 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
               <div className="p-4 rounded-2xl bg-[#0c1a2e] border border-[#3B82F6]/30">
                 <div className="flex items-start gap-3">
                   <ShieldCheck className="w-5 h-5 text-[#3B82F6] mt-0.5 shrink-0" />
-                  <p className="text-xs text-[#3B82F6]">🔒 Votre argent est sécurisé par Flutterwave. Il sera versé au vendeur uniquement après confirmation de votre réception.</p>
+                  <p className="text-xs text-[#3B82F6]">Paiement sécurisé via FedaPay. Vous serez redirigé vers sa page pour finaliser la transaction.</p>
                 </div>
               </div>
 
-              <button onClick={startPayment} disabled={processing || !publicKey}
+              <button onClick={startPayment} disabled={processing}
                 className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm disabled:opacity-50">
                 {processing ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : `Payer ${total.toLocaleString()} ${currency}`}
               </button>
@@ -364,36 +287,11 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
           {/* STEP 4 */}
           {step === 4 && (
             <div className="flex flex-col items-center text-center space-y-4 py-6">
-              {!success ? (
-                <>
-                  <Loader2 className="w-16 h-16 text-primary animate-spin" />
-                  <div>
-                    <h4 className="text-lg font-bold text-foreground">Traitement en cours...</h4>
-                    <p className="text-sm text-muted-foreground mt-1">Confirmez sur votre téléphone</p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center animate-scale-in">
-                    <Check className="w-10 h-10 text-emerald-500" />
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-bold text-foreground">Paiement réussi !</h4>
-                    <p className="text-sm text-muted-foreground mt-1">Commande : <span className="font-bold text-primary">#{orderRef}</span></p>
-                    {flwTxId && <p className="text-xs text-muted-foreground mt-1">Réf Flutterwave : FLW-{flwTxId}</p>}
-                    <p className="text-xs text-muted-foreground mt-2">Le vendeur a été notifié</p>
-                  </div>
-                  <div className="w-full space-y-3 pt-4">
-                    <button onClick={() => { onClose(); window.location.href = `/orders/${orderId}`; }}
-                      className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm">
-                      📦 Voir ma commande
-                    </button>
-                    <button onClick={onClose} className="w-full py-3 rounded-xl bg-muted text-foreground font-semibold text-sm">
-                      🏠 Retour au feed
-                    </button>
-                  </div>
-                </>
-              )}
+              <Loader2 className="w-16 h-16 text-primary animate-spin" />
+              <div>
+                <h4 className="text-lg font-bold text-foreground">Ouverture de la page de paiement sécurisée…</h4>
+                <p className="text-sm text-muted-foreground mt-1">Vous reviendrez sur Afrixa après le paiement.</p>
+              </div>
             </div>
           )}
         </div>
