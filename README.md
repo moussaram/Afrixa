@@ -45,13 +45,19 @@ VITE_SUPABASE_PUBLISHABLE_KEY=
 VITE_SUPABASE_PROJECT_ID=
 ```
 
-Les secrets serveur restent dans les secrets Supabase Edge Functions, jamais dans le frontend:
+Les clés privées ne doivent jamais être ajoutées au `.env` Vite, au bundle client ou préfixées par `VITE_`. Configure les secrets dans Supabase Edge Functions (Dashboard > Edge Functions > Secrets, ou CLI):
 
 ```txt
 SUPABASE_SERVICE_ROLE_KEY
 FLUTTERWAVE_SECRET_KEY
 FLW_WEBHOOK_SECRET
 ```
+
+Pour Flutterwave, configure `FLUTTERWAVE_PUBLIC_KEY`, `FLUTTERWAVE_SECRET_KEY` et `FLW_WEBHOOK_SECRET` dans les secrets Edge Functions. Le webhook Flutterwave doit pointer vers `https://<project-ref>.supabase.co/functions/v1/flutterwave-webhook` et utiliser le même secret hash. Active les événements `charge.completed` et `transfer.completed`.
+
+Les migrations du dossier `supabase/migrations` doivent être appliquées au projet Supabase avant de déployer les Edge Functions correspondantes. La migration de sécurité des paiements verrouille les montants issus des produits et réserve les modifications d'état financier aux fonctions serveur.
+
+Twilio peut être utilisé comme fournisseur SMS d'OTP de Supabase Auth, mais il n'est pas appelé directement depuis le frontend. Les intégrations Cloudflare Stream, Agora, Firebase et Google décrites dans le document de travail ne sont pas encore présentes dans le dépôt et nécessitent leurs comptes et secrets avant activation. Google Cloud Storage est facultatif : Supabase Storage reste le stockage média existant.
 
 ## Regles projet
 

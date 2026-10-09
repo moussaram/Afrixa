@@ -17,9 +17,9 @@ export const calculateSplit = (totalAmount: number, type: CommissionType = 'norm
 };
 
 export const generateOrderRef = () => {
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 10000);
-  return `AFR-${timestamp}-${random}`;
+  if (typeof crypto === 'undefined') throw new Error('Secure payment references are unavailable');
+  const randomId = crypto.randomUUID().replaceAll('-', '');
+  return `AFR-${randomId}`;
 };
 
 export const getPaymentOption = (_operator: string) => 'mobilemoneyfranco,card';
@@ -67,13 +67,12 @@ export const getFlutterwaveConfig = (p: FlutterwaveConfigParams) => ({
 export const verifyFlutterwavePayment = async (
   transaction_id: string | number,
   tx_ref: string,
-  expected_amount?: number,
 ) => {
   const { data, error } = await supabase.functions.invoke('flutterwave-verify', {
-    body: { transaction_id, tx_ref, expected_amount },
+    body: { transaction_id, tx_ref },
   });
   if (error) throw error;
-  return data as { verified: boolean; flwData: unknown };
+  return data as { verified: boolean; status?: string };
 };
 
 export const maskPhone = (phone: string) => {

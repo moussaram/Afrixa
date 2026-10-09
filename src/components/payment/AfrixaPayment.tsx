@@ -50,8 +50,10 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
   const [success, setSuccess] = useState(false);
   const [orderId, setOrderId] = useState('');
   const [flwTxId, setFlwTxId] = useState('');
-  const [orderRef] = useState(() => generateOrderRef());
+  const [orderRef, setOrderRef] = useState(() => generateOrderRef());
   const [publicKey, setPublicKey] = useState('');
+  const [buyerEmail, setBuyerEmail] = useState('');
+  const [buyerName, setBuyerName] = useState('Client Afrixa');
 
   const unit = customPrice ?? product.price;
   const total = unit * quantity;
@@ -60,21 +62,34 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
   const selectedOp = operators.find(o => o.id === operator);
 
   useEffect(() => {
-    fetchFlutterwavePublicKey().then(setPublicKey).catch(() => {
-      toast.error('Configuration de paiement indisponible');
-    });
+    let active = true;
+    Promise.all([fetchFlutterwavePublicKey(), supabase.auth.getUser()])
+      .then(([key, { data, error }]) => {
+        if (!active) return;
+        if (error || !data.user) throw new Error('Session utilisateur indisponible');
+        setPublicKey(key);
+        setBuyerEmail(data.user.email ?? '');
+        const name = [data.user.user_metadata?.prenom, data.user.user_metadata?.nom]
+          .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+          .join(' ') || data.user.user_metadata?.full_name || data.user.email?.split('@')[0];
+        setBuyerName(name || 'Client Afrixa');
+      })
+      .catch(() => {
+        if (active) toast.error('Configuration de paiement indisponible');
+      });
+    return () => { active = false; };
   }, []);
 
   const flwConfig = getFlutterwaveConfig({
     amount: total,
     currency,
-    buyerEmail: 'buyer@afrixa.app',
-    buyerPhone: phone || '0000000000',
-    buyerName: 'Afrixa Buyer',
+    buyerEmail,
+    buyerPhone: phone,
+    buyerName,
     orderRef,
     operator: operator ?? 'orange_money',
     metadata: { product_name: product.name, seller: product.sellerName, quantity },
-    publicKey: publicKey || 'pending',
+    publicKey,
   });
 
   const handleFlutterPayment = useFlutterwave(flwConfig);
@@ -93,20 +108,29 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
       toast.error('Configuration en cours, réessayez');
       return;
     }
+    if (!operator || !phone.trim()) {
+      toast.error('Choisissez un opérateur et saisissez votre numéro');
+      return;
+    }
     setProcessing(true);
     setStep(4);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const buyerId = user?.id ?? '00000000-0000-0000-0000-000000000000';
-      const sellerId = product.sellerId ?? '00000000-0000-0000-0000-000000000001';
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error('Connectez-vous pour effectuer le paiement');
+      if (!product.id || !product.sellerId) {
+        throw new Error('Les informations du produit ou du vendeur sont indisponibles');
+      }
+      if (user.email && buyerEmail && user.email !== buyerEmail) {
+        throw new Error('La session utilisateur a changé. Fermez puis rouvrez le paiement.');
+      }
 
       // 1. Create order
       const { data: order, error: orderErr } = await supabase
         .from('orders')
         .insert({
-          buyer_id: buyerId,
-          seller_id: sellerId,
+          buyer_id: user.id,
+          seller_id: product.sellerId,
           product_id: product.id,
           product_name: product.name,
           product_image: product.imageUrl,
@@ -130,7 +154,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
       setOrderId(order.id);
 
       // 2. Create payment_transactions row
-      await supabase.from('payment_transactions').insert({
+      const { error: transactionError } = await supabase.from('payment_transactions').insert({
         order_id: order.id,
         flutterwave_ref: orderRef,
         amount: total,
@@ -142,6 +166,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
         status: 'initiated',
         escrow_status: 'held',
       });
+      if (transactionError) throw transactionError;
 
       // 3. Launch Flutterwave
       handleFlutterPayment({
@@ -152,39 +177,22 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
             setFlwTxId(txId);
 
             // Verify server-side
-            const verifyRes = await verifyFlutterwavePayment(txId, orderRef, total).catch(() => null);
+            const verifyRes = await verifyFlutterwavePayment(txId, orderRef).catch(() => null);
 
             if (verifyRes?.verified) {
-              // Insert commission_split
-              const { data: tx } = await supabase
-                .from('payment_transactions')
-                .select('id')
-                .eq('flutterwave_ref', orderRef)
-                .maybeSingle();
-
-              if (tx) {
-                await supabase.from('commission_splits').insert({
-                  transaction_id: tx.id,
-                  afrixa_amount: commissionAmount,
-                  seller_amount: sellerAmount,
-                  split_type: commissionType,
-                  split_rate: rate,
-                  status: 'pending',
-                });
-              }
-
               setSuccess(true);
               setProcessing(false);
               fireConfetti();
               toast.success('Paiement confirmé !');
             } else {
-              await failOrder(order.id);
+              failOrder();
             }
           } else {
-            await failOrder(order.id);
+            failOrder();
           }
         },
         onClose: () => {
+          setOrderRef(generateOrderRef());
           setProcessing(false);
           setStep(3);
           toast.info('Paiement annulé');
@@ -198,11 +206,10 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
     }
   };
 
-  const failOrder = async (oid: string) => {
-    await supabase.from('payment_transactions')
-      .update({ status: 'failed', escrow_status: 'refunded' })
-      .eq('flutterwave_ref', orderRef);
-    await supabase.from('orders').update({ status: 'annulee' }).eq('id', oid);
+  const failOrder = () => {
+    // A failed or abandoned attempt keeps its order for reconciliation. Give
+    // the next attempt a fresh reference so it can create a separate order.
+    setOrderRef(generateOrderRef());
     setProcessing(false);
     setStep(3);
     toast.error('Paiement échoué, réessayez');

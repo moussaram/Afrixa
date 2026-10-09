@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { calculateSplit, CommissionType, generateOrderRef } from '@/lib/flutterwave';
+import { calculateSplit, CommissionType, generateOrderRef, verifyFlutterwavePayment } from '@/lib/flutterwave';
 
 export type PaymentStatus = 'idle' | 'processing' | 'success' | 'failed';
 
@@ -89,16 +89,6 @@ export const useAfrixaPayment = () => {
         .single();
       if (txErr || !tx) throw txErr ?? new Error('Transaction non créée');
 
-      // 3. Commission split record
-      await supabase.from('commission_splits').insert({
-        transaction_id: tx.id,
-        split_type: data.commissionType ?? 'normale',
-        split_rate: rate,
-        afrixa_amount: commissionAmount,
-        seller_amount: sellerAmount,
-        status: 'pending',
-      });
-
       setOrderId(order.id);
       setOrderRef(ref);
       return { orderId: order.id, orderRef: ref, totalPrice };
@@ -113,10 +103,8 @@ export const useAfrixaPayment = () => {
 
   const handleSuccess = async (flutterwaveTxId: string | number) => {
     try {
-      const { data, error } = await supabase.functions.invoke('flutterwave-verify', {
-        body: { transaction_id: flutterwaveTxId, tx_ref: orderRef },
-      });
-      if (error || !data?.verified) {
+      const result = await verifyFlutterwavePayment(flutterwaveTxId, orderRef);
+      if (!result.verified) {
         setPaymentStatus('failed');
         toast.error('Paiement non vérifié. Contactez le support.');
         return false;
@@ -131,11 +119,8 @@ export const useAfrixaPayment = () => {
     }
   };
 
-  const handleFailure = async () => {
+  const handleFailure = () => {
     setPaymentStatus('failed');
-    if (orderId) {
-      await supabase.from('orders').update({ status: 'annulee' }).eq('id', orderId);
-    }
     toast.error('Paiement échoué. Vérifiez votre solde et réessayez.');
   };
 

@@ -12,6 +12,7 @@ export const getOperatorCode = (operator: string): string => {
 
 export interface ReleaseEscrowResult {
   success: boolean;
+  pending?: boolean;
   reference?: string;
   error?: string;
 }
@@ -30,6 +31,7 @@ export const releaseEscrow = async (orderId: string): Promise<ReleaseEscrowResul
     }
     return {
       success: !!data?.success,
+      pending: !!data?.pending,
       reference: data?.reference,
       error: data?.error,
     };
