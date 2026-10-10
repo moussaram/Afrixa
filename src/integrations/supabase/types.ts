@@ -349,6 +349,8 @@ export type Database = {
           commission_rate: number
           created_at: string
           delivery_address: string | null
+          delivery_lat: number | null
+          delivery_lng: number | null
           dispute_reason: string | null
           escrow_released: boolean
           id: string
@@ -374,6 +376,8 @@ export type Database = {
           commission_rate?: number
           created_at?: string
           delivery_address?: string | null
+          delivery_lat?: number | null
+          delivery_lng?: number | null
           dispute_reason?: string | null
           escrow_released?: boolean
           id?: string
@@ -399,6 +403,8 @@ export type Database = {
           commission_rate?: number
           created_at?: string
           delivery_address?: string | null
+          delivery_lat?: number | null
+          delivery_lng?: number | null
           dispute_reason?: string | null
           escrow_released?: boolean
           id?: string

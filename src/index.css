@@ -4,6 +4,14 @@
 @tailwind components;
 @tailwind utilities;
 
+.afrixa-address-autocomplete gmp-place-autocomplete {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
 @layer base {
   :root {
     --background: 222 47% 6%;

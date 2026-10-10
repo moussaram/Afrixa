@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, ArrowLeft, Phone, Minus, Plus, MapPin, MessageSquare, ShieldCheck, Loader2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { createAddressAutocomplete } from '@/lib/googleMaps';
 import {
   calculateSplit,
   generateOrderRef,
@@ -39,6 +40,9 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [quantity, setQuantity] = useState(1);
   const [address, setAddress] = useState('');
+  const [deliveryCoordinates, setDeliveryCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapsUnavailable, setMapsUnavailable] = useState(false);
+  const addressAutocompleteRef = useRef<HTMLDivElement>(null);
   const [buyerNote, setBuyerNote] = useState('');
   const [operator, setOperator] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
@@ -66,6 +70,27 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
       });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (step !== 1 || !addressAutocompleteRef.current) return;
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    createAddressAutocomplete(addressAutocompleteRef.current, (selectedAddress, coordinates) => {
+      if (disposed || !selectedAddress) return;
+      setAddress(selectedAddress);
+      setDeliveryCoordinates(coordinates);
+      setMapsUnavailable(false);
+    }).then((remove) => {
+      if (disposed) remove();
+      else cleanup = remove;
+    }).catch(() => {
+      if (!disposed) setMapsUnavailable(true);
+    });
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }, [step]);
 
   const startPayment = async () => {
     if (!operator || !phone.trim()) {
@@ -103,6 +128,8 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
           payment_operator: operator,
           buyer_phone: phone,
           delivery_address: address,
+          delivery_lat: deliveryCoordinates?.lat ?? null,
+          delivery_lng: deliveryCoordinates?.lng ?? null,
           buyer_note: buyerNote,
           status: 'en_attente',
           payment_reference: orderRef,
@@ -205,10 +232,22 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
                 <div className="flex justify-between text-[11px] text-muted-foreground/70"><span>Vendeur reçoit</span><span>{sellerAmount.toLocaleString()} {currency}</span></div>
               </div>
 
-              <div className="relative">
-                <MapPin className="absolute left-4 top-4 w-4 h-4 text-muted-foreground" />
-                <input type="text" placeholder="Adresse de livraison" value={address} onChange={e => setAddress(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground placeholder:text-muted-foreground text-sm focus:border-primary" />
+              <div>
+                {!mapsUnavailable && <div ref={addressAutocompleteRef} className="afrixa-address-autocomplete" />}
+                {mapsUnavailable && (
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-4 w-4 h-4 text-muted-foreground" />
+                    <input type="text" placeholder="Adresse de livraison" value={address} onChange={e => {
+                      setAddress(e.target.value);
+                      setDeliveryCoordinates(null);
+                    }}
+                      className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground placeholder:text-muted-foreground text-sm focus:border-primary" />
+                  </div>
+                )}
+                {!mapsUnavailable && address && (
+                  <p className="mt-2 text-xs text-muted-foreground">Adresse sélectionnée : {address}</p>
+                )}
+                {mapsUnavailable && <p className="mt-1 text-xs text-muted-foreground">Saisie manuelle (Google Maps indisponible)</p>}
               </div>
 
               <div className="relative">

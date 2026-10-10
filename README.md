@@ -10,6 +10,7 @@ Afrixa est une application mobile-first de social commerce pour l'Afrique franco
 - Paiements diaspora : Stripe, à intégrer
 - Vidéo : upload TUS et lecture HLS via Cloudflare Stream
 - Notifications Web : Firebase Cloud Messaging
+- Adresses de livraison : Google Places Autocomplete (nouveau)
 - Live : Agora, à intégrer
 
 ## Démarrage local
@@ -56,6 +57,10 @@ Le client web s'inscrit aux notifications FCM via Firebase Installation IDs (FID
 Les paramètres `VITE_FIREBASE_*` du `.env` sont la configuration publique de l'application Web Firebase. Ne jamais placer de clé privée de compte de service Firebase ou de clé serveur FCM dans le frontend. Activer l'API Firebase Cloud Messaging HTTP v1 et accorder au compte de service le rôle Firebase Cloud Messaging API Admin. Ajouter `FIREBASE_PROJECT_ID`, le JSON de compte de service dans `FIREBASE_SERVICE_ACCOUNT_JSON` et un secret aléatoire dans `FCM_WEBHOOK_SECRET` aux secrets Edge Functions.
 
 Pour envoyer les notifications déjà créées par l'application, configurer une Database Webhook Supabase sur `public.notifications`, événement `INSERT`, vers `https://<project-ref>.supabase.co/functions/v1/send-push-notification`. Ajouter l'en-tête `x-afrixa-webhook-secret` avec la même valeur que `FCM_WEBHOOK_SECRET`. Cette fonction utilise FCM HTTP v1 côté serveur et supprime les installations FCM expirées.
+
+## Adresses (Google Maps Platform)
+
+Définir `VITE_GOOGLE_MAPS_API_KEY` avec une clé de navigateur restreinte par référent HTTP, activer Maps JavaScript API et Places API (New), et configurer la facturation Google Maps Platform. L'autocomplétion est limitée aux pays d'Afrique de l'Ouest/Centrale utilisés ici ; la saisie manuelle reste disponible si Google Maps est absent ou inaccessible. Appliquer la migration `20261010120000_order_delivery_coordinates.sql` pour enregistrer latitude et longitude des adresses sélectionnées.
 
 ## Scripts
 
