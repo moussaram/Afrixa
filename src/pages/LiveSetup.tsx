@@ -4,6 +4,7 @@ import { X, Camera, Users, Globe, Lock, ImagePlus, ChevronRight, Radio } from 'l
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { moderateImage } from '@/lib/googleVision';
 
 type PrivacyOption = 'public' | 'followers' | 'private';
 
@@ -25,9 +26,24 @@ export default function LiveSetup() {
 
   const handleCoverPick = () => coverInputRef.current?.click();
 
-  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (file) {
+      try {
+        const result = await moderateImage(file);
+        if (result.status === 'blocked') {
+          toast.error('Cette image ne respecte pas les règles de contenu.');
+          return;
+        }
+        if (result.status === 'review') {
+          toast.error('Cette image nécessite une vérification avant utilisation.');
+          return;
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Vérification de l’image impossible');
+        return;
+      }
       const url = URL.createObjectURL(file);
       setCoverImage(url);
     }

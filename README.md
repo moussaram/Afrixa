@@ -11,6 +11,7 @@ Afrixa est une application mobile-first de social commerce pour l'Afrique franco
 - Vidéo : upload TUS et lecture HLS via Cloudflare Stream
 - Notifications Web : Firebase Cloud Messaging
 - Adresses de livraison : Google Places Autocomplete (nouveau)
+- Modération d'images : Google Cloud Vision SafeSearch
 - Live : Agora, à intégrer
 
 ## Démarrage local
@@ -61,6 +62,10 @@ Pour envoyer les notifications déjà créées par l'application, configurer une
 ## Adresses (Google Maps Platform)
 
 Définir `VITE_GOOGLE_MAPS_API_KEY` avec une clé de navigateur restreinte par référent HTTP, activer Maps JavaScript API et Places API (New), et configurer la facturation Google Maps Platform. L'autocomplétion est limitée aux pays d'Afrique de l'Ouest/Centrale utilisés ici ; la saisie manuelle reste disponible si Google Maps est absent ou inaccessible. Appliquer la migration `20261010120000_order_delivery_coordinates.sql` pour enregistrer latitude et longitude des adresses sélectionnées.
+
+## Modération d'images (Google Cloud Vision)
+
+Configurer `GOOGLE_VISION_API_KEY` uniquement dans les secrets des Edge Functions et activer Cloud Vision API côté Google Cloud. Déployer `moderate-image`. La sélection d'une couverture de live est vérifiée côté serveur (fichier limité à 5 Mo) : les résultats évidents sont bloqués et les cas ambigus refusés avec demande de revue, car le projet n'a pas encore de file d'examen humain. En cas d'indisponibilité du service, l'image n'est pas acceptée. Réutiliser `moderateImage` avant toute future publication d'image de profil, produit ou story.
 
 ## Scripts
 
