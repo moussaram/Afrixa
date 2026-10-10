@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-const EXPIRY = 300; // 5 minutes
+const RESEND_COOLDOWN = 60;
 
 interface RegisterOtpFormData {
   nom?: string;
@@ -35,7 +35,7 @@ const VerifyOTP = () => {
   const mode = state?.mode || 'login';
 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [timer, setTimer] = useState(EXPIRY);
+  const [timer, setTimer] = useState(RESEND_COOLDOWN);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -82,7 +82,6 @@ const VerifyOTP = () => {
   };
 
   const verifyCode = async (code: string) => {
-    if (timer === 0) { toast.error('Le code a expiré, renvoyez-en un nouveau'); return; }
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.verifyOtp({
@@ -101,7 +100,7 @@ const VerifyOTP = () => {
       // Si inscription : mettre à jour le profil
       if (mode === 'register' && formData && data.user) {
         const username = `${formData.prenom?.toLowerCase().replace(/\s/g, '_')}_${Math.floor(Math.random() * 9999)}`;
-        await supabase.from('profiles').update({
+        const { error: profileError } = await supabase.from('profiles').update({
           nom: formData.nom,
           prenom: formData.prenom,
           deuxieme_prenom: formData.deuxieme_prenom || null,
@@ -116,9 +115,16 @@ const VerifyOTP = () => {
           inscription_complete: true,
         }).eq('user_id', data.user.id);
 
+        if (profileError) {
+          console.error('Profile completion after phone verification failed', profileError);
+          toast.error('Numéro vérifié. Complétez votre profil dans les paramètres.');
+          navigate('/settings');
+          return;
+        }
+
         toast.success(`Bienvenue sur Afrixa, ${formData.prenom} ! 🎉`);
       } else if (mode === 'forgot') {
-        navigate('/auth/reset-password', { state: { phone } });
+        navigate('/auth/reset-password', { state: { phoneRecovery: true, phone } });
         return;
       } else {
         toast.success('Connexion réussie !');
@@ -139,9 +145,11 @@ const VerifyOTP = () => {
   const handleResend = async () => {
     setResending(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({ phone });
+      const { error } = mode === 'register'
+        ? await supabase.auth.resend({ type: 'sms', phone })
+        : await supabase.auth.signInWithOtp({ phone, options: { shouldCreateUser: false } });
       if (error) { toast.error('Erreur de renvoi'); return; }
-      setTimer(EXPIRY);
+      setTimer(RESEND_COOLDOWN);
       setOtp(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
       toast.success('Nouveau code envoyé !');
@@ -201,13 +209,13 @@ const VerifyOTP = () => {
         <div className="text-center">
           {timer > 0 ? (
             <p className="text-sm text-muted-foreground">
-              Code valide pendant{' '}
+              Vous pourrez demander un nouveau code dans{' '}
               <span className={cn('font-bold', timer < 60 ? 'text-destructive' : 'text-primary')}>
                 {formatTime(timer)}
               </span>
             </p>
           ) : (
-            <p className="text-sm text-destructive font-medium">Code expiré</p>
+            <p className="text-sm text-muted-foreground">Vous pouvez demander un nouveau code.</p>
           )}
         </div>
 

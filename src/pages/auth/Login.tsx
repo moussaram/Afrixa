@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import splashScreen from '@/assets/splash-screen.jpg';
+import { normalizeInternationalPhone } from '@/lib/phone';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -27,8 +28,11 @@ const Login = () => {
     try {
       let error;
       if (isPhone) {
-        // Normaliser le numéro
-        const phone = identifier.startsWith('+') ? identifier : `+${identifier.replace(/\D/g, '')}`;
+        const phone = normalizeInternationalPhone(identifier);
+        if (!phone) {
+          toast.error('Saisissez votre numéro au format international, par exemple +2250700000000.');
+          return;
+        }
         const res = await supabase.auth.signInWithPassword({ phone, password });
         error = res.error;
       } else {

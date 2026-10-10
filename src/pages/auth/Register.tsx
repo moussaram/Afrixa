@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { africanCountries, type AfricanCountry } from '@/data/africanCountries';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { formatPhoneWithDialCode } from '@/lib/phone';
 
 // All dial codes from african countries + popular ones
 const DIAL_CODES = [
@@ -100,10 +101,28 @@ const Register = () => {
   const handleRegister = async () => {
     setLoading(true);
     try {
-      const phone = `${form.dialCode}${form.numero.replace(/\D/g, '')}`;
-      const { error } = await supabase.auth.signInWithOtp({
+      const phone = formatPhoneWithDialCode(form.dialCode, form.numero);
+      if (!phone) {
+        toast.error('Numéro invalide. Vérifiez le pays et le numéro saisi.');
+        return;
+      }
+      const { error } = await supabase.auth.signUp({
         phone,
-        options: { data: { phone } }
+        password: form.password,
+        options: {
+          channel: 'sms',
+          data: {
+            phone,
+            nom: form.nom.trim(),
+            prenom: form.prenom.trim(),
+            deuxieme_prenom: form.deuxieme_prenom.trim() || null,
+            date_naissance: form.date_naissance,
+            lieu_naissance: form.lieu_naissance.trim(),
+            profession: form.profession.trim(),
+            nationalite: form.nationalite?.name || null,
+            nationalite_flag: form.nationalite?.flag || null,
+          },
+        },
       });
       if (error) {
         toast.error(error.message || 'Erreur envoi OTP');
@@ -113,7 +132,15 @@ const Register = () => {
       navigate('/auth/verify-otp', {
         state: {
           phone,
-          formData: form,
+          formData: {
+            nom: form.nom,
+            prenom: form.prenom,
+            deuxieme_prenom: form.deuxieme_prenom,
+            date_naissance: form.date_naissance,
+            lieu_naissance: form.lieu_naissance,
+            profession: form.profession,
+            nationalite: form.nationalite,
+          },
           mode: 'register'
         }
       });

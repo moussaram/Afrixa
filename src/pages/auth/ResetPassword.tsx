@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 
 const ResetPassword = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -16,9 +17,9 @@ const ResetPassword = () => {
   const [isRecovery, setIsRecovery] = useState(false);
 
   useEffect(() => {
-    // Vérifier si on est en mode recovery (lien email)
+    // Recovery par email (lien) ou par téléphone après validation OTP.
     const hash = window.location.hash;
-    if (hash.includes('type=recovery')) {
+    if (hash.includes('type=recovery') || (location.state as { phoneRecovery?: boolean } | null)?.phoneRecovery) {
       setIsRecovery(true);
     }
     // Écouter l'event PASSWORD_RECOVERY
@@ -26,7 +27,7 @@ const ResetPassword = () => {
       if (event === 'PASSWORD_RECOVERY') setIsRecovery(true);
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [location.state]);
 
   const handleReset = async () => {
     if (password.length < 8) { toast.error('Minimum 8 caractères'); return; }

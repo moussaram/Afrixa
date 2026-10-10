@@ -1,20 +1,22 @@
-import { useMemo, useState } from 'react';
-import { Check, Film, Image, Loader2, Music, PackagePlus, Shield, Upload } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Check, Loader2, Upload } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { Switch } from '@/components/ui/switch';
-import { compressVideo, getVideoMetadata } from '@/lib/videoCompressor';
+import { getVideoMetadata } from '@/lib/videoCompressor';
 import { sanitizeText } from '@/lib/validation';
 import { cn } from '@/lib/utils';
+import { createCloudflareUpload, refreshCloudflareVideoStatus, removeFailedCloudflareUpload, uploadVideoWithTus } from '@/lib/cloudflare/streamUpload';
 
 type UploadStep = 'select' | 'edit' | 'publish' | 'upload';
 
 const steps: UploadStep[] = ['select', 'edit', 'publish', 'upload'];
 
 export const AdvancedVideoUpload = () => {
+  const navigate = useNavigate();
   const [step, setStep] = useState<UploadStep>('select');
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -22,8 +24,14 @@ export const AdvancedVideoUpload = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [privacy, setPrivacy] = useState<'public' | 'followers' | 'private'>('public');
-  const [options, setOptions] = useState({ duet: true, stitch: true, download: true, exclusive: false });
   const [metadata, setMetadata] = useState<{ duration: number; resolution: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploaded, setUploaded] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+
+  useEffect(() => () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
 
   const stepIndex = steps.indexOf(step);
   const canContinue = useMemo(() => {
@@ -58,17 +66,60 @@ export const AdvancedVideoUpload = () => {
       return;
     }
     if (step === 'upload') {
+      if (uploaded) { navigate('/'); return; }
       if (!file) return;
-      const compressed = await compressVideo(file, setProgress);
-      console.info('Video prete pour Supabase Storage', {
-        title: sanitizeText(title),
-        description: sanitizeText(description),
-        privacy,
-        options,
-        metadata,
-        compressedSize: compressed.size,
-      });
-      toast.success('Video compressee et prete a publier');
+      setUploading(true);
+      let session: Awaited<ReturnType<typeof createCloudflareUpload>> | null = null;
+      let transferComplete = false;
+      try {
+        session = await createCloudflareUpload({
+          file,
+          duration: metadata?.duration ?? 0,
+          title: sanitizeText(title),
+          description: sanitizeText(description),
+          privacy,
+        });
+        setStatusMessage('Envoi de la vidéo vers Cloudflare Stream…');
+        await uploadVideoWithTus(file, session.uploadUrl, setProgress);
+        transferComplete = true;
+        setProgress(100);
+        setUploaded(true);
+        setStatusMessage('Vidéo reçue. Traitement et modération en cours…');
+
+        let streamStatus: 'processing' | 'ready' | 'error' = 'processing';
+        for (let attempt = 0; attempt < 20 && streamStatus === 'processing'; attempt += 1) {
+          streamStatus = await refreshCloudflareVideoStatus(session.videoId);
+          if (streamStatus === 'processing') {
+            await new Promise(resolve => window.setTimeout(resolve, 3000));
+          }
+        }
+        if (streamStatus === 'ready') {
+          setStatusMessage('Vidéo traitée et en attente de modération avant publication.');
+          toast.success('Vidéo envoyée à Cloudflare Stream.');
+        } else if (streamStatus === 'error') {
+          setStatusMessage('Cloudflare a signalé une erreur de traitement. La vidéo reste privée.');
+          toast.error('Cloudflare n’a pas pu traiter cette vidéo.');
+        } else {
+          setStatusMessage('La vidéo est reçue et continue son traitement. Elle restera privée jusqu’à la modération.');
+          toast.success('Vidéo reçue, traitement en cours.');
+        }
+      } catch (error) {
+        console.error('Cloudflare Stream video upload failed', error);
+        if (session && !transferComplete) {
+          try { await removeFailedCloudflareUpload(session.videoId); }
+          catch (cleanupError) { console.error('Could not remove the failed Cloudflare upload', cleanupError); }
+        }
+        if (transferComplete) {
+          setUploaded(true);
+          setProgress(100);
+          setStatusMessage('Transfert reçu, mais le statut Cloudflare n’a pas pu être confirmé. La vidéo reste privée.');
+        } else {
+          toast.error(error instanceof Error ? error.message : 'Échec de l’upload vidéo. Réessayez.');
+          setStatusMessage('Échec de l’upload. Vous pouvez réessayer.');
+        }
+      } finally {
+        setUploading(false);
+      }
       return;
     }
     setStep(steps[stepIndex + 1]);
@@ -96,13 +147,8 @@ export const AdvancedVideoUpload = () => {
         {step === 'edit' && (
           <div className="space-y-4">
             {previewUrl && <video src={previewUrl} controls className="aspect-[9/16] w-full rounded-3xl bg-black object-cover" />}
-            <div className="grid grid-cols-2 gap-3">
-              <Button variant="outline" className="gap-2"><Film className="h-4 w-4" /> Rogner</Button>
-              <Button variant="outline" className="gap-2"><Image className="h-4 w-4" /> Miniature</Button>
-              <Button variant="outline" className="gap-2"><Music className="h-4 w-4" /> Son</Button>
-              <Button variant="outline" className="gap-2"><PackagePlus className="h-4 w-4" /> Produits</Button>
-            </div>
             {metadata && <p className="text-xs text-muted-foreground">{Math.round(metadata.duration)}s | {metadata.resolution}</p>}
+            <p className="text-xs text-muted-foreground">Cloudflare Stream optimisera la vidéo pour sa diffusion après l’envoi.</p>
           </div>
         )}
 
@@ -117,26 +163,22 @@ export const AdvancedVideoUpload = () => {
                 </button>
               ))}
             </div>
-            {Object.entries({ duet: 'Duet', stitch: 'Stitch', download: 'Download', exclusive: 'Fan Club' }).map(([key, label]) => (
-              <div key={key} className="flex items-center justify-between rounded-2xl bg-card p-4">
-                <span className="flex items-center gap-2 text-sm font-bold"><Shield className="h-4 w-4" /> {label}</span>
-                <Switch checked={options[key as keyof typeof options]} onCheckedChange={checked => setOptions(current => ({ ...current, [key]: checked }))} />
-              </div>
-            ))}
+            <p className="text-xs text-muted-foreground">La vidéo sera conservée en privé jusqu’à la fin du traitement et de la modération.</p>
           </div>
         )}
 
         {step === 'upload' && (
           <div className="rounded-3xl bg-card p-6 text-center">
-            {progress < 100 ? <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-primary" /> : <Check className="mx-auto mb-4 h-10 w-10 text-primary" />}
-            <h2 className="text-lg font-black">Compression et upload</h2>
+            {uploaded ? <Check className="mx-auto mb-4 h-10 w-10 text-primary" /> : <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-primary" />}
+            <h2 className="text-lg font-black">{uploaded ? 'Vidéo envoyée' : 'Upload Cloudflare Stream'}</h2>
             <Progress value={progress} className="mt-5 h-3" />
             <p className="mt-3 text-sm text-muted-foreground">{progress}%</p>
+            {statusMessage && <p className="mt-3 text-sm text-muted-foreground">{statusMessage}</p>}
           </div>
         )}
 
-        <Button onClick={next} className="mt-6 h-14 w-full rounded-2xl text-base font-black">
-          {step === 'upload' ? 'Publier' : 'Continuer'}
+        <Button onClick={next} disabled={uploading} className="mt-6 h-14 w-full rounded-2xl text-base font-black">
+          {step === 'upload' ? uploading ? 'Envoi en cours…' : uploaded ? 'Terminer' : 'Envoyer la vidéo' : 'Continuer'}
         </Button>
       </div>
     </section>

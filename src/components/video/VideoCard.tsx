@@ -49,6 +49,41 @@ export const VideoCard = ({
   // Ref to block rapid double-click race condition
   const lastTapRef = useRef<number>(0);
 
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!element) return;
+    if (!video.videoUrl.includes('.m3u8')) {
+      element.src = video.videoUrl;
+      return;
+    }
+
+    let hls: { destroy: () => void } | null = null;
+    let active = true;
+    if (element.canPlayType('application/vnd.apple.mpegurl')) {
+      element.src = video.videoUrl;
+    } else {
+      import('hls.js').then(({ default: Hls }) => {
+        if (!active) return;
+        if (Hls.isSupported()) {
+          const player = new Hls({ enableWorker: true });
+          hls = player;
+          player.loadSource(video.videoUrl);
+          player.attachMedia(element);
+        } else {
+          element.src = video.videoUrl;
+        }
+      }).catch((error) => console.error('Unable to load the HLS player', error));
+    }
+
+    return () => {
+      active = false;
+      hls?.destroy();
+      element.pause();
+      element.removeAttribute('src');
+      element.load();
+    };
+  }, [video.videoUrl]);
+
   const {
     isLiked,
     isSaved,
@@ -136,6 +171,7 @@ export const VideoCard = ({
         onClick={handleVideoClick}
         onDoubleClick={handleDoubleClick}
         onTimeUpdate={handleTimeUpdate}
+        onCanPlay={() => { if (isActive) videoRef.current?.play().catch(() => {}); }}
         poster={video.thumbnailUrl}
       />
       <AdvancedVideoControls videoRef={videoRef} videoId={video.id} />

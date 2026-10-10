@@ -8,7 +8,9 @@ Afrixa est une application mobile-first de social commerce pour l'Afrique franco
 - Backend : Supabase Auth, PostgreSQL, Realtime, Row Level Security et Edge Functions
 - Paiements locaux en XOF : FedaPay (checkout hébergé)
 - Paiements diaspora : Stripe, à intégrer
-- Vidéo, live et notifications : Cloudflare Stream, Agora et Firebase, à intégrer
+- Vidéo : upload TUS et lecture HLS via Cloudflare Stream
+- Notifications Web : Firebase Cloud Messaging
+- Live : Agora, à intégrer
 
 ## Démarrage local
 
@@ -38,6 +40,14 @@ Pour la production, utiliser l'URL API FedaPay de production fournie pour le com
 Les versements aux vendeurs restent désactivés tant que FedaPay n'a pas activé l'API Payout pour le compte marchand. Après activation et configuration des moyens de versement propres à chaque vendeur, définir `FEDAPAY_PAYOUTS_ENABLED=true`.
 
 Appliquer les migrations de `supabase/migrations` avant de déployer les Edge Functions. Le checkout doit être créé et vérifié côté serveur ; le navigateur ne constitue pas une preuve de paiement.
+
+## Vérification SMS (Supabase Auth + Twilio)
+
+L'inscription et la récupération par téléphone utilisent les OTP générés et vérifiés par Supabase Auth. Configurez le fournisseur SMS Twilio dans Supabase Dashboard → Authentication → Providers → Phone ; les identifiants Twilio restent dans cette configuration serveur et ne vont jamais dans les variables `VITE_*`. Activez la confirmation des numéros, définissez les limites d'envoi et activez CAPTCHA pour limiter les abus. Le code n'implémente pas de table OTP parallèle.
+
+## Vidéos (Cloudflare Stream)
+
+L'upload utilise un lien TUS à usage unique créé par une Edge Function authentifiée. Les vidéos de 500 Mo maximum sont envoyées par blocs directement à Cloudflare ; le token API Cloudflare reste côté serveur. Appliquer la migration `20261010100000_cloudflare_stream.sql`, déployer `create-cloudflare-upload`, `complete-cloudflare-upload` et `delete-cloudflare-upload`, puis configurer `CF_STREAM_ACCOUNT_ID`, `CF_STREAM_API_TOKEN` (permission Stream Write) et `CF_STREAM_CUSTOMER_CODE` dans les secrets Edge Functions. La vidéo reste non publiée jusqu'à la fin du traitement et à la modération.
 
 ## Notifications push (Firebase Cloud Messaging)
 

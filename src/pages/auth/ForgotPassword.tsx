@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { normalizeInternationalPhone } from '@/lib/phone';
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
@@ -18,8 +19,9 @@ const ForgotPassword = () => {
     setLoading(true);
     try {
       if (method === 'phone') {
-        const phone = value.startsWith('+') ? value : `+${value.replace(/\D/g, '')}`;
-        const { error } = await supabase.auth.signInWithOtp({ phone });
+        const phone = normalizeInternationalPhone(value);
+        if (!phone) { toast.error('Saisissez un numéro international valide, par exemple +2250700000000.'); return; }
+        const { error } = await supabase.auth.signInWithOtp({ phone, options: { shouldCreateUser: false } });
         if (error) { toast.error('Erreur d\'envoi'); return; }
         navigate('/auth/verify-otp', { state: { phone, mode: 'forgot' } });
       } else {
