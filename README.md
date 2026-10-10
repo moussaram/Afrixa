@@ -39,6 +39,14 @@ Les versements aux vendeurs restent désactivés tant que FedaPay n'a pas activ�
 
 Appliquer les migrations de `supabase/migrations` avant de déployer les Edge Functions. Le checkout doit être créé et vérifié côté serveur ; le navigateur ne constitue pas une preuve de paiement.
 
+## Notifications push (Firebase Cloud Messaging)
+
+Le client web s'inscrit aux notifications FCM via Firebase Installation IDs (FID), enregistrés dans `user_fcm_tokens`. L'activation se fait à la demande de l'utilisateur dans Paramètres et requiert HTTPS ainsi qu'un navigateur compatible.
+
+Les paramètres `VITE_FIREBASE_*` du `.env` sont la configuration publique de l'application Web Firebase. Ne jamais placer de clé privée de compte de service Firebase ou de clé serveur FCM dans le frontend. Activer l'API Firebase Cloud Messaging HTTP v1 et accorder au compte de service le rôle Firebase Cloud Messaging API Admin. Ajouter `FIREBASE_PROJECT_ID`, le JSON de compte de service dans `FIREBASE_SERVICE_ACCOUNT_JSON` et un secret aléatoire dans `FCM_WEBHOOK_SECRET` aux secrets Edge Functions.
+
+Pour envoyer les notifications déjà créées par l'application, configurer une Database Webhook Supabase sur `public.notifications`, événement `INSERT`, vers `https://<project-ref>.supabase.co/functions/v1/send-push-notification`. Ajouter l'en-tête `x-afrixa-webhook-secret` avec la même valeur que `FCM_WEBHOOK_SECRET`. Cette fonction utilise FCM HTTP v1 côté serveur et supprime les installations FCM expirées.
+
 ## Scripts
 
 ```sh

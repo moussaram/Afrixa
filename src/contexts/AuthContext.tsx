@@ -90,6 +90,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signOut = async () => {
+    if (user && !DEV_MODE) {
+      const { error } = await (supabase as any).from('user_fcm_tokens')
+        .delete().eq('user_id', user.id).eq('platform', 'web_fid');
+      if (error) console.error('Failed to remove this account’s push installation before sign-out', error);
+    }
     await supabase.auth.signOut();
   };
 

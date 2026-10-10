@@ -78,6 +78,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { africanCountries, type AfricanCountry } from '@/data/africanCountries';
+import { disableWebPush, enableWebPush } from '@/lib/firebase/messaging';
 
 const SETTINGS_STORAGE_KEY = 'afrixa:user-settings:v1';
 
@@ -167,6 +168,35 @@ const Settings = () => {
   const [notifyMessages, setNotifyMessages] = useState(true);
   const [notifyNewVideos, setNotifyNewVideos] = useState(true);
   const [doNotDisturb, setDoNotDisturb] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+
+  useEffect(() => {
+    if (!user) { setPushEnabled(false); return; }
+    let active = true;
+    (supabase as any).from('user_fcm_tokens').select('id')
+      .eq('user_id', user.id).eq('platform', 'web_fid').limit(1)
+      .then(({ data, error }: { data: unknown[] | null; error: unknown }) => {
+        if (active && !error) setPushEnabled(Boolean(data?.length));
+      });
+    return () => { active = false; };
+  }, [user]);
+
+  const togglePushNotifications = async (enabled: boolean) => {
+    if (!user) { toast.error('Connectez-vous pour activer les notifications.'); return; }
+    setPushLoading(true);
+    try {
+      if (enabled) await enableWebPush(user.id);
+      else await disableWebPush(user.id);
+      setPushEnabled(enabled);
+      toast.success(enabled ? 'Notifications push activées.' : 'Notifications push désactivées.');
+    } catch (error) {
+      console.error('Push notification preference update failed', error);
+      toast.error(error instanceof Error ? error.message : 'Impossible de modifier les notifications push.');
+    } finally {
+      setPushLoading(false);
+    }
+  };
   
   // Content & Display
   const [autoPlay, setAutoPlay] = useState(true);
@@ -653,6 +683,14 @@ const Settings = () => {
             </AccordionTrigger>
             <AccordionContent className="pb-0">
               <SettingsSection title="Mode silencieux">
+                <SettingsItem
+                  icon={Bell}
+                  label="Notifications push sur cet appareil"
+                  description={pushLoading ? 'Mise à jour…' : 'Recevoir les alertes Afrixa lorsque l’application est fermée'}
+                  type="toggle"
+                  checked={pushEnabled}
+                  onToggle={togglePushNotifications}
+                />
                 <SettingsItem 
                   icon={BellOff} 
                   label="Ne pas déranger" 

@@ -2,3 +2,6 @@ project_id = "tktsjjrvclkhgpemmzgr"
 
 [functions.fedapay-webhook]
 verify_jwt = false
+
+[functions.send-push-notification]
+verify_jwt = false
