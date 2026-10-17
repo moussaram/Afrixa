@@ -50,7 +50,6 @@ const CompleteProfile = () => {
         profession: form.profession,
         nationalite: form.nationalite?.name || null,
         nationalite_flag: form.nationalite?.flag || null,
-        email_verifie: true,
         username,
         inscription_complete: true,
       }).eq('user_id', user.id);
