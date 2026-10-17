@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -80,6 +80,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { africanCountries, type AfricanCountry } from '@/data/africanCountries';
 import { disableWebPush, enableWebPush } from '@/lib/firebase/messaging';
 import { getAnalyticsConsent, setAnalyticsConsent } from '@/lib/firebase/analytics';
+import { usePersistedSettings, type BooleanSettings } from '@/hooks/usePersistedSettings';
 
 const SETTINGS_STORAGE_KEY = 'afrixa:user-settings:v1';
 
@@ -256,6 +257,32 @@ const Settings = () => {
     securityEmails,
   };
 
+  const applyPersistedSettings = useCallback((next: BooleanSettings) => {
+    setPrivateAccount(next.privateAccount ?? false);
+    setFilterComments(next.filterComments ?? true);
+    setAllowDownloads(next.allowDownloads ?? true);
+    setAllowDuets(next.allowDuets ?? true);
+    setAllowStitchs(next.allowStitchs ?? true);
+    setNotifyLikes(next.notifyLikes ?? true);
+    setNotifyComments(next.notifyComments ?? true);
+    setNotifyFollowers(next.notifyFollowers ?? true);
+    setNotifyMentions(next.notifyMentions ?? true);
+    setNotifyMessages(next.notifyMessages ?? true);
+    setNotifyNewVideos(next.notifyNewVideos ?? true);
+    setDoNotDisturb(next.doNotDisturb ?? false);
+    setAutoPlay(next.autoPlay ?? true);
+    setDataSaver(next.dataSaver ?? false);
+    setAutoSubtitles(next.autoSubtitles ?? false);
+    setHdOnWifi(next.hdOnWifi ?? true);
+    setDarkMode(next.darkMode ?? true);
+    setScreenTimeReminder(next.screenTimeReminder ?? false);
+    setSleepReminder(next.sleepReminder ?? false);
+    setReducedMotion(next.reducedMotion ?? false);
+    setHighContrast(next.highContrast ?? false);
+    setTwoFactorAuth(next.twoFactorAuth ?? false);
+    setSecurityEmails(next.securityEmails ?? true);
+  }, []);
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
@@ -295,6 +322,8 @@ const Settings = () => {
     document.documentElement.classList.toggle('high-contrast', highContrast);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, Object.values(settingsSnapshot));
+
+  usePersistedSettings(user?.id, settingsSnapshot, applyPersistedSettings);
 
   useEffect(() => {
     const bytes = Object.keys(localStorage).reduce((sum, key) => {
