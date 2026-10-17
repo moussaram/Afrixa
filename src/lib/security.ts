@@ -22,48 +22,21 @@ export const RATE_LIMITS: Record<RateLimitedAction, { limit: number; windowMs: n
   tip: { limit: 60, windowMs: 60 * 60 * 1000 },
 };
 
-export const getRateLimitWindowStart = (action: RateLimitedAction) => {
-  const windowMs = RATE_LIMITS[action].windowMs;
-  return new Date(Date.now() - windowMs).toISOString();
-};
-
-export const checkRateLimit = async (userId: string, action: RateLimitedAction) => {
-  const config = RATE_LIMITS[action];
-  const windowStart = getRateLimitWindowStart(action);
-
-  const { data, error } = await supabase
-    .from('rate_limits')
-    .select('id,count,window_start')
-    .eq('user_id', userId)
-    .eq('action', action)
-    .gte('window_start', windowStart)
-    .order('window_start', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+export const checkRateLimit = async (_userId: string, action: RateLimitedAction) => {
+  const { data, error } = await supabase.functions.invoke('check-rate-limit', {
+    body: { action },
+  });
 
   if (error) throw error;
-
-  if (!data) {
-    const { error: insertError } = await supabase
-      .from('rate_limits')
-      .insert({ user_id: userId, action, count: 1 });
-
-    if (insertError) throw insertError;
-    return { allowed: true, remaining: config.limit - 1, limit: config.limit };
+  if (typeof data?.allowed !== 'boolean' || typeof data?.remaining !== 'number') {
+    throw new Error('Réponse invalide du service de limitation');
   }
 
-  if ((data.count ?? 0) >= config.limit) {
-    return { allowed: false, remaining: 0, limit: config.limit };
-  }
-
-  const nextCount = (data.count ?? 0) + 1;
-  const { error: updateError } = await supabase
-    .from('rate_limits')
-    .update({ count: nextCount })
-    .eq('id', data.id);
-
-  if (updateError) throw updateError;
-  return { allowed: true, remaining: Math.max(config.limit - nextCount, 0), limit: config.limit };
+  return {
+    allowed: data.allowed,
+    remaining: data.remaining,
+    limit: typeof data.limit === 'number' ? data.limit : RATE_LIMITS[action].limit,
+  };
 };
 
 export const findBannedWords = async (text: string) => {
