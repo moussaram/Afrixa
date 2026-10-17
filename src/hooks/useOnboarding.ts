@@ -30,7 +30,11 @@ export const useOnboarding = () => {
       setLoading(true);
       const cached = localStorage.getItem(storageKey);
       if (cached) {
-        setState({ ...defaultState, ...JSON.parse(cached) });
+        try {
+          setState({ ...defaultState, ...JSON.parse(cached) });
+        } catch {
+          localStorage.removeItem(storageKey);
+        }
       }
 
       if (!user?.id || user.id.startsWith('mock-')) {
@@ -41,20 +45,25 @@ export const useOnboarding = () => {
       // New migration tables are not present in the generated Supabase types yet.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const client = supabase as any;
-      const { data } = await client
-        .from('user_onboarding')
-        .select('step_completed,interests,onboarding_done')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      try {
+        const { data, error } = await client
+          .from('user_onboarding')
+          .select('step_completed,interests,onboarding_done')
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-      if (mounted && data) {
-        const next = {
-          step_completed: data.step_completed ?? 0,
-          interests: data.interests ?? [],
-          onboarding_done: Boolean(data.onboarding_done),
-        };
-        setState(next);
-        localStorage.setItem(storageKey, JSON.stringify(next));
+        if (error) throw error;
+        if (mounted && data) {
+          const next = {
+            step_completed: data.step_completed ?? 0,
+            interests: data.interests ?? [],
+            onboarding_done: Boolean(data.onboarding_done),
+          };
+          setState(next);
+          localStorage.setItem(storageKey, JSON.stringify(next));
+        }
+      } catch (error) {
+        console.error('Unable to load onboarding progress', error);
       }
 
       if (mounted) setLoading(false);
@@ -69,14 +78,15 @@ export const useOnboarding = () => {
   const save = useCallback(
     async (next: Partial<OnboardingState>) => {
       const merged = { ...state, ...next };
-      setState(merged);
-      localStorage.setItem(storageKey, JSON.stringify(merged));
-
-      if (!user?.id || user.id.startsWith('mock-')) return merged;
+      if (!user?.id || user.id.startsWith('mock-')) {
+        setState(merged);
+        localStorage.setItem(storageKey, JSON.stringify(merged));
+        return merged;
+      }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const client = supabase as any;
-      await client.from('user_onboarding').upsert(
+      const { error } = await client.from('user_onboarding').upsert(
         {
           user_id: user.id,
           step_completed: merged.step_completed,
@@ -85,6 +95,10 @@ export const useOnboarding = () => {
         },
         { onConflict: 'user_id' }
       );
+      if (error) throw error;
+
+      setState(merged);
+      localStorage.setItem(storageKey, JSON.stringify(merged));
 
       return merged;
     },

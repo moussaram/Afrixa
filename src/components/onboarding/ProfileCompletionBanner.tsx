@@ -1,5 +1,6 @@
 import { Camera, FileText, Link as LinkIcon, Sparkles } from 'lucide-react';
 import { useAuth } from '@/contexts/useAuth';
+import { useOnboarding } from '@/hooks/useOnboarding';
 import { cn } from '@/lib/utils';
 
 interface ProfileCompletionBannerProps {
@@ -16,6 +17,7 @@ type ProfileWithCompletion = {
 
 export const ProfileCompletionBanner = ({ interestsCount = 0 }: ProfileCompletionBannerProps) => {
   const { profile } = useAuth();
+  const { state: onboarding } = useOnboarding();
   const completionProfile = profile as ProfileWithCompletion | null;
   const createdAt = completionProfile?.created_at ? new Date(completionProfile.created_at).getTime() : Date.now();
   const isOldEnough = Date.now() - createdAt > 3 * 24 * 60 * 60 * 1000;
@@ -24,11 +26,11 @@ export const ProfileCompletionBanner = ({ interestsCount = 0 }: ProfileCompletio
     { label: 'Photo', done: Boolean(completionProfile?.avatar_url), icon: Camera },
     { label: 'Bio', done: Boolean(completionProfile?.bio), icon: FileText },
     { label: 'Lien', done: Boolean(completionProfile?.website_url || completionProfile?.link), icon: LinkIcon },
-    { label: 'Interets', done: interestsCount > 0, icon: Sparkles },
+    { label: 'Interets', done: (interestsCount || onboarding.interests.length) > 0, icon: Sparkles },
   ];
   const progress = items.filter(item => item.done).length * 25;
 
-  if (!completionProfile || progress === 100 || (!isOldEnough && completionProfile.avatar_url)) return null;
+  if (!completionProfile || progress === 100 || !isOldEnough || completionProfile.avatar_url) return null;
 
   return (
     <section className="mx-4 mb-4 rounded-2xl border border-primary/20 bg-primary/10 p-4">
