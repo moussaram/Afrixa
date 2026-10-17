@@ -10,6 +10,7 @@ export interface CloudflareUploadSession {
 export async function createCloudflareUpload(input: {
   file: File;
   duration: number;
+  resolution: string;
   title: string;
   description: string;
   privacy: "public" | "followers" | "private";
@@ -19,6 +20,7 @@ export async function createCloudflareUpload(input: {
       file_size: input.file.size,
       content_type: input.file.type,
       duration: input.duration,
+      resolution: input.resolution,
       title: input.title,
       description: input.description,
       privacy: input.privacy,

@@ -75,6 +75,7 @@ export const AdvancedVideoUpload = () => {
         session = await createCloudflareUpload({
           file,
           duration: metadata?.duration ?? 0,
+          resolution: metadata?.resolution ?? '',
           title: sanitizeText(title),
           description: sanitizeText(description),
           privacy,

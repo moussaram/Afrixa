@@ -45,10 +45,13 @@ Deno.serve(async (req) => {
     const result = providerBody?.result as Record<string, unknown> | undefined;
     const providerStatus = result?.status as Record<string, unknown> | undefined;
     if (!result || result.uid !== video.cloudflare_uid) return json({ error: 'provider_video_not_found' }, 502);
-    const state = providerStatus?.state === 'error'
+    let state = providerStatus?.state === 'error'
       ? 'error'
       : result.readyToStream === true ? 'ready' : 'processing';
     const duration = Number(result.duration);
+    if (state === 'ready' && (!Number.isFinite(duration) || duration < 15 || duration > 600)) {
+      state = 'error';
+    }
     const update: Record<string, unknown> = { cloudflare_status: state };
     if (Number.isFinite(duration) && duration >= 0 && duration <= 600) update.duration = Math.round(duration);
     const { error: updateError } = await admin.from('videos').update(update).eq('id', video.id);

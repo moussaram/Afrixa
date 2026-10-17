@@ -38,12 +38,15 @@ Deno.serve(async (req) => {
     const fileSize = Number(body?.file_size);
     const duration = Number(body?.duration);
     const contentType = typeof body?.content_type === 'string' ? body.content_type : '';
+    const resolution = typeof body?.resolution === 'string' ? body.resolution : '';
     const title = typeof body?.title === 'string' ? body.title.trim() : '';
     const description = typeof body?.description === 'string' ? body.description.trim() : '';
     const privacy = body?.privacy;
     if (!Number.isSafeInteger(fileSize) || fileSize < 1 || fileSize > maxFileBytes
       || !['video/mp4', 'video/quicktime'].includes(contentType)
       || !Number.isFinite(duration) || duration < 15 || duration > maxDurationSeconds
+      || !/^\d{1,5}x\d{1,5}$/.test(resolution)
+      || resolution.split('x').some((dimension: string) => Number(dimension) < 1 || Number(dimension) > 16384)
       || !title || title.length > 120 || description.length > 2200
       || !['public', 'followers', 'private'].includes(privacy)) {
       return json({ error: 'video_metadata_invalid' }, 400);
@@ -94,6 +97,8 @@ Deno.serve(async (req) => {
       title,
       description: description || null,
       duration: Math.round(duration),
+      file_size: fileSize,
+      resolution,
       privacy,
       cloudflare_status: 'uploading',
       moderation_status: 'pending',
