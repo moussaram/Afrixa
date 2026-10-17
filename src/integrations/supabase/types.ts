@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      live_sessions: {
+        Row: {
+          agora_channel: string
+          cover_image: string | null
+          created_at: string
+          ended_at: string | null
+          host_id: string
+          id: string
+          peak_viewers: number
+          pinned_product_id: string | null
+          privacy: string
+          replay_video_id: string | null
+          started_at: string
+          status: string
+          title: string
+          viewers_count: number
+        }
+        Insert: {
+          agora_channel: string
+          cover_image?: string | null
+          created_at?: string
+          ended_at?: string | null
+          host_id: string
+          id?: string
+          peak_viewers?: number
+          pinned_product_id?: string | null
+          privacy?: string
+          replay_video_id?: string | null
+          started_at?: string
+          status?: string
+          title?: string
+          viewers_count?: number
+        }
+        Update: {
+          agora_channel?: string
+          cover_image?: string | null
+          created_at?: string
+          ended_at?: string | null
+          host_id?: string
+          id?: string
+          peak_viewers?: number
+          pinned_product_id?: string | null
+          privacy?: string
+          replay_video_id?: string | null
+          started_at?: string
+          status?: string
+          title?: string
+          viewers_count?: number
+        }
+        Relationships: []
+      }
       commission_splits: {
         Row: {
           afrixa_amount: number

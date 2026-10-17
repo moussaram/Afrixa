@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Camera, CameraOff, Mic, MicOff, FlipHorizontal, X,
   Share2, Users, Heart, MessageCircle, MoreVertical,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useCamera } from '@/hooks/useCamera';
 import { LiveChat, LiveMessage, COLORS } from '@/components/live/LiveChat';
 import { LiveReactions } from '@/components/live/LiveReactions';
 import { useReactions } from '@/components/live/useReactions';
@@ -13,50 +12,32 @@ import { GiftAnimation } from '@/components/live/GiftAnimation';
 import { type GiftItem, GIFTS } from '@/components/live/gifts';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-
-const MOCK_VIEWERS = [
-  { id: '1', username: 'alex_93', avatar: 'https://i.pravatar.cc/40?img=1', color: COLORS[0] },
-  { id: '2', username: 'sara_m', avatar: 'https://i.pravatar.cc/40?img=5', color: COLORS[1] },
-  { id: '3', username: 'kevin_dj', avatar: 'https://i.pravatar.cc/40?img=8', color: COLORS[2] },
-];
-
-function makeMockMessage(viewer: (typeof MOCK_VIEWERS)[0], texts: string[]): LiveMessage {
-  const text = texts[Math.floor(Math.random() * texts.length)];
-  return {
-    id: Math.random().toString(36).slice(2),
-    userId: viewer.id,
-    username: viewer.username,
-    avatar: viewer.avatar,
-    text,
-    color: viewer.color,
-    timestamp: Date.now(),
-  };
-}
-
-const MOCK_TEXTS = [
-  '🔥 Incroyable !', "C'est trop bien !", '❤️❤️❤️', 'Bravo !',
-  'Super live !', '👑 Le meilleur !', 'Continue comme ça !', '😍',
-];
+import { useAgoraLive } from '@/hooks/useAgoraLive';
+import { supabase } from '@/integrations/supabase/client';
 
 interface LiveBroadcastState {
   title?: string;
   commentsEnabled?: boolean;
+  sessionId?: string;
+  hostId?: string;
 }
 
 export default function LiveBroadcast() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { title = 'Mon Live', commentsEnabled = true } = (location.state as LiveBroadcastState | null) ?? {};
-
-  const camera = useCamera({ initialFacing: 'user' });
-  const { startStream } = camera;
+  const routeState = (location.state as LiveBroadcastState | null) ?? {};
+  const routeParams = new URLSearchParams(location.search);
+  const title = routeState.title ?? 'Mon Live';
+  const commentsEnabled = routeState.commentsEnabled ?? true;
+  const sessionId = routeState.sessionId ?? routeParams.get('session') ?? undefined;
+  const hostId = routeState.hostId ?? routeParams.get('host') ?? undefined;
+  const agora = useAgoraLive(sessionId, 'publisher');
 
   const [messages, setMessages] = useState<LiveMessage[]>([]);
-  const [viewerCount, setViewerCount] = useState(0);
+  const { viewerCount, isMicOn, isCamOn } = agora;
+  const [peakViewerCount, setPeakViewerCount] = useState(0);
   const [likeCount, setLikeCount] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [isMicOn, setIsMicOn] = useState(true);
-  const [isCamOn, setIsCamOn] = useState(true);
   const [chatVisible, setChatVisible] = useState(true);
   const [activeGift, setActiveGift] = useState<GiftItem | null>(null);
   const [showGiftPanel, setShowGiftPanel] = useState(false);
@@ -64,10 +45,9 @@ export default function LiveBroadcast() {
 
   const { reactions, addReaction } = useReactions();
 
-  // Start camera on mount
   useEffect(() => {
-    startStream();
-  }, [startStream]);
+    if (!sessionId) navigate('/live/setup', { replace: true });
+  }, [navigate, sessionId]);
 
   // Duration timer
   useEffect(() => {
@@ -75,39 +55,24 @@ export default function LiveBroadcast() {
     return () => clearInterval(interval);
   }, []);
 
-  // Simulate viewer growth
   useEffect(() => {
-    const interval = setInterval(() => {
-      setViewerCount(v => v + Math.floor(Math.random() * 3));
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    setPeakViewerCount(current => Math.max(current, viewerCount));
+  }, [viewerCount]);
 
-  // Simulate incoming mock comments
   useEffect(() => {
-    const interval = setInterval(() => {
-      const viewer = MOCK_VIEWERS[Math.floor(Math.random() * MOCK_VIEWERS.length)];
-      const msg = makeMockMessage(viewer, MOCK_TEXTS);
-      setMessages(prev => [...prev.slice(-49), msg]);
-      if (Math.random() < 0.3) addReaction('❤️');
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [addReaction]);
+    if (!sessionId || !agora.connected) return;
+    void supabase.from('live_sessions').update({
+      viewers_count: viewerCount,
+      peak_viewers: Math.max(peakViewerCount, viewerCount),
+    })
+      .eq('id', sessionId);
+  }, [agora.connected, peakViewerCount, sessionId, viewerCount]);
 
-  // Simulate occasional gifts
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (Math.random() < 0.2) {
-        const g = GIFTS[Math.floor(Math.random() * GIFTS.length)];
-        const viewer = MOCK_VIEWERS[Math.floor(Math.random() * MOCK_VIEWERS.length)];
-        setActiveGift({ ...g, id: Math.random().toString(36).slice(2), fromUser: viewer.username });
-        setLikeCount(l => l + g.value);
-        addReaction('🎁');
-        setTimeout(() => setActiveGift(null), 3500);
-      }
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [addReaction]);
+    if (!sessionId || !agora.error) return;
+    void supabase.from('live_sessions').update({ status: 'ended', ended_at: new Date().toISOString() })
+      .eq('id', sessionId);
+  }, [agora.error, sessionId]);
 
   const handleSend = useCallback((text: string) => {
     const msg: LiveMessage = {
@@ -132,8 +97,12 @@ export default function LiveBroadcast() {
     addReaction('❤️');
   };
 
-  const handleEndLive = () => {
-    camera.stopStream();
+  const handleEndLive = async () => {
+    if (sessionId) {
+      const { error } = await supabase.from('live_sessions').update({ status: 'ended', ended_at: new Date().toISOString() })
+        .eq('id', sessionId);
+      if (error) toast.error('Le live n’a pas pu être clôturé côté serveur');
+    }
     navigate('/live/stats', {
       state: { title, duration, viewerCount, likeCount, commentCount: messages.length },
     });
@@ -148,20 +117,21 @@ export default function LiveBroadcast() {
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col overflow-hidden">
       {/* Camera preview */}
-      <video
-        ref={camera.videoRef}
-        autoPlay playsInline muted
+      <div
+        ref={agora.videoElementRef}
+        data-agora-video="publisher"
         className={cn(
           "absolute inset-0 w-full h-full object-cover transition-opacity",
           !isCamOn && "opacity-0"
         )}
-        style={{ transform: 'scaleX(-1)' }}
       />
       {!isCamOn && (
         <div className="absolute inset-0 bg-muted/20 flex items-center justify-center">
           <CameraOff className="w-16 h-16 text-muted-foreground/50" />
         </div>
       )}
+      {agora.error && <div className="absolute top-20 left-4 right-4 z-20 rounded-xl bg-destructive/90 p-3 text-sm text-white">{agora.error}</div>}
+      {!agora.connected && !agora.error && <div className="absolute top-20 left-4 right-4 z-20 rounded-xl bg-black/60 p-3 text-sm text-white">Connexion sécurisée à Agora…</div>}
 
       {/* Dark gradient overlays */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/70 pointer-events-none" />
@@ -216,7 +186,8 @@ export default function LiveBroadcast() {
           <FlipHorizontal className="w-5 h-5 text-white" />
         </button>
         <button
-          onClick={() => setIsMicOn(v => !v)}
+          disabled={!agora.connected}
+          onClick={() => void agora.toggleMic().catch(() => toast.error('Microphone indisponible'))}
           className={cn(
             "p-3 rounded-full backdrop-blur-sm transition-colors",
             isMicOn ? "bg-black/40 hover:bg-black/60" : "bg-destructive/70 hover:bg-destructive/90"
@@ -225,7 +196,8 @@ export default function LiveBroadcast() {
           {isMicOn ? <Mic className="w-5 h-5 text-white" /> : <MicOff className="w-5 h-5 text-white" />}
         </button>
         <button
-          onClick={() => setIsCamOn(v => !v)}
+          disabled={!agora.connected}
+          onClick={() => void agora.toggleCamera().catch(() => toast.error('Caméra indisponible'))}
           className={cn(
             "p-3 rounded-full backdrop-blur-sm transition-colors",
             isCamOn ? "bg-black/40 hover:bg-black/60" : "bg-destructive/70 hover:bg-destructive/90"
@@ -234,7 +206,11 @@ export default function LiveBroadcast() {
           {isCamOn ? <Camera className="w-5 h-5 text-white" /> : <CameraOff className="w-5 h-5 text-white" />}
         </button>
         <button
-          onClick={() => { toast.success('Lien copié !'); }}
+          onClick={() => {
+            const url = `${window.location.origin}/live/view/${hostId ?? ''}`;
+            void navigator.clipboard.writeText(url).then(() => toast.success('Lien du live copié !'))
+              .catch(() => toast.error('Impossible de copier le lien'));
+          }}
           className="p-3 bg-black/40 backdrop-blur-sm rounded-full hover:bg-black/60 transition-colors"
         >
           <Share2 className="w-5 h-5 text-white" />

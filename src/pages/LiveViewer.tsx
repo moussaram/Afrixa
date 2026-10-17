@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Heart, Share2, Users, UserPlus, Flag, MoreVertical,
 } from 'lucide-react';
@@ -10,52 +10,26 @@ import { GiftAnimation } from '@/components/live/GiftAnimation';
 import { type GiftItem, GIFTS } from '@/components/live/gifts';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-
-const CREATOR = {
-  id: 'creator1',
-  username: 'eNet_Creator',
-  avatar: 'https://i.pravatar.cc/60?img=20',
-  followers: 15200,
-};
-
-const MOCK_VIEWERS = [
-  { id: '1', username: 'alex_93', avatar: 'https://i.pravatar.cc/40?img=1', color: COLORS[0] },
-  { id: '2', username: 'sara_m', avatar: 'https://i.pravatar.cc/40?img=5', color: COLORS[1] },
-  { id: '3', username: 'kevin_dj', avatar: 'https://i.pravatar.cc/40?img=8', color: COLORS[2] },
-  { id: '4', username: 'lina_p', avatar: 'https://i.pravatar.cc/40?img=9', color: COLORS[3] },
-];
-
-const MOCK_TEXTS = [
-  '🔥 Incroyable !', "C'est trop bien !", '❤️❤️❤️', 'Bravo !',
-  'Super live !', '👑 Le meilleur !', 'Continue comme ça !', '😍',
-  'Tu déchires !', 'On t\'aime !', 'Wow wow wow 🎉', 'First 🥇',
-];
-
-function makeMockMessage(viewer: (typeof MOCK_VIEWERS)[0]): LiveMessage {
-  return {
-    id: Math.random().toString(36).slice(2),
-    userId: viewer.id,
-    username: viewer.username,
-    avatar: viewer.avatar,
-    text: MOCK_TEXTS[Math.floor(Math.random() * MOCK_TEXTS.length)],
-    color: viewer.color,
-    timestamp: Date.now(),
-  };
-}
+import { supabase } from '@/integrations/supabase/client';
+import { useAgoraLive } from '@/hooks/useAgoraLive';
 
 interface LiveViewerState {
   title?: string;
-  coverImage?: string;
 }
 
 export default function LiveViewer() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { title = 'Live en cours', coverImage } = (location.state as LiveViewerState | null) ?? {};
+  const { creatorId } = useParams<{ creatorId: string }>();
+  const routeState = (location.state as LiveViewerState | null) ?? {};
+  const [sessionId, setSessionId] = useState<string>();
+  const [title, setTitle] = useState(routeState.title ?? 'Live en cours');
+  const [creatorName, setCreatorName] = useState('Créateur en direct');
+  const agora = useAgoraLive(sessionId, 'audience');
 
   const [messages, setMessages] = useState<LiveMessage[]>([]);
-  const [viewerCount, setViewerCount] = useState(Math.floor(Math.random() * 200) + 50);
-  const [likeCount, setLikeCount] = useState(Math.floor(Math.random() * 500) + 100);
+  const { viewerCount } = agora;
+  const [likeCount, setLikeCount] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
   const [hasLiked, setHasLiked] = useState(false);
   const [activeGift, setActiveGift] = useState<GiftItem | null>(null);
@@ -64,40 +38,27 @@ export default function LiveViewer() {
 
   const { reactions, addReaction } = useReactions();
 
-  // Simulate viewers joining
   useEffect(() => {
-    const interval = setInterval(() => {
-      setViewerCount(v => v + Math.floor(Math.random() * 5));
-    }, 6000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Simulate incoming messages
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const viewer = MOCK_VIEWERS[Math.floor(Math.random() * MOCK_VIEWERS.length)];
-      setMessages(prev => [...prev.slice(-49), makeMockMessage(viewer)]);
-      if (Math.random() < 0.2) addReaction(['❤️', '🔥', '👏'][Math.floor(Math.random() * 3)]);
-    }, 2500);
-    return () => clearInterval(interval);
-  }, [addReaction]);
-
-  // Welcome message
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setMessages([{
-        id: 'system',
-        userId: CREATOR.id,
-        username: CREATOR.username,
-        avatar: CREATOR.avatar,
-        text: '👋 Bienvenue dans mon live ! Commentez ci-dessous.',
-        color: COLORS[5],
-        timestamp: Date.now(),
-        isCreator: true,
-      }]);
-    }, 1000);
-    return () => clearTimeout(t);
-  }, []);
+    if (!creatorId) return;
+    let active = true;
+    void (async () => {
+      const { data: session, error } = await supabase.from('live_sessions')
+        .select('id, host_id, title, status').eq('host_id', creatorId).eq('status', 'live')
+        .order('started_at', { ascending: false }).limit(1).maybeSingle();
+      if (!active) return;
+      if (error || !session) {
+        toast.error('Ce live n’est plus disponible');
+        navigate(-1);
+        return;
+      }
+      setSessionId(session.id);
+      setTitle(session.title);
+      const { data: profile } = await supabase.from('profiles')
+        .select('username, prenom, nom').eq('user_id', session.host_id).maybeSingle();
+      if (active && profile) setCreatorName(profile.username || [profile.prenom, profile.nom].filter(Boolean).join(' ') || 'Créateur en direct');
+    })();
+    return () => { active = false; };
+  }, [creatorId, navigate]);
 
   const handleSend = useCallback((text: string) => {
     setMessages(prev => [...prev.slice(-49), {
@@ -130,26 +91,23 @@ export default function LiveViewer() {
 
   const handleFollow = () => {
     setIsFollowing(v => !v);
-    toast.success(isFollowing ? 'Abonnement annulé' : `Vous suivez ${CREATOR.username}`);
+    toast.success(isFollowing ? 'Abonnement annulé' : `Vous suivez ${creatorName}`);
   };
 
   const handleShare = () => {
     if (navigator.share) {
-      navigator.share({ title, url: `https://afrixa.app/live/${CREATOR.id}` });
+      navigator.share({ title, url: `https://afrixa.app/live/view/${creatorId}` });
     } else {
-      navigator.clipboard.writeText(`https://afrixa.app/live/${CREATOR.id}`);
+      navigator.clipboard.writeText(`${window.location.origin}/live/view/${creatorId}`);
       toast.success('Lien copié !');
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col overflow-hidden">
-      {/* Background (mock stream or cover) */}
-      {coverImage ? (
-        <img loading="lazy" src={coverImage} className="absolute inset-0 w-full h-full object-cover" alt="live" />
-      ) : (
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-secondary/20 to-background animate-pulse" />
-      )}
+      <div ref={agora.videoElementRef} data-agora-video="audience" className="absolute inset-0 h-full w-full bg-gradient-to-br from-primary/30 via-secondary/20 to-background" />
+      {agora.error && <div className="absolute top-20 left-4 right-4 z-20 rounded-xl bg-destructive/90 p-3 text-sm text-white">{agora.error}</div>}
+      {!agora.connected && !agora.error && <div className="absolute top-20 left-4 right-4 z-20 rounded-xl bg-black/60 p-3 text-sm text-white">Connexion au live…</div>}
 
       {/* Overlays */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/80 pointer-events-none" />
@@ -166,10 +124,9 @@ export default function LiveViewer() {
 
           {/* Creator info */}
           <div className="flex items-center gap-2 flex-1">
-            <img loading="lazy" src={CREATOR.avatar} className="w-9 h-9 rounded-full border-2 border-white/50" alt={CREATOR.username} />
+            <div className="w-9 h-9 rounded-full border-2 border-white/50 bg-primary/70 flex items-center justify-center text-white font-bold">{creatorName.slice(0, 1).toUpperCase()}</div>
             <div>
-              <p className="text-white text-sm font-bold leading-tight">{CREATOR.username}</p>
-              <p className="text-white/60 text-xs">{CREATOR.followers.toLocaleString()} abonnés</p>
+              <p className="text-white text-sm font-bold leading-tight">{creatorName}</p>
             </div>
             <button
               onClick={handleFollow}

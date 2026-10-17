@@ -4,6 +4,16 @@
 @tailwind components;
 @tailwind utilities;
 
+[data-agora-video] video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+[data-agora-video="publisher"] video {
+  transform: scaleX(-1);
+}
+
 .afrixa-address-autocomplete gmp-place-autocomplete {
   display: block;
   width: 100%;

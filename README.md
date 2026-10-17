@@ -12,7 +12,8 @@ Afrixa est une application mobile-first de social commerce pour l'Afrique franco
 - Notifications Web : Firebase Cloud Messaging
 - Adresses de livraison : Google Places Autocomplete (nouveau)
 - Modération d'images : Google Cloud Vision SafeSearch
-- Live : Agora, à intégrer
+- Live audio/vidéo : Agora RTC Web SDK
+- Chat de live : temps réel à intégrer
 
 ## Démarrage local
 
@@ -66,6 +67,10 @@ Définir `VITE_GOOGLE_MAPS_API_KEY` avec une clé de navigateur restreinte par r
 ## Modération d'images (Google Cloud Vision)
 
 Configurer `GOOGLE_VISION_API_KEY` uniquement dans les secrets des Edge Functions et activer Cloud Vision API côté Google Cloud. Déployer `moderate-image`. La sélection d'une couverture de live est vérifiée côté serveur (fichier limité à 5 Mo) : les résultats évidents sont bloqués et les cas ambigus refusés avec demande de revue, car le projet n'a pas encore de file d'examen humain. En cas d'indisponibilité du service, l'image n'est pas acceptée. Réutiliser `moderateImage` avant toute future publication d'image de profil, produit ou story.
+
+## Lives audio/vidéo (Agora RTC)
+
+Appliquer la migration `20261010140000_agora_live_setup.sql`, activer l'authentification des privilèges de co-hôte dans Agora Console, et définir `AGORA_APP_ID` et `AGORA_APP_CERTIFICATE` comme secrets des Edge Functions. Déployer `get-agora-token`. Le navigateur ne reçoit qu'un jeton RTC lié à la session et à l'utilisateur ; les spectateurs n'obtiennent que le privilège de rejoindre, tandis que le créateur obtient les privilèges audio/vidéo. Les jetons durent une heure et sont renouvelés pendant un live. Les accès abonnés/vie privée sont vérifiés par la fonction.
 
 ## Scripts
 

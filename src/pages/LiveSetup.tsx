@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { moderateImage } from '@/lib/googleVision';
+import { supabase } from '@/integrations/supabase/client';
 
 type PrivacyOption = 'public' | 'followers' | 'private';
 
@@ -55,12 +56,26 @@ export default function LiveSetup() {
       return;
     }
     setIsLoading(true);
-    // Simulate connection
-    await new Promise(r => setTimeout(r, 1500));
-    setIsLoading(false);
-    navigate('/live/broadcast', {
-      state: { title, coverImage, privacy, commentsEnabled },
-    });
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error('Connectez-vous pour démarrer un live');
+      const channel = crypto.randomUUID().replaceAll('-', '');
+      const { data: session, error } = await supabase.from('live_sessions').insert({
+        host_id: user.id,
+        agora_channel: channel,
+        title: title.trim(),
+        privacy,
+        status: 'live',
+      }).select('id, agora_channel').single();
+      if (error) throw error;
+      navigate(`/live/broadcast?session=${encodeURIComponent(session.id)}&host=${encodeURIComponent(user.id)}`, {
+        state: { title, coverImage, privacy, commentsEnabled, sessionId: session.id, hostId: user.id },
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Impossible de créer le live');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
