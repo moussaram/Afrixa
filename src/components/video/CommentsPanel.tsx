@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { X, Heart, Send, Trash2, Reply } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,9 @@ import { cn } from '@/lib/utils';
 import { formatTimeAgo } from '@/lib/formatters';
 import { mockUsers, currentUser } from '@/data/mockData';
 import { Comment } from '@/types';
+import { useAuth } from '@/contexts/useAuth';
+import { useRealtimeComments } from '@/hooks/useRealtimeComments';
+import { toast } from 'sonner';
 
 /* ─────────────────── mock data ─────────────────── */
 const INITIAL_COMMENTS: Comment[] = [
@@ -65,14 +68,16 @@ const INITIAL_COMMENTS: Comment[] = [
 
 interface CommentRowProps {
   comment: Comment;
+  currentUserId: string;
+  canInteract: boolean;
   onLike: (id: string) => void;
   onDelete: (id: string) => void;
   onReply: (comment: Comment) => void;
   isReply?: boolean;
 }
 
-const CommentRow = ({ comment, onLike, onDelete, onReply, isReply }: CommentRowProps) => {
-  const isOwn = comment.user.id === currentUser.id;
+const CommentRow = ({ comment, currentUserId, canInteract, onLike, onDelete, onReply, isReply }: CommentRowProps) => {
+  const isOwn = comment.user.id === currentUserId;
 
   return (
     <div className={cn('flex gap-3', isReply && 'ml-10 border-l-2 border-border/30 pl-3')}>
@@ -91,7 +96,8 @@ const CommentRow = ({ comment, onLike, onDelete, onReply, isReply }: CommentRowP
           {/* Like button */}
           <button
             onClick={() => onLike(comment.id)}
-            className="flex flex-col items-center gap-0.5 flex-shrink-0 ml-2"
+            disabled={!canInteract}
+            className="flex flex-col items-center gap-0.5 flex-shrink-0 ml-2 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label={comment.isLiked ? 'Retirer le like' : 'Liker ce commentaire'}
           >
             <Heart
@@ -112,7 +118,8 @@ const CommentRow = ({ comment, onLike, onDelete, onReply, isReply }: CommentRowP
           {!isReply && (
             <button
               onClick={() => onReply(comment)}
-              className="flex items-center gap-1 text-xs text-muted-foreground font-medium hover:text-foreground transition-colors"
+              disabled={!canInteract}
+              className="flex items-center gap-1 text-xs text-muted-foreground font-medium hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Reply className="w-3 h-3" />
               Répondre
@@ -141,16 +148,54 @@ interface CommentsPanelProps {
   onClose: () => void;
 }
 
-export const CommentsPanel = ({ videoId: _videoId, commentCount, onClose }: CommentsPanelProps) => {
-  const [comments, setComments] = useState<Comment[]>(INITIAL_COMMENTS);
+export const CommentsPanel = ({ videoId, commentCount, onClose }: CommentsPanelProps) => {
+  const { user, profile } = useAuth();
+  const isLiveVideo = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(videoId);
+  const { comments: liveComments, loading: liveLoading, error: liveError, addComment, toggleLike, deleteComment } =
+    useRealtimeComments(videoId, user?.id && !user.id.startsWith('mock-') ? user.id : undefined);
+  const [mockComments, setMockComments] = useState<Comment[]>(INITIAL_COMMENTS);
   const [newComment, setNewComment] = useState('');
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const [isSending, setIsSending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const currentUserId = user?.id && !user.id.startsWith('mock-') ? user.id : currentUser.id;
+  const canInteract = !isLiveVideo || Boolean(user?.id && !user.id.startsWith('mock-'));
+  const activeUser = isLiveVideo ? {
+    ...currentUser,
+    id: currentUserId,
+    username: profile?.username || user?.email?.split('@')[0] || 'utilisateur',
+    avatar: profile?.avatar_url || currentUser.avatar,
+  } : currentUser;
+  const comments = useMemo(() => {
+    if (!isLiveVideo) return mockComments;
+    const toComment = (row: typeof liveComments[number]): Comment => ({
+      id: row.id,
+      user: {
+        ...currentUser,
+        id: row.user_id,
+        username: row.username,
+        displayName: row.display_name,
+        avatar: row.avatar_url || currentUser.avatar,
+      },
+      text: row.content,
+      likes: row.likes_count,
+      isLiked: row.is_liked,
+      createdAt: row.created_at,
+      replies: liveComments.filter(reply => reply.parent_id === row.id).map(toComment),
+    });
+    return liveComments.filter(row => !row.parent_id).map(toComment);
+  }, [isLiveVideo, liveComments, mockComments]);
 
   /* ── like a comment or a reply ── */
   const handleLikeComment = useCallback((commentId: string) => {
-    setComments(prev =>
+    if (isLiveVideo) {
+      void toggleLike(commentId).catch(error => {
+        console.error('Unable to update comment like', error);
+        toast.error('Impossible de modifier ce j’aime.');
+      });
+      return;
+    }
+    setMockComments(prev =>
       prev.map(c => {
         if (c.id === commentId) {
           return { ...c, isLiked: !c.isLiked, likes: c.isLiked ? c.likes - 1 : c.likes + 1 };
@@ -169,11 +214,18 @@ export const CommentsPanel = ({ videoId: _videoId, commentCount, onClose }: Comm
         return c;
       })
     );
-  }, []);
+  }, [isLiveVideo, toggleLike]);
 
   /* ── delete own comment or reply ── */
   const handleDelete = useCallback((commentId: string) => {
-    setComments(prev =>
+    if (isLiveVideo) {
+      void deleteComment(commentId).catch(error => {
+        console.error('Unable to delete comment', error);
+        toast.error('Impossible de supprimer ce commentaire.');
+      });
+      return;
+    }
+    setMockComments(prev =>
       prev
         .filter(c => c.id !== commentId)
         .map(c => ({
@@ -181,7 +233,7 @@ export const CommentsPanel = ({ videoId: _videoId, commentCount, onClose }: Comm
           replies: c.replies?.filter(r => r.id !== commentId),
         }))
     );
-  }, []);
+  }, [deleteComment, isLiveVideo]);
 
   /* ── reply setup ── */
   const handleReply = useCallback((comment: Comment) => {
@@ -191,23 +243,42 @@ export const CommentsPanel = ({ videoId: _videoId, commentCount, onClose }: Comm
   }, []);
 
   /* ── send comment / reply (optimistic) ── */
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     const text = newComment.trim();
     if (!text || isSending) return;
 
     setIsSending(true);
 
+    if (isLiveVideo) {
+      if (!user?.id || user.id.startsWith('mock-')) {
+        toast.error('Connecte-toi pour commenter.');
+        setIsSending(false);
+        return;
+      }
+      try {
+        await addComment(text, replyTo?.id);
+        setNewComment('');
+        setReplyTo(null);
+      } catch (error) {
+        console.error('Unable to send comment', error);
+        toast.error('Impossible d’envoyer le commentaire.');
+      } finally {
+        setIsSending(false);
+      }
+      return;
+    }
+
     if (replyTo) {
       // Optimistic: add reply to parent
       const reply: Comment = {
         id: `reply-${Date.now()}`,
-        user: currentUser,
+        user: activeUser,
         text,
         likes: 0,
         isLiked: false,
         createdAt: new Date().toISOString(),
       };
-      setComments(prev =>
+      setMockComments(prev =>
         prev.map(c =>
           c.id === replyTo.id
             ? { ...c, replies: [...(c.replies ?? []), reply] }
@@ -218,13 +289,13 @@ export const CommentsPanel = ({ videoId: _videoId, commentCount, onClose }: Comm
       // Optimistic: prepend new top-level comment
       const comment: Comment = {
         id: `new-${Date.now()}`,
-        user: currentUser,
+        user: activeUser,
         text,
         likes: 0,
         isLiked: false,
         createdAt: new Date().toISOString(),
       };
-      setComments(prev => [comment, ...prev]);
+      setMockComments(prev => [comment, ...prev]);
     }
 
     setNewComment('');
@@ -232,12 +303,13 @@ export const CommentsPanel = ({ videoId: _videoId, commentCount, onClose }: Comm
 
     // Simulate API latency — in production replace with real fetch
     setTimeout(() => setIsSending(false), 400);
-  }, [newComment, replyTo, isSending]);
+  }, [activeUser, addComment, isLiveVideo, newComment, replyTo, isSending, user?.id]);
 
   const totalComments = comments.reduce(
     (acc, c) => acc + 1 + (c.replies?.length ?? 0),
     0
   );
+  const displayedCount = isLiveVideo ? totalComments : totalComments || commentCount;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
@@ -254,7 +326,7 @@ export const CommentsPanel = ({ videoId: _videoId, commentCount, onClose }: Comm
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
           <h3 className="font-semibold text-foreground">
-            {totalComments.toLocaleString()} commentaire{totalComments !== 1 ? 's' : ''}
+            {displayedCount.toLocaleString()} commentaire{displayedCount !== 1 ? 's' : ''}
           </h3>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="w-5 h-5" />
@@ -263,10 +335,17 @@ export const CommentsPanel = ({ videoId: _videoId, commentCount, onClose }: Comm
 
         {/* Comments list */}
         <div className="flex-1 overflow-y-auto py-3 space-y-3">
+          {isLiveVideo && liveLoading && <p className="px-4 py-8 text-center text-sm text-muted-foreground">Chargement des commentaires…</p>}
+          {isLiveVideo && liveError && <p className="px-4 py-8 text-center text-sm text-destructive">Impossible de charger les commentaires.</p>}
+          {isLiveVideo && !liveLoading && !liveError && comments.length === 0 && (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">Aucun commentaire pour le moment.</p>
+          )}
           {comments.map((comment) => (
             <div key={comment.id} className="px-4 space-y-3">
               <CommentRow
                 comment={comment}
+                currentUserId={currentUserId}
+                canInteract={canInteract}
                 onLike={handleLikeComment}
                 onDelete={handleDelete}
                 onReply={handleReply}
@@ -276,6 +355,8 @@ export const CommentsPanel = ({ videoId: _videoId, commentCount, onClose }: Comm
                 <CommentRow
                   key={reply.id}
                   comment={reply}
+                  currentUserId={currentUserId}
+                  canInteract={canInteract}
                   onLike={handleLikeComment}
                   onDelete={handleDelete}
                   onReply={handleReply}
@@ -306,15 +387,16 @@ export const CommentsPanel = ({ videoId: _videoId, commentCount, onClose }: Comm
           )}
           <div className="flex items-center gap-3">
             <Avatar className="w-8 h-8 flex-shrink-0">
-              <AvatarImage src={currentUser.avatar} alt={currentUser.username} />
-              <AvatarFallback>{currentUser.username[0].toUpperCase()}</AvatarFallback>
+              <AvatarImage src={activeUser.avatar} alt={activeUser.username} />
+              <AvatarFallback>{activeUser.username[0].toUpperCase()}</AvatarFallback>
             </Avatar>
             <div className="flex-1 flex items-center gap-2 bg-muted/50 rounded-full px-4 py-2">
               <input
                 ref={inputRef}
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder={replyTo ? `Répondre à @${replyTo.user.username}…` : 'Ajouter un commentaire…'}
+                disabled={!canInteract || (isLiveVideo && Boolean(liveError))}
+                placeholder={!canInteract ? 'Connecte-toi pour commenter…' : replyTo ? `Répondre à @${replyTo.user.username}…` : 'Ajouter un commentaire…'}
                 className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 maxLength={300}
