@@ -1,24 +1,13 @@
-import { initializeApp, getApps } from "firebase/app";
 import { getMessaging, isSupported, onRegistered, register as registerFcm } from "firebase/messaging";
 import { supabase } from "@/integrations/supabase/client";
+import { firebaseAppConfigured, getFirebaseApp } from '@/lib/firebase/config';
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-};
-
-const firebaseReady = Object.values(firebaseConfig).every(Boolean)
-  && Boolean(import.meta.env.VITE_FIREBASE_VAPID_KEY);
+const firebaseReady = firebaseAppConfigured && Boolean(import.meta.env.VITE_FIREBASE_VAPID_KEY);
 
 const ensureMessaging = async () => {
   if (!firebaseReady) throw new Error("La configuration Firebase des notifications est incomplète.");
   if (!(await isSupported())) throw new Error("Les notifications push ne sont pas prises en charge par ce navigateur.");
-  const app = getApps()[0] ?? initializeApp(firebaseConfig);
-  return getMessaging(app);
+  return getMessaging(getFirebaseApp());
 };
 
 type TokenTable = {

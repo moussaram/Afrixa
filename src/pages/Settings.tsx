@@ -79,6 +79,7 @@ import { useAuth } from '@/contexts/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { africanCountries, type AfricanCountry } from '@/data/africanCountries';
 import { disableWebPush, enableWebPush } from '@/lib/firebase/messaging';
+import { getAnalyticsConsent, setAnalyticsConsent } from '@/lib/firebase/analytics';
 
 const SETTINGS_STORAGE_KEY = 'afrixa:user-settings:v1';
 
@@ -91,6 +92,7 @@ const Settings = () => {
   const [confirmText, setConfirmText] = useState('');
   const [supportMessage, setSupportMessage] = useState('');
   const [cacheSize, setCacheSize] = useState('Calcul...');
+  const [analyticsConsent, setAnalyticsConsentState] = useState(() => getAnalyticsConsent());
   
   // Identity editing
   const [editingIdentity, setEditingIdentity] = useState(false);
@@ -126,6 +128,17 @@ const Settings = () => {
   const filteredCountries = africanCountries.filter(c =>
     c.name.toLowerCase().includes(countrySearch.toLowerCase())
   );
+
+  const handleAnalyticsConsent = (enabled: boolean) => {
+    void setAnalyticsConsent(enabled).then(() => {
+      setAnalyticsConsentState(enabled);
+      toast.success(enabled ? 'Mesure d’audience activée' : 'Mesure d’audience désactivée');
+    }).catch(async (error) => {
+      await setAnalyticsConsent(false).catch(() => undefined);
+      setAnalyticsConsentState(false);
+      toast.error(error instanceof Error ? error.message : 'Impossible de modifier ce réglage');
+    });
+  };
 
   const handleSaveIdentity = async () => {
     if (!user) return;
@@ -664,6 +677,17 @@ const Settings = () => {
                 <SettingsItem icon={Ban} label="Comptes bloqués" value="0" type="navigate" />
                 <SettingsItem icon={Users} label="Comptes restreints" value="0" type="navigate" />
                 <SettingsItem icon={EyeOff} label="Comptes masqués" value="0" type="navigate" />
+              </SettingsSection>
+
+              <SettingsSection title="Données analytiques">
+                <SettingsItem
+                  icon={BarChart3}
+                  label="Partager des données de mesure"
+                  description="Optionnel. Aucun nom, e-mail, numéro, identifiant de compte ou texte saisi n’est transmis. Firebase peut recevoir des données pseudonymes d’usage et d’appareil."
+                  type="toggle"
+                  checked={analyticsConsent}
+                  onToggle={handleAnalyticsConsent}
+                />
               </SettingsSection>
             </AccordionContent>
           </AccordionItem>

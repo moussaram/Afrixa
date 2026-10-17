@@ -10,7 +10,8 @@ import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/useAuth";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { trackPageView } from "@/lib/firebase/analytics";
 
 const queryClient = new QueryClient();
 
@@ -65,6 +66,10 @@ const FedaPayReturn = lazy(() => import("./pages/FedaPayReturn"));
 
 const AppContent = () => {
   const location = useLocation();
+  useEffect(() => {
+    const pageName = location.pathname.split('/').filter(Boolean)[0] ?? 'home';
+    void trackPageView(pageName);
+  }, [location.pathname]);
   const { user, loading } = useAuth();
 
   const hideNavPaths = ['/create', '/settings', '/messages', '/chat', '/live', '/auth', '/onboarding'];

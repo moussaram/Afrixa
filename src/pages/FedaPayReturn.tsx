@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { verifyFedaPayPayment } from '@/lib/fedapay';
+import { supabase } from '@/integrations/supabase/client';
+import { trackPurchase } from '@/lib/firebase/analytics';
 
 type Result = { state: 'loading' | 'success' | 'pending' | 'failed'; message: string };
 
@@ -11,6 +13,7 @@ const FedaPayReturn = () => {
     state: 'loading',
     message: 'Vérification du paiement auprès de FedaPay…',
   });
+  const trackedOrderRef = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -26,6 +29,13 @@ const FedaPayReturn = () => {
         if (!active) return;
         if (response.verified) {
           setResult({ state: 'success', message: 'Paiement confirmé. Votre commande est enregistrée.' });
+          if (response.order_id && trackedOrderRef.current !== response.order_id) {
+            trackedOrderRef.current = response.order_id;
+            void supabase.from('orders').select('total_price').eq('id', response.order_id).maybeSingle()
+              .then(({ data: order }) => {
+                if (order) void trackPurchase(order.total_price, 'XOF');
+              });
+          }
         } else if (['pending', 'unknown'].includes(response.status ?? '')) {
           setResult({ state: 'pending', message: 'Le paiement est encore en cours de confirmation. Cette page sera mise à jour par FedaPay.' });
         } else {

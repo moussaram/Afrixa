@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import AgoraRTC, { type ICameraVideoTrack, type IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
 import type { IAgoraRTCClient, IAgoraRTCRemoteUser } from 'agora-rtc-sdk-ng';
 import { supabase } from '@/integrations/supabase/client';
+import { trackLiveJoin } from '@/lib/firebase/analytics';
 
 type LiveRole = 'publisher' | 'audience';
 
@@ -71,6 +72,7 @@ export function useAgoraLive(sessionId: string | undefined, role: LiveRole) {
         await client.setClientRole(role === 'publisher' ? 'host' : 'audience');
         await client.join(credentials.appId, credentials.channel, credentials.token, credentials.uid);
         if (!active) return;
+        if (role === 'audience') void trackLiveJoin();
         setConnected(true);
         if (role === 'publisher') {
           const tracks = await AgoraRTC.createMicrophoneAndCameraTracks();

@@ -13,6 +13,7 @@ Afrixa est une application mobile-first de social commerce pour l'Afrique franco
 - Adresses de livraison : Google Places Autocomplete (nouveau)
 - Modération d'images : Google Cloud Vision SafeSearch
 - Live audio/vidéo : Agora RTC Web SDK
+- Mesure d’usage : Firebase Analytics, désactivée sans consentement
 - Chat de live : temps réel à intégrer
 
 ## Démarrage local
@@ -54,7 +55,7 @@ L'upload utilise un lien TUS à usage unique créé par une Edge Function authen
 
 ## Notifications push (Firebase Cloud Messaging)
 
-Le client web s'inscrit aux notifications FCM via Firebase Installation IDs (FID), enregistrés dans `user_fcm_tokens`. L'activation se fait à la demande de l'utilisateur dans Paramètres et requiert HTTPS ainsi qu'un navigateur compatible.
+Le client web s'inscrit aux notifications FCM via Firebase Installation IDs (FID), enregistrés dans `user_fcm_tokens`. L'activation se fait à la demande de l'utilisateur dans Paramètres et requiert HTTPS ainsi qu'un navigateur compatible. Pour Analytics, renseigner aussi `VITE_FIREBASE_MEASUREMENT_ID` depuis la configuration de l'application Web Firebase.
 
 Les paramètres `VITE_FIREBASE_*` du `.env` sont la configuration publique de l'application Web Firebase. Ne jamais placer de clé privée de compte de service Firebase ou de clé serveur FCM dans le frontend. Activer l'API Firebase Cloud Messaging HTTP v1 et accorder au compte de service le rôle Firebase Cloud Messaging API Admin. Ajouter `FIREBASE_PROJECT_ID`, le JSON de compte de service dans `FIREBASE_SERVICE_ACCOUNT_JSON` et un secret aléatoire dans `FCM_WEBHOOK_SECRET` aux secrets Edge Functions.
 
@@ -71,6 +72,10 @@ Configurer `GOOGLE_VISION_API_KEY` uniquement dans les secrets des Edge Function
 ## Lives audio/vidéo (Agora RTC)
 
 Appliquer la migration `20261010140000_agora_live_setup.sql`, activer l'authentification des privilèges de co-hôte dans Agora Console, et définir `AGORA_APP_ID` et `AGORA_APP_CERTIFICATE` comme secrets des Edge Functions. Déployer `get-agora-token`. Le navigateur ne reçoit qu'un jeton RTC lié à la session et à l'utilisateur ; les spectateurs n'obtiennent que le privilège de rejoindre, tandis que le créateur obtient les privilèges audio/vidéo. Les jetons durent une heure et sont renouvelés pendant un live. Les accès abonnés/vie privée sont vérifiés par la fonction.
+
+## Statistiques d'usage (Firebase Analytics)
+
+Configurer `VITE_FIREBASE_MEASUREMENT_ID` et activer Google Analytics dans Firebase. La collecte reste désactivée tant qu'une personne n'a pas activé « Partager des données de mesure » dans Paramètres → Confidentialité. Les événements portent sur les pages, lectures/likes vidéos, consultation de produits, achats confirmés, abonnements, recherches et accès aux lives ; les noms, coordonnées, identifiants de compte et textes saisis ne sont pas transmis. Les données pseudonymes propres au SDK Firebase/Google peuvent être collectées après consentement.
 
 ## Scripts
 

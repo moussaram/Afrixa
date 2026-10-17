@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { clearSearchHistory, getSearchHistory, pushSearchHistory, searchAll } from '@/lib/search';
+import { trackSearch } from '@/lib/firebase/analytics';
 
 type SearchItem = { id: string; title?: string; name?: string; username?: string };
 type SearchResults = Record<'videos' | 'users' | 'products' | 'challenges' | 'sounds', SearchItem[]>;
@@ -17,6 +18,7 @@ const SearchAdvanced = () => {
     const id = setTimeout(async () => {
       if (!query.trim()) return;
       pushSearchHistory(query);
+      void trackSearch();
       setHistory(getSearchHistory());
       setResults(await searchAll(query));
     }, 300);

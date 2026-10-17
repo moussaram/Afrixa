@@ -12,6 +12,7 @@ import { currentUser } from '@/data/mockData';
 import { CreatorBadge } from '@/components/creators/CreatorBadge';
 import { CreatorTipButton } from '@/components/creators/CreatorTipButton';
 import { AdvancedVideoControls } from '@/components/video/AdvancedVideoControls';
+import { trackFollow, trackProductView, trackVideoComplete, trackVideoLike, trackVideoView } from '@/lib/firebase/analytics';
 
 // Mock: some videos have tagged products
 const taggedProducts: Record<string, { name: string; price: number; currency: string; imageUrl: string; sellerName: string }> = {
@@ -40,6 +41,8 @@ export const VideoCard = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [progress, setProgress] = useState(0);
+  const completionTrackedRef = useRef(false);
+  const viewTrackedRef = useRef(false);
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showProduct, setShowProduct] = useState(false);
@@ -106,12 +109,16 @@ export const VideoCard = ({
     const v = videoRef.current;
     if (!v) return;
     if (isActive) {
+      if (!viewTrackedRef.current) void trackVideoView();
+      viewTrackedRef.current = true;
+      completionTrackedRef.current = false;
       v.play().catch(() => {});
       setIsPlaying(true);
     } else {
       v.pause();
       v.currentTime = 0;
       setIsPlaying(false);
+      viewTrackedRef.current = false;
     }
   }, [isActive]);
 
@@ -133,6 +140,7 @@ export const VideoCard = ({
     if (now - lastTapRef.current < 600) {
       if (!isLiked) {
         toggleLike();
+        void trackVideoLike();
         onLike?.(video.id);
       }
       setShowHeart(true);
@@ -143,6 +151,7 @@ export const VideoCard = ({
 
   const handleLike = () => {
     toggleLike();
+    if (!isLiked) void trackVideoLike();
     onLike?.(video.id);
   };
 
@@ -155,6 +164,12 @@ export const VideoCard = ({
     const v = videoRef.current;
     if (v && v.duration) {
       setProgress((v.currentTime / v.duration) * 100);
+      if (v.currentTime >= v.duration * 0.95 && !completionTrackedRef.current) {
+        completionTrackedRef.current = true;
+        void trackVideoComplete(v.duration);
+      } else if (v.currentTime < 2) {
+        completionTrackedRef.current = false;
+      }
     }
   };
 
@@ -374,7 +389,10 @@ export const VideoCard = ({
           />
           {video.user.id !== currentUser.id && (
             <button
-              onClick={toggleFollow}
+              onClick={() => {
+                if (!isFollowing) void trackFollow();
+                toggleFollow();
+              }}
               className={cn(
                 "absolute -bottom-2 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center text-primary-foreground text-lg font-bold transition-all",
                 isFollowing
@@ -404,7 +422,11 @@ export const VideoCard = ({
       {/* Shoppable product button */}
       {taggedProducts[video.id] && (
         <button
-          onClick={() => setShowProduct(true)}
+          onClick={() => {
+            const product = taggedProducts[video.id];
+            void trackProductView(product.price, 'XOF');
+            setShowProduct(true);
+          }}
           className="absolute bottom-24 left-4 z-10 flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/90 backdrop-blur-sm"
         >
           <ShoppingCart className="w-4 h-4 text-primary-foreground" />
