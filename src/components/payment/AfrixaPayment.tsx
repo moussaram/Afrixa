@@ -11,6 +11,7 @@ import {
   maskPhone,
   type CommissionType,
 } from '@/lib/fedapay';
+import { getFriendlyTransactionError } from '@/lib/transactionErrors';
 
 interface PaymentProduct {
   id?: string;
@@ -159,7 +160,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
       window.location.assign(checkout.checkoutUrl);
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof Error ? e.message : 'Erreur lors du paiement');
+      toast.error(getFriendlyTransactionError(e));
       setProcessing(false);
       setStep(3);
     }

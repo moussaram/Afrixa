@@ -9,6 +9,23 @@ export const COMMISSION_RATES: Record<CommissionType, number> = {
   live: 0.08,
 };
 
+const getFunctionError = async (error: unknown): Promise<Error> => {
+  if (error && typeof error === 'object' && 'context' in error) {
+    const context = (error as Record<string, unknown>).context;
+    if (context instanceof Response) {
+      try {
+        const body: unknown = await context.clone().json();
+        if (body && typeof body === 'object' && 'error' in body && typeof body.error === 'string') {
+          return new Error(body.error);
+        }
+      } catch {
+        // Keep the original Supabase error when the function response is not JSON.
+      }
+    }
+  }
+  return error instanceof Error ? error : new Error('payment_request_failed');
+};
+
 export const calculateSplit = (amount: number, type: CommissionType = 'normale') => {
   const rate = COMMISSION_RATES[type];
   const commissionAmount = Math.round(amount * rate);
@@ -26,7 +43,7 @@ export const createFedaPayCheckout = async (orderId: string): Promise<{ checkout
   const { data, error } = await supabase.functions.invoke('create-fedapay-payment', {
     body: { order_id: orderId },
   });
-  if (error) throw error;
+  if (error) throw await getFunctionError(error);
   if (typeof data?.checkout_url !== 'string' || typeof data?.transaction_id !== 'string') {
     throw new Error('Lien de paiement FedaPay indisponible');
   }
@@ -37,7 +54,7 @@ export const verifyFedaPayPayment = async (transactionId: string | number, txRef
   const { data, error } = await supabase.functions.invoke('verify-fedapay-payment', {
     body: { transaction_id: transactionId, tx_ref: txRef },
   });
-  if (error) throw error;
+  if (error) throw await getFunctionError(error);
   return data as { verified: boolean; status?: string; order_id?: string };
 };
 

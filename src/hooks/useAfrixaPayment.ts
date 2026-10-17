@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { calculateSplit, CommissionType, generateOrderRef, verifyFedaPayPayment } from '@/lib/fedapay';
+import { getFriendlyTransactionError } from '@/lib/transactionErrors';
 
 export type PaymentStatus = 'idle' | 'processing' | 'success' | 'failed';
 
@@ -94,7 +95,7 @@ export const useAfrixaPayment = () => {
       return { orderId: order.id, orderRef: ref, totalPrice };
     } catch (e) {
       setPaymentStatus('failed');
-      toast.error(e instanceof Error ? e.message : 'Erreur initialisation paiement');
+      toast.error(getFriendlyTransactionError(e));
       throw e;
     } finally {
       setIsLoading(false);
@@ -112,16 +113,16 @@ export const useAfrixaPayment = () => {
       setPaymentStatus('success');
       toast.success('Paiement confirmé ✅');
       return true;
-    } catch {
+    } catch (error) {
       setPaymentStatus('failed');
-      toast.error('Erreur de vérification');
+      toast.error(getFriendlyTransactionError(error));
       return false;
     }
   };
 
-  const handleFailure = () => {
+  const handleFailure = (error?: unknown) => {
     setPaymentStatus('failed');
-    toast.error('Paiement échoué. Vérifiez votre solde et réessayez.');
+    toast.error(getFriendlyTransactionError(error));
   };
 
   const reset = () => {
