@@ -40,6 +40,14 @@ export const VideoCard = ({
   const navigate = useNavigate();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggeredRef = useRef(false);
+  const previousSpeedRef = useRef(1);
+
+  useEffect(() => () => {
+    if (longPressRef.current) window.clearTimeout(longPressRef.current);
+  }, []);
   const [progress, setProgress] = useState(0);
   const completionTrackedRef = useRef(false);
   const viewTrackedRef = useRef(false);
@@ -173,6 +181,23 @@ export const VideoCard = ({
     }
   };
 
+  const handleVideoPointerDown = (event: React.PointerEvent<HTMLVideoElement>) => {
+    if (event.pointerType === 'mouse' || event.button !== 0) return;
+    longPressTriggeredRef.current = false;
+    previousSpeedRef.current = playbackSpeed;
+    longPressRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      setPlaybackSpeed(2);
+    }, 450);
+  };
+
+  const handleVideoPointerEnd = () => {
+    if (longPressRef.current) window.clearTimeout(longPressRef.current);
+    longPressRef.current = null;
+    if (longPressTriggeredRef.current) setPlaybackSpeed(previousSpeedRef.current);
+    longPressTriggeredRef.current = false;
+  };
+
   return (
     <div className="relative w-full h-full bg-background overflow-hidden">
       {/* Video */}
@@ -185,11 +210,16 @@ export const VideoCard = ({
         playsInline
         onClick={handleVideoClick}
         onDoubleClick={handleDoubleClick}
+        onPointerDown={handleVideoPointerDown}
+        onPointerUp={handleVideoPointerEnd}
+        onPointerCancel={handleVideoPointerEnd}
+        onPointerLeave={handleVideoPointerEnd}
+        onContextMenu={event => event.preventDefault()}
         onTimeUpdate={handleTimeUpdate}
         onCanPlay={() => { if (isActive) videoRef.current?.play().catch(() => {}); }}
         poster={video.thumbnailUrl}
       />
-      <AdvancedVideoControls videoRef={videoRef} videoId={video.id} />
+      <AdvancedVideoControls videoRef={videoRef} videoId={video.id} speed={playbackSpeed} onSpeedChange={setPlaybackSpeed} />
 
       {/* Play/Pause overlay */}
       {!isPlaying && (

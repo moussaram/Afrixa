@@ -1,16 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Gauge, MoreHorizontal, PictureInPicture2, RotateCcw, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface AdvancedVideoControlsProps {
   videoRef: React.RefObject<HTMLVideoElement>;
   videoId: string;
+  speed: number;
+  onSpeedChange: (speed: number) => void;
 }
 
-export const AdvancedVideoControls = ({ videoRef, videoId }: AdvancedVideoControlsProps) => {
-  const [speed, setSpeed] = useState(1);
-  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+export const AdvancedVideoControls = ({ videoRef, videoId, speed, onSpeedChange }: AdvancedVideoControlsProps) => {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -44,13 +43,6 @@ export const AdvancedVideoControls = ({ videoRef, videoId }: AdvancedVideoContro
   return (
     <div
       className="pointer-events-auto absolute inset-x-3 top-20 z-20 flex items-center justify-between"
-      onPointerDown={() => {
-        longPressRef.current = setTimeout(() => setSpeed(2), 450);
-      }}
-      onPointerUp={() => {
-        if (longPressRef.current) clearTimeout(longPressRef.current);
-        if (speed === 2) setSpeed(1);
-      }}
     >
       <Button variant="glass" size="icon" onClick={() => seek(-10)} aria-label="Reculer 10 secondes">
         <RotateCcw className="h-5 w-5" />
@@ -59,7 +51,7 @@ export const AdvancedVideoControls = ({ videoRef, videoId }: AdvancedVideoContro
         {[0.5, 1, 1.5, 2].map(value => (
           <button
             key={value}
-            onClick={() => setSpeed(value)}
+            onClick={() => onSpeedChange(value)}
             className="rounded-full bg-black/40 px-2 py-1 text-xs font-bold text-white"
           >
             <Gauge className="mr-1 inline h-3 w-3" />
