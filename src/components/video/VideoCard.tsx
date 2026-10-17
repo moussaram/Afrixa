@@ -47,6 +47,7 @@ export const VideoCard = ({
 
   useEffect(() => () => {
     if (longPressRef.current) window.clearTimeout(longPressRef.current);
+    if (seekFeedbackTimerRef.current) window.clearTimeout(seekFeedbackTimerRef.current);
   }, []);
   const [progress, setProgress] = useState(0);
   const completionTrackedRef = useRef(false);
@@ -55,10 +56,10 @@ export const VideoCard = ({
   const [showShare, setShowShare] = useState(false);
   const [showProduct, setShowProduct] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
+  const [seekFeedback, setSeekFeedback] = useState<'forward' | 'backward' | null>(null);
+  const seekFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  // Ref to block rapid double-click race condition
-  const lastTapRef = useRef<number>(0);
 
   useEffect(() => {
     const element = videoRef.current;
@@ -142,19 +143,28 @@ export const VideoCard = ({
     }
   };
 
-  // Double-tap to like — fixed race condition with timestamp check
-  const handleDoubleClick = () => {
-    const now = Date.now();
-    if (now - lastTapRef.current < 600) {
-      if (!isLiked) {
-        toggleLike();
-        void trackVideoLike();
-        onLike?.(video.id);
+  const handleVideoDoubleClick = (event: React.MouseEvent<HTMLVideoElement>) => {
+    const element = event.currentTarget;
+    const position = (event.clientX - element.getBoundingClientRect().left) / element.clientWidth;
+    if (position < 0.33 || position > 0.67) {
+      const direction = position < 0.33 ? 'backward' : 'forward';
+      const duration = element.duration;
+      if (Number.isFinite(duration) && duration > 0) {
+        element.currentTime = Math.max(0, Math.min(duration, element.currentTime + (direction === 'forward' ? 10 : -10)));
       }
-      setShowHeart(true);
-      setTimeout(() => setShowHeart(false), 900);
+      setSeekFeedback(direction);
+      if (seekFeedbackTimerRef.current) clearTimeout(seekFeedbackTimerRef.current);
+      seekFeedbackTimerRef.current = setTimeout(() => setSeekFeedback(null), 700);
+      return;
     }
-    lastTapRef.current = now;
+
+    if (!isLiked) {
+      toggleLike();
+      void trackVideoLike();
+      onLike?.(video.id);
+    }
+    setShowHeart(true);
+    setTimeout(() => setShowHeart(false), 900);
   };
 
   const handleLike = () => {
@@ -209,7 +219,7 @@ export const VideoCard = ({
         muted={isMuted}
         playsInline
         onClick={handleVideoClick}
-        onDoubleClick={handleDoubleClick}
+        onDoubleClick={handleVideoDoubleClick}
         onPointerDown={handleVideoPointerDown}
         onPointerUp={handleVideoPointerEnd}
         onPointerCancel={handleVideoPointerEnd}
@@ -220,6 +230,15 @@ export const VideoCard = ({
         poster={video.thumbnailUrl}
       />
       <AdvancedVideoControls videoRef={videoRef} videoId={video.id} speed={playbackSpeed} onSpeedChange={setPlaybackSpeed} />
+
+      {seekFeedback && (
+        <div className={cn(
+          'pointer-events-none absolute top-1/2 z-30 -translate-y-1/2 rounded-full bg-black/65 px-4 py-2 text-lg font-bold text-white animate-fade-in',
+          seekFeedback === 'backward' ? 'left-8' : 'right-8'
+        )}>
+          {seekFeedback === 'backward' ? '−10 sec' : '+10 sec'}
+        </div>
+      )}
 
       {/* Play/Pause overlay */}
       {!isPlaying && (
