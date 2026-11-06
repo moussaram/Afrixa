@@ -1,12 +1,9 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import { Video } from '@/types';
 
-/**
- * Centralized hook for all social interactions on a video.
- * - Optimistic updates (instant UI feedback)
- * - Debounce to prevent spam / double-click bugs
- * - Stable state that doesn't disappear on re-render
- */
+/** Persist video likes and saves in Supabase, rolling back optimistic UI on failure. */
 export function useSocialInteractions(video: Video) {
   const [isLiked, setIsLiked] = useState(video.isLiked ?? false);
   const [isSaved, setIsSaved] = useState(video.isSaved ?? false);
@@ -15,82 +12,131 @@ export function useSocialInteractions(video: Video) {
   const [isLikeLoading, setIsLikeLoading] = useState(false);
   const [isSaveLoading, setIsSaveLoading] = useState(false);
 
-  // Debounce refs to prevent double-click spam
-  const likeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    let active = true;
+    const loadUserInteractions = async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (!active) return;
+      if (error || !data.user) {
+        setIsLiked(false);
+        setIsSaved(false);
+        return;
+      }
+      const userId = data.user.id;
+      const [likeResult, saveResult] = await Promise.all([
+        supabase.from('video_likes').select('video_id')
+          .eq('video_id', video.id).eq('user_id', userId).maybeSingle(),
+        supabase.from('video_saves').select('video_id')
+          .eq('video_id', video.id).eq('user_id', userId).maybeSingle(),
+      ]);
+      if (!active) return;
+      if (!likeResult.error) setIsLiked(Boolean(likeResult.data));
+      if (!saveResult.error) setIsSaved(Boolean(saveResult.data));
+    };
+    void loadUserInteractions();
+    return () => { active = false; };
+  }, [video.id]);
 
-  const toggleLike = useCallback(() => {
+  const toggleLike = useCallback(async () => {
     if (isLikeLoading) return;
-
-    // Clear any pending debounce
-    if (likeTimeout.current) clearTimeout(likeTimeout.current);
-
-    // Optimistic update immediately
-    const newLiked = !isLiked;
-    setIsLiked(newLiked);
-    setLikeCount(prev => newLiked ? prev + 1 : prev - 1);
+    const { data, error: authError } = await supabase.auth.getUser();
+    const userId = data.user?.id;
+    if (authError || !userId) {
+      toast.error('Connectez-vous pour aimer cette vidéo.');
+      return;
+    }
+    const nextLiked = !isLiked;
+    setIsLiked(nextLiked);
+    setLikeCount((count) => Math.max(0, count + (nextLiked ? 1 : -1)));
     setIsLikeLoading(true);
-
-    // Simulate API call (replace with real fetch when backend ready)
-    likeTimeout.current = setTimeout(() => {
-      // In production: POST /video/{id}/like or DELETE /video/{id}/like
-      // On error: rollback optimistic update
+    try {
+      if (nextLiked) {
+        const { error } = await supabase.from('video_likes').upsert(
+          { video_id: video.id, user_id: userId },
+          { onConflict: 'video_id,user_id', ignoreDuplicates: true },
+        );
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('video_likes')
+          .delete().eq('video_id', video.id).eq('user_id', userId);
+        if (error) throw error;
+      }
+    } catch {
+      setIsLiked(!nextLiked);
+      setLikeCount((count) => Math.max(0, count + (nextLiked ? -1 : 1)));
+      toast.error("Impossible d'enregistrer votre like. Réessayez.");
+    } finally {
       setIsLikeLoading(false);
-    }, 300);
-  }, [isLiked, isLikeLoading]);
+    }
+  }, [isLikeLoading, isLiked, video.id]);
 
-  const toggleSave = useCallback(() => {
+  const toggleSave = useCallback(async () => {
     if (isSaveLoading) return;
-
-    if (saveTimeout.current) clearTimeout(saveTimeout.current);
-
-    const newSaved = !isSaved;
-    setIsSaved(newSaved);
-    setSaveCount(prev => newSaved ? prev + 1 : prev - 1);
+    const { data, error: authError } = await supabase.auth.getUser();
+    const userId = data.user?.id;
+    if (authError || !userId) {
+      toast.error('Connectez-vous pour enregistrer cette vidéo.');
+      return;
+    }
+    const nextSaved = !isSaved;
+    setIsSaved(nextSaved);
+    setSaveCount((count) => Math.max(0, count + (nextSaved ? 1 : -1)));
     setIsSaveLoading(true);
-
-    saveTimeout.current = setTimeout(() => {
-      // In production: POST /video/{id}/favorite or DELETE /video/{id}/favorite
+    try {
+      if (nextSaved) {
+        const { error } = await supabase.from('video_saves').upsert(
+          { video_id: video.id, user_id: userId },
+          { onConflict: 'video_id,user_id', ignoreDuplicates: true },
+        );
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('video_saves')
+          .delete().eq('video_id', video.id).eq('user_id', userId);
+        if (error) throw error;
+      }
+    } catch {
+      setIsSaved(!nextSaved);
+      setSaveCount((count) => Math.max(0, count + (nextSaved ? -1 : 1)));
+      toast.error("Impossible d'enregistrer ce favori. Réessayez.");
+    } finally {
       setIsSaveLoading(false);
-    }, 300);
-  }, [isSaved, isSaveLoading]);
+    }
+  }, [isSaveLoading, isSaved, video.id]);
 
-  return {
-    isLiked,
-    isSaved,
-    likeCount,
-    saveCount,
-    isLikeLoading,
-    isSaveLoading,
-    toggleLike,
-    toggleSave,
-  };
+  return { isLiked, isSaved, likeCount, saveCount, isLikeLoading, isSaveLoading, toggleLike, toggleSave };
 }
 
-/**
- * Follow/unfollow hook with anti-self-follow guard
- */
+/** Persist follow/unfollow operations and prevent self-following. */
 export function useFollow(initialFollowing: boolean, targetUserId: string, currentUserId: string) {
   const [isFollowing, setIsFollowing] = useState(initialFollowing);
   const [isLoading, setIsLoading] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const toggle = useCallback(() => {
-    // Prevent following yourself
-    if (targetUserId === currentUserId) return;
-    if (isLoading) return;
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    const newVal = !isFollowing;
-    setIsFollowing(newVal);
+  const toggle = useCallback(async () => {
+    if (targetUserId === currentUserId || isLoading) return;
+    if (!currentUserId) {
+      toast.error('Connectez-vous pour suivre ce compte.');
+      return;
+    }
+    const nextFollowing = !isFollowing;
+    setIsFollowing(nextFollowing);
     setIsLoading(true);
-
-    debounceRef.current = setTimeout(() => {
-      // In production: POST /user/{id}/follow or DELETE /user/{id}/follow
+    try {
+      if (nextFollowing) {
+        const { error } = await supabase.from('follows').upsert(
+          { follower_id: currentUserId, following_id: targetUserId },
+          { onConflict: 'follower_id,following_id', ignoreDuplicates: true },
+        );
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('follows')
+          .delete().eq('follower_id', currentUserId).eq('following_id', targetUserId);
+        if (error) throw error;
+      }
+    } catch {
+      setIsFollowing(!nextFollowing);
+      toast.error("Impossible de mettre à jour l'abonnement. Réessayez.");
+    } finally {
       setIsLoading(false);
-    }, 300);
-  }, [isFollowing, isLoading, targetUserId, currentUserId]);
-
+    }
+  }, [currentUserId, isFollowing, isLoading, targetUserId]);
   return { isFollowing, isLoading, toggle };
 }
