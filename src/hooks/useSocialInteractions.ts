@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Video } from '@/types';
@@ -12,6 +12,31 @@ export function useSocialInteractions(video: Video) {
   const [isLikeLoading, setIsLikeLoading] = useState(false);
   const [isSaveLoading, setIsSaveLoading] = useState(false);
 
+  useEffect(() => {
+    let active = true;
+    const loadUserInteractions = async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (!active) return;
+      if (error || !data.user) {
+        setIsLiked(false);
+        setIsSaved(false);
+        return;
+      }
+      const userId = data.user.id;
+      const [likeResult, saveResult] = await Promise.all([
+        supabase.from('video_likes').select('video_id')
+          .eq('video_id', video.id).eq('user_id', userId).maybeSingle(),
+        supabase.from('video_saves').select('video_id')
+          .eq('video_id', video.id).eq('user_id', userId).maybeSingle(),
+      ]);
+      if (!active) return;
+      if (!likeResult.error) setIsLiked(Boolean(likeResult.data));
+      if (!saveResult.error) setIsSaved(Boolean(saveResult.data));
+    };
+    void loadUserInteractions();
+    return () => { active = false; };
+  }, [video.id]);
+
   const toggleLike = useCallback(async () => {
     if (isLikeLoading) return;
     const { data, error: authError } = await supabase.auth.getUser();
@@ -20,7 +45,6 @@ export function useSocialInteractions(video: Video) {
       toast.error('Connectez-vous pour aimer cette vidéo.');
       return;
     }
-
     const nextLiked = !isLiked;
     setIsLiked(nextLiked);
     setLikeCount((count) => Math.max(0, count + (nextLiked ? 1 : -1)));
@@ -54,7 +78,6 @@ export function useSocialInteractions(video: Video) {
       toast.error('Connectez-vous pour enregistrer cette vidéo.');
       return;
     }
-
     const nextSaved = !isSaved;
     setIsSaved(nextSaved);
     setSaveCount((count) => Math.max(0, count + (nextSaved ? 1 : -1)));
@@ -87,14 +110,12 @@ export function useSocialInteractions(video: Video) {
 export function useFollow(initialFollowing: boolean, targetUserId: string, currentUserId: string) {
   const [isFollowing, setIsFollowing] = useState(initialFollowing);
   const [isLoading, setIsLoading] = useState(false);
-
   const toggle = useCallback(async () => {
     if (targetUserId === currentUserId || isLoading) return;
     if (!currentUserId) {
       toast.error('Connectez-vous pour suivre ce compte.');
       return;
     }
-
     const nextFollowing = !isFollowing;
     setIsFollowing(nextFollowing);
     setIsLoading(true);
@@ -117,6 +138,5 @@ export function useFollow(initialFollowing: boolean, targetUserId: string, curre
       setIsLoading(false);
     }
   }, [currentUserId, isFollowing, isLoading, targetUserId]);
-
   return { isFollowing, isLoading, toggle };
 }
