@@ -122,6 +122,8 @@ Les comptes de fichiers frontend proviennent de l'inventaire de l'archive de tra
 
 ## 8. Limites de preuve
 
+La cartographie couvre l'arbre du dépôt, les routes/pages et les points d'entrée métier, les hooks/services, les appels Supabase repérables, les 22 migrations, les 13 fonctions Edge et les parcours à risque. Les composants ont fait l'objet d'un inventaire et d'un balayage statique ; une exécution manuelle de chaque bouton/état dans un navigateur et sur Android n'a pas été possible dans cette phase. L'inventaire fonctionnel regroupe donc les actions par parcours métier : il ne constitue pas encore un procès-verbal de clic de chaque contrôle visuel.
+
 Non vérifiable sans accès de production :
 - migrations effectivement appliquées et éventuels objets créés manuellement ;
 - policies RLS actives dans la base distante et privilèges SQL effectifs ;
