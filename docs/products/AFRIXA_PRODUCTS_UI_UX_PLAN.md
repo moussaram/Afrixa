@@ -38,7 +38,7 @@ Mobile-first, sauvegarde brouillon, upload reprenable, erreurs explicites, valid
 
 ## 6. Routes indicatives (non existantes à ce stade)
 
-/ shop/products/new?type=physical
+/shop/products/new?type=physical
 /shop/products/new?type=digital
 /shop/products/:id/edit
 /shop/orders/physical
