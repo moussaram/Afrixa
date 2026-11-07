@@ -11,22 +11,21 @@
 | SEC-02 | critique | portefeuille créateur | `creator_wallet_owner_all` autorise FOR ALL au propriétaire | modification directe de balance/pending/total_earned | immédiate |
 | SEC-03 | critique | Afrixa Coins | `afrixa_coins_owner_all` autorise FOR ALL au propriétaire | altération directe du solde de coins | immédiate |
 | SEC-04 | critique | paiement UI | `AfrixaPaySheet.handlePay` utilise setTimeout, référence aléatoire et toast « Paiement confirmé » | faux reçu/confirmation sans paiement ni commande réelle | immédiate |
-| SEC-05 | critique | notifications | policy `System can insert notifications` avec `WITH CHECK (true)` créée dans migration initiale et non supprimée | insertion de notifications pour d'autres utilisateurs par un rôle ayant INSERT | immédiate |
-| SEC-06 | critique | publication vidéo | policies owner INSERT/UPDATE ne forcent pas `is_published=false` ni `moderation_status=pending` | publication directe pouvant contourner upload/modération | immédiate |
-| SEC-07 | élevée/critique | Edge privilégiées | `calculate-scores` et `cleanup-stories` utilisent service-role sans contrôle explicite dans le handler | invocation par un utilisateur disposant d'un JWT accepté par la passerelle, déclenchement d'opérations globales | immédiate |
-| SEC-08 | élevée | messagerie | policy UPDATE conversations vérifie participant mais ne verrouille pas les colonnes participant_1/2 | possibilité de modifier l'autre participant tout en restant dans la conversation | élevée |
-| SEC-09 | élevée | confidentialité | `who_can_message`, blocs et restrictions ne sont pas appliqués uniformément ; `getOrCreateConversation` crée directement une conversation | messages non désirés malgré préférences/blocage | élevée |
-| SEC-10 | élevée | ledger financier | plusieurs tables de soldes/transactions et INSERT directs avec champs financiers contrôlés par client | faux achats, faux revenus, divergence de soldes | immédiate |
-| SEC-11 | élevée | stock | trigger checkout vérifie stock sous FOR SHARE, mais aucun décrément/réservation atomique du stock n'est constaté | survente en cas de commandes concurrentes | élevée |
-| SEC-12 | élevée | payout | payout est désactivé par défaut et helper frontend non appelé par le parcours commande | vendeur non payé automatiquement ; soldes UI non fiables | élevée |
-| SEC-13 | élevée | admin/modération | aucune RBAC admin/route admin identifiée ; sanctions et signalements sans console de traitement | absence de réponse aux abus et privilèges admin non définis | élevée |
-| SEC-14 | moyenne | rate limiting | Edge/RPC existent mais hook `useSecurityModeration` non consommé par les parcours principaux | contrôles de fréquence contournables | élevée |
-| SEC-15 | moyenne | blocage | table et fonction block existent, mais filtres non systématiques dans feed/messages/search | blocage incomplet | moyenne |
-| SEC-16 | moyenne | présence | SELECT public sur `user_presence` | exposition présence/last_seen | moyenne |
-| SEC-17 | moyenne | typing | policy `typing_indicators FOR ALL` ne lie pas clairement user_id à auth.uid() | usurpation d'indicateur de frappe dans une conversation | moyenne |
-| SEC-18 | moyenne | types | 50 tables migrées absentes des types générés main | erreurs runtime, contournements any, dérive schéma/code | élevée |
-| SEC-19 | moyenne | webhook/atomicité | transactions, commandes et splits changés par plusieurs appels ; split check-then-insert sans unicité transaction_id | états partiels ou doublons sous concurrence | élevée |
-| SEC-20 | faible/moyenne | logs | plusieurs console.error peuvent contenir objets d'erreur provider/DB | risque d'informations techniques dans logs ; vérifier filtrage | moyenne |
+| SEC-05 | critique | publication vidéo | policies owner INSERT/UPDATE ne forcent pas `is_published=false` ni `moderation_status=pending` | publication directe pouvant contourner upload/modération | immédiate |
+| SEC-05 | élevée/critique | Edge privilégiées | `calculate-scores` et `cleanup-stories` utilisent service-role sans contrôle explicite dans le handler | invocation par un utilisateur disposant d'un JWT accepté par la passerelle, déclenchement d'opérations globales | immédiate |
+| SEC-05 | élevée | messagerie | policy UPDATE conversations vérifie participant mais ne verrouille pas les colonnes participant_1/2 | possibilité de modifier l'autre participant tout en restant dans la conversation | élevée |
+| SEC-05 | élevée | confidentialité | `who_can_message`, blocs et restrictions ne sont pas appliqués uniformément ; `getOrCreateConversation` crée directement une conversation | messages non désirés malgré préférences/blocage | élevée |
+| SEC-05 | élevée | ledger financier | plusieurs tables de soldes/transactions et INSERT directs avec champs financiers contrôlés par client | faux achats, faux revenus, divergence de soldes | immédiate |
+| SEC-05 | élevée | stock | trigger checkout vérifie stock sous FOR SHARE, mais aucun décrément/réservation atomique du stock n'est constaté | survente en cas de commandes concurrentes | élevée |
+| SEC-05 | élevée | payout | payout est désactivé par défaut et helper frontend non appelé par le parcours commande | vendeur non payé automatiquement ; soldes UI non fiables | élevée |
+| SEC-05 | élevée | admin/modération | aucune RBAC admin/route admin identifiée ; sanctions et signalements sans console de traitement | absence de réponse aux abus et privilèges admin non définis | élevée |
+| SEC-05 | moyenne | rate limiting | Edge/RPC existent mais hook `useSecurityModeration` non consommé par les parcours principaux | contrôles de fréquence contournables | élevée |
+| SEC-05 | moyenne | blocage | table et fonction block existent, mais filtres non systématiques dans feed/messages/search | blocage incomplet | moyenne |
+| SEC-05 | moyenne | présence | SELECT public sur `user_presence` | exposition présence/last_seen | moyenne |
+| SEC-05 | moyenne | typing | policy `typing_indicators FOR ALL` ne lie pas clairement user_id à auth.uid() | usurpation d'indicateur de frappe dans une conversation | moyenne |
+| SEC-05 | moyenne | types | 50 tables migrées absentes des types générés main | erreurs runtime, contournements any, dérive schéma/code | élevée |
+| SEC-05 | moyenne | webhook/atomicité | transactions, commandes et splits changés par plusieurs appels ; split check-then-insert sans unicité transaction_id | états partiels ou doublons sous concurrence | élevée |
+| SEC-05 | faible/moyenne | logs | plusieurs console.error peuvent contenir objets d'erreur provider/DB | risque d'informations techniques dans logs ; vérifier filtrage | moyenne |
 
 ## 2. Détails des constats critiques
 
@@ -49,25 +48,11 @@ Le propriétaire d'un wallet n'est pas une autorité de crédit. Les policies `F
 
 **Correction future :** remplacer le parcours par un checkout réel ou bloquer explicitement le paiement tant que le produit n'est pas connecté ; ne jamais afficher succès sans confirmation provider.
 
-### SEC-05 — Insertion de notifications
+## 3. Vérification complémentaire et correction du constat
 
-Une policy nommée « System can insert notifications » est définie avec `WITH CHECK (true)`. Les policies permissives PostgreSQL sont combinées par OR ; ajouter une policy propriétaire plus restrictive ne neutralise pas celle-ci.
+Le constat initial relatif à la policy `System can insert notifications` a été invalidé après relecture de toute la chaîne de migrations : la migration `20260411220556_26795bd8-27d7-4ee6-a493-6eee0ebc92e4.sql` exécute explicitement `DROP POLICY "System can insert notifications"` puis crée `Users can insert their own notifications` avec `WITH CHECK (auth.uid() = user_id)`. Cette policy ouverte ne doit donc pas être comptée comme un risque persistant dans le schéma versionné `main`. Le test négatif A-vers-B reste pertinent pour confirmer le comportement du schéma réellement déployé.
 
-**Correction future :** retirer la policy ouverte, créer une voie service-role/trigger signée et tester insertion cross-user.
-
-### SEC-06 — Contournement de publication vidéo
-
-Les policies de création/modification vérifient la propriété de la ligne, pas le statut de modération. Le workflow Cloudflare insère des vidéos en attente, mais un client autorisé peut tenter un INSERT direct avec statut publié/approuvé si les grants RLS lui permettent l'opération.
-
-**Correction future :** mutations de publication réservées au serveur, trigger de transition, stockage des preuves de modération, tests d'accès direct PostgREST.
-
-### SEC-07 — Fonctions service-role globales
-
-`calculate-scores` et `cleanup-stories` créent le client Supabase avec service-role au niveau module et n'authentifient pas explicitement le demandeur dans le handler. La configuration ne définit pas de secret cron spécifique pour elles.
-
-**Correction future :** secret de tâche dédié ou contrôle de rôle strict, méthode HTTP, limites de durée et logs d'exécution.
-
-## 3. Contrôles positifs observés
+## 4. Contrôles positifs observés
 
 - Les fonctions FedaPay checkout/verify authentifient l'utilisateur et vérifient l'appartenance acheteur/commande.
 - Le webhook FedaPay vérifie une signature sur le corps brut puis relit la transaction auprès du fournisseur.
@@ -81,7 +66,7 @@ Les policies de création/modification vérifient la propriété de la ligne, pa
 
 Ces contrôles sont des protections de code, pas la preuve qu'ils sont déployés ou testés en production.
 
-## 4. Autres domaines à auditer par tests
+## 5. Autres domaines à auditer par tests
 
 - RLS des messages, photos et médias signés.
 - Accès à stories, lives privés, vidéos followers et produits désactivés.
@@ -92,7 +77,7 @@ Ces contrôles sont des protections de code, pas la preuve qu'ils sont déployé
 - Race conditions paiement, payout, stock, coins, cadeaux et memberships.
 - Séparation des rôles administrateur, support, modérateur, vendeur et créateur.
 
-## 5. Conditions minimales avant production
+## 6. Conditions minimales avant production
 
 Aucune mise en production de flux financiers tant que :
 1. les soldes ne sont pas modifiables directement par l'utilisateur ;

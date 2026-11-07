@@ -89,9 +89,8 @@ Les comptes de fichiers frontend proviennent de l'inventaire de l'archive de tra
 1. **Exposition de données personnelles :** policy SELECT de `profiles` avec `USING (true)`, alors que la table contient notamment date/lieu de naissance, numéro mobile, identifiants de vérification et informations de profil.
 2. **Écriture directe de soldes créateur :** policies `FOR ALL` propriétaire sur `creator_wallet` et `afrixa_coins` autorisent le propriétaire à modifier des champs de solde.
 3. **Fausse confirmation de paiement :** `AfrixaPaySheet` affiche un succès après un timer, génère une référence aléatoire et notifie fictivement le vendeur, sans FedaPay ni commande serveur.
-4. **Création arbitraire de notifications :** policy historique `System can insert notifications` avec `WITH CHECK (true)` toujours présente dans la chaîne de migrations ; les policies permissives PostgreSQL s'additionnent.
-5. **Contournement de modération vidéo :** policies INSERT/UPDATE de `videos` limitées à la propriété de la ligne, sans contrainte serveur empêchant un client d'envoyer directement `is_published=true` ou `moderation_status='approved'`.
-6. **Edge Functions privilégiées sans autorisation métier explicite :** `calculate-scores` et `cleanup-stories` utilisent la clé service-role sans contrôle d'identité/rôle/secret dans le handler.
+4. **Contournement de modération vidéo :** policies INSERT/UPDATE de `videos` limitées à la propriété de la ligne, sans contrainte serveur empêchant un client d'envoyer directement `is_published=true` ou `moderation_status='approved'`.
+5. **Edge Functions privilégiées sans autorisation métier explicite :** `calculate-scores` et `cleanup-stories` utilisent la clé service-role sans contrôle d'identité/rôle/secret dans le handler.
 
 ### Élevés
 - Les paramètres de confidentialité de profil ne sont pas respectés uniformément ; `profiles` reste lisible publiquement.
@@ -119,6 +118,8 @@ Les comptes de fichiers frontend proviennent de l'inventaire de l'archive de tra
 - La branche actuelle `audit/phase-00-global-20261107` est créée depuis main.
 - L'archive locale fournie ne contient pas `.git` ; `git status` local n'est donc pas disponible. L'état distant est contrôlé par les références GitHub.
 - Aucun code source, migration ou fichier de configuration n'est modifié dans cette Phase 0.
+
+Une relecture de la migration `20260411220556_26795bd8-27d7-4ee6-a493-6eee0ebc92e4.sql` confirme que la policy d'insertion ouverte des notifications est supprimée par la migration suivante et remplacée par une policy limitée à `auth.uid() = user_id`. Le constat correspondant du rapport de sécurité a été retiré ; le test cross-user est conservé comme vérification de non-régression sur staging.
 
 ## 8. Limites de preuve
 
