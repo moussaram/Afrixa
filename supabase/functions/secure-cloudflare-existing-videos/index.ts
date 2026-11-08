@@ -42,7 +42,10 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceRole, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const [{ data: videos, count, error: queryError }, { count: legacyCount, error: legacyError }] = await Promise.all([
+    const [
+      { data: videos, count, error: queryError },
+      { count: legacyCount, error: legacyError },
+    ] = await Promise.all([
       admin
         .from('videos')
         .select('id, cloudflare_uid', { count: 'exact' })
@@ -54,18 +57,13 @@ Deno.serve(async (req) => {
         .select('id', { count: 'exact', head: true })
         .is('cloudflare_uid', null),
     ]);
-    if (legacyError) throw legacyError;
-    const { data: batchVideos } = { data: videos }; // keep the batch name explicit below
-    const selectedVideos = batchVideos;
-      .not('cloudflare_uid', 'is', null)
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit - 1);
 
     if (queryError) throw queryError;
+    if (legacyError) throw legacyError;
 
     let secured = 0;
     const failedVideoIds: string[] = [];
-    for (const video of selectedVideos ?? []) {
+    for (const video of videos ?? []) {
       const uid = video.cloudflare_uid ?? '';
       if (!videoUidPattern.test(uid)) {
         failedVideoIds.push(video.id);
@@ -85,9 +83,9 @@ Deno.serve(async (req) => {
     }
 
     const total = count ?? 0;
-    const nextOffset = offset + (selectedVideos?.length ?? 0);
+    const nextOffset = offset + (videos?.length ?? 0);
     return json({
-      processed: selectedVideos?.length ?? 0,
+      processed: videos?.length ?? 0,
       secured,
       failed: failedVideoIds.length,
       legacy_without_cloudflare_uid: legacyCount ?? 0,
