@@ -168,7 +168,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = useCallback(async () => {
     if (user) {
-      const { error: tokenError } = await .from('user_fcm_tokens')
+      const { error: tokenError } = await supabase.from('user_fcm_tokens')
         .delete()
         .eq('user_id', user.id)
         .eq('platform', 'web_fid');
