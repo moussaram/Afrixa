@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setProfileError(null);
 
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('profiles')
         .select(PROFILE_COLUMNS)
         .eq('user_id', authUser.id)
@@ -45,16 +45,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (requestId !== profileRequestId.current) return;
 
+      // The auth trigger normally creates the profile. Repair legacy/missing
+      // rows with the minimum permitted insert, then re-read after a race.
+      if (!error && !data) {
+        const { data: insertedProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert({ user_id: authUser.id })
+          .select(PROFILE_COLUMNS)
+          .single();
+
+        if (requestId !== profileRequestId.current) return;
+
+        if (insertedProfile) {
+          data = insertedProfile;
+        } else if (insertError?.code === '23505') {
+          const retry = await supabase
+            .from('profiles')
+            .select(PROFILE_COLUMNS)
+            .eq('user_id', authUser.id)
+            .maybeSingle();
+          data = retry.data;
+          error = retry.error;
+        } else if (insertError) {
+          error = insertError;
+        }
+      }
+
+      if (requestId !== profileRequestId.current) return;
+
       if (error) {
         setProfile(null);
-        setProfileError('Impossible de récupérer ton profil. Vérifie ta connexion puis réessaie.');
-        console.error('Profile fetch failed', { userId: authUser.id, error });
+        setProfileError('Impossible de récupérer ou de réparer ton profil. Vérifie ta connexion puis réessaie.');
+        console.error('Profile fetch/repair failed', { userId: authUser.id, error });
         return;
       }
 
       if (!data) {
         setProfile(null);
-        setProfileError('Ton compte est connecté, mais ton profil Afrixa est introuvable. La finalisation du profil est nécessaire.');
+        setProfileError('Ton compte est connecté, mais ton profil Afrixa reste introuvable. Contacte le support si le problème persiste.');
         return;
       }
 
@@ -67,7 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (requestId !== profileRequestId.current) return;
       setProfile(null);
       setProfileError('Une erreur inattendue a empêché le chargement du profil.');
-      console.error('Unexpected profile fetch failure', { userId: authUser.id, error });
+      console.error('Unexpected profile fetch/repair failure', { userId: authUser.id, error });
     } finally {
       if (requestId === profileRequestId.current) setLoading(false);
     }
@@ -158,7 +186,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{ user, session, profile, profileError, loading, signOut, refreshProfile }}>
-      {children}
+      <>
+        {profileError && user && (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="relative z-[100] flex flex-wrap items-center justify-between gap-3 border-b border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-foreground"
+          >
+            <span>{profileError}</span>
+            <button
+              type="button"
+              onClick={() => void refreshProfile()}
+              className="font-semibold underline underline-offset-4"
+            >
+              Réessayer
+            </button>
+          </div>
+        )}
+        {children}
+      </>
     </AuthContext.Provider>
   );
 };
