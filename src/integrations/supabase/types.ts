@@ -14,6 +14,123 @@ export type Database = {
   }
   public: {
     Tables: {
+      videos: {
+        Row: {
+          allow_download: boolean | null
+          allow_duet: boolean | null
+          allow_stitch: boolean | null
+          audio_track: string | null
+          cloudflare_status: string
+          cloudflare_uid: string | null
+          comments_count: number
+          comments_disabled: boolean | null
+          cover_timestamp: number | null
+          created_at: string
+          description: string | null
+          duration: number
+          episode_number: number | null
+          file_size: number | null
+          hls_url: string
+          id: string
+          is_exclusive: boolean | null
+          is_published: boolean
+          lat: number | null
+          likes_count: number
+          lng: number | null
+          location_name: string | null
+          moderation_status: string
+          privacy: string
+          resolution: string | null
+          saves_count: number
+          search_vector: string | null
+          series_id: string | null
+          shares_count: number
+          sound_id: string | null
+          thumbnail_url: string | null
+          title: string | null
+          updated_at: string
+          user_id: string
+          views_count: number
+          tagged_products: string[] | null
+        }
+        Insert: {
+          allow_download?: boolean | null
+          allow_duet?: boolean | null
+          allow_stitch?: boolean | null
+          audio_track?: string | null
+          cloudflare_status?: string
+          cloudflare_uid?: string | null
+          comments_count?: number
+          comments_disabled?: boolean | null
+          cover_timestamp?: number | null
+          created_at?: string
+          description?: string | null
+          duration?: number
+          episode_number?: number | null
+          file_size?: number | null
+          hls_url: string
+          id?: string
+          is_exclusive?: boolean | null
+          is_published?: boolean
+          lat?: number | null
+          likes_count?: number
+          lng?: number | null
+          location_name?: string | null
+          moderation_status?: string
+          privacy?: string
+          resolution?: string | null
+          saves_count?: number
+          search_vector?: string | null
+          series_id?: string | null
+          shares_count?: number
+          sound_id?: string | null
+          thumbnail_url?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id: string
+          views_count?: number
+          tagged_products?: string[] | null
+        }
+        Update: {
+          allow_download?: boolean | null
+          allow_duet?: boolean | null
+          allow_stitch?: boolean | null
+          audio_track?: string | null
+          cloudflare_status?: string
+          cloudflare_uid?: string | null
+          comments_count?: number
+          comments_disabled?: boolean | null
+          cover_timestamp?: number | null
+          created_at?: string
+          description?: string | null
+          duration?: number
+          episode_number?: number | null
+          file_size?: number | null
+          hls_url?: string
+          id?: string
+          is_exclusive?: boolean | null
+          is_published?: boolean
+          lat?: number | null
+          likes_count?: number
+          lng?: number | null
+          location_name?: string | null
+          moderation_status?: string
+          privacy?: string
+          resolution?: string | null
+          saves_count?: number
+          search_vector?: string | null
+          series_id?: string | null
+          shares_count?: number
+          sound_id?: string | null
+          thumbnail_url?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+          views_count?: number
+          tagged_products?: string[] | null
+        }
+        Relationships: []
+      }
       follows: {
         Row: { created_at: string; follower_id: string; following_id: string }
         Insert: { created_at?: string; follower_id: string; following_id: string }
