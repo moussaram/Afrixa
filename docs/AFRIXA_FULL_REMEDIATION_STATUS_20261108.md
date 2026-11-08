@@ -17,6 +17,14 @@ Cette branche conserve les corrections antérieures de la PR #5 et ajoute une pr
 - `src/pages/MyShop.tsx` : suppression du fallback vers les produits fictifs et des statistiques codées en dur ; produits et indicateurs chargés depuis les tables `products` et `orders` du vendeur authentifié ; suppression de produit filtrée par `seller_id` ; publication locale non authentifiée supprimée.
 - `.github/workflows/ci.yml` : ajout d'un workflow GitHub Actions pour installer les dépendances, lancer ESLint et construire l'application sur Node.js 24.12.0.
 
+### Nouvelle tranche : flux social et intégrité financière
+
+- `src/pages/Index.tsx` : le fil « Pour toi » et « Abonnements » lit désormais les vidéos publiées dans Supabase, charge les profils auteurs, gère les états d'erreur/vide et propose une pagination par lots de 20. Les données de démonstration ne sont plus utilisées dans le fil principal.
+- `src/components/video/VideoCard.tsx` : les contrôles d'abonnement comparent maintenant l'auteur à l'utilisateur réellement authentifié, et non au compte fictif de démonstration.
+- `supabase/migrations/20261108120000_secure_checkout_financial_ledger.sql` : ajoute une validation serveur des commandes (propriétaire, produit actif, vendeur, prix, commission, stock réservé dans la même transaction), bloque les modifications directes des statuts et montants, supprime des politiques d'écriture client sur les commissions/événements de commande/paiements, protège les soldes Afrixa Coins et crée un journal financier immuable et idempotent.
+
+Cette migration est préparée dans le dépôt mais **n'a pas été appliquée** à Supabase. Les fonctions Edge de confirmation de paiement, remboursement, libération de stock et versement doivent être raccordées à ces règles avant activation en staging.
+
 ## Vérifications
 
 - Les modifications ont été écrites sur cette branche GitHub.
