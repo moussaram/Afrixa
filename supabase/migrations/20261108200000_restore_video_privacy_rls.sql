@@ -23,6 +23,28 @@ $function$;
 REVOKE ALL ON FUNCTION public.is_publicly_followable(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.is_publicly_followable(uuid) TO anon, authenticated;
 
+
+CREATE OR REPLACE FUNCTION public.are_users_blocked(first_user_id uuid, second_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+  SELECT CASE
+    WHEN first_user_id IS NULL OR second_user_id IS NULL THEN false
+    ELSE EXISTS (
+      SELECT 1
+      FROM public.user_blocks AS block_relation
+      WHERE (block_relation.blocker_id = first_user_id AND block_relation.blocked_id = second_user_id)
+         OR (block_relation.blocker_id = second_user_id AND block_relation.blocked_id = first_user_id)
+    )
+  END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.are_users_blocked(uuid, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.are_users_blocked(uuid, uuid) TO anon, authenticated;
+
 DROP POLICY IF EXISTS "Videos publiees visibles par tous" ON public.videos;
 DROP POLICY IF EXISTS "Videos visibles selon leur confidentialite" ON public.videos;
 DROP POLICY IF EXISTS "Approved videos visible to public" ON public.videos;
@@ -45,6 +67,7 @@ CREATE POLICY "Videos visibles selon leur confidentialite v2"
       AND moderation_status = 'approved'
       AND privacy = 'public'
       AND public.is_publicly_followable(user_id)
+      AND NOT public.are_users_blocked(auth.uid(), user_id)
     )
 
     -- Followers-only videos and videos from private accounts are visible
@@ -57,6 +80,7 @@ CREATE POLICY "Videos visibles selon leur confidentialite v2"
         OR (privacy = 'public' AND NOT public.is_publicly_followable(user_id))
       )
       AND auth.uid() IS NOT NULL
+      AND NOT public.are_users_blocked(auth.uid(), user_id)
       AND EXISTS (
         SELECT 1
         FROM public.follows AS follow_relation
