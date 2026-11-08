@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Plus, Package, TrendingUp, Clock, DollarSign, Edit, Trash2, Flame, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { mockProducts } from '@/data/mockMarketplace';
 import { formatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { CreateGroupBuyForm } from '@/components/groupbuy/CreateGroupBuyForm';
@@ -33,6 +32,7 @@ const MyShop = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [groupBuyProduct, setGroupBuyProduct] = useState<{name: string; price: number; currency: string} | null>(null);
   const [products, setProducts] = useState<ShopProduct[]>([]);
+  const [sellerOrders, setSellerOrders] = useState<Array<{ id: string; total_price: number; seller_amount: number; status: string; created_at: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -48,51 +48,48 @@ const MyShop = () => {
   });
 
   const loadProducts = async () => {
+    if (!user) {
+      setProducts([]);
+      setSellerOrders([]);
+      setLoadError('Connectez-vous pour gérer votre boutique.');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setLoadError(null);
     try {
-      if (user) {
-        const { data, error } = await supabase
-          .from('products')
-          .select('*')
+      const [productsResult, ordersResult] = await Promise.all([
+        supabase.from('products')
+          .select('id, name, description, category, price, stock, images, sales_count, city, country')
           .eq('seller_id', user.id)
           .eq('is_active', true)
-          .order('created_at', { ascending: false });
-        if (error) throw error;
-        if (data && data.length > 0) {
-          setProducts(data.map(p => ({
-            id: p.id,
-            name: p.name,
-            description: p.description,
-            category: p.category,
-            price: p.price,
-            currency: 'FCFA',
-            stock: p.stock ?? 0,
-            imageUrl: (p.images && p.images[0]) || `https://picsum.photos/seed/${p.id}/200`,
-            sales: p.sales_count ?? 0,
-            city: p.city,
-            country: p.country,
-          })));
-          setLoading(false);
-          return;
-        }
-      }
-      // Fallback to mock for dev / empty state
-      setProducts(mockProducts.filter(p => p.sellerId === 's1').map(p => ({
+          .order('created_at', { ascending: false }),
+        supabase.from('orders')
+          .select('id, total_price, seller_amount, status, created_at')
+          .eq('seller_id', user.id)
+          .order('created_at', { ascending: false })
+          .range(0, 499),
+      ]);
+      if (productsResult.error) throw productsResult.error;
+      if (ordersResult.error) throw ordersResult.error;
+      setProducts((productsResult.data ?? []).map(p => ({
         id: p.id,
         name: p.name,
+        description: p.description,
         category: p.category,
         price: p.price,
-        currency: p.currency,
-        stock: p.stock,
-        imageUrl: p.imageUrl,
-        sales: p.sales,
+        currency: 'FCFA',
+        stock: p.stock ?? 0,
+        imageUrl: p.images?.[0] ?? '',
+        sales: p.sales_count ?? 0,
         city: p.city,
         country: p.country,
-        isLocal: true,
       })));
+      setSellerOrders(ordersResult.data ?? []);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'Erreur réseau');
+      setProducts([]);
+      setSellerOrders([]);
     } finally {
       setLoading(false);
     }
@@ -104,13 +101,25 @@ const MyShop = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  const now = new Date();
+  const todayOrders = sellerOrders.filter(o => {
+    const d = new Date(o.created_at);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+      && !['annulee', 'litige', 'en_attente'].includes(o.status);
+  });
+  const monthOrders = sellerOrders.filter(o => {
+    const d = new Date(o.created_at);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+      && !['annulee', 'litige', 'en_attente'].includes(o.status);
+  });
   const stats = [
-    { label: 'Ventes du jour', value: '12', icon: TrendingUp, color: 'text-green-400' },
-    { label: 'En attente', value: '3', icon: Clock, color: 'text-amber-400' },
-    { label: 'Revenus total', value: '245K FCFA', icon: DollarSign, color: 'text-primary' },
+    { label: 'Ventes du jour', value: todayOrders.reduce((sum, o) => sum + Number(o.total_price), 0).toLocaleString('fr-FR') + ' FCFA', icon: TrendingUp, color: 'text-green-400' },
+    { label: 'En attente', value: String(sellerOrders.filter(o => o.status === 'payee').length), icon: Clock, color: 'text-amber-400' },
+    { label: 'Revenus total', value: monthOrders.reduce((sum, o) => sum + Number(o.seller_amount), 0).toLocaleString('fr-FR') + ' FCFA', icon: DollarSign, color: 'text-primary' },
   ];
 
   const handleSubmit = async () => {
+    if (!user) { toast.error('Connectez-vous pour publier un produit.'); return; }
     if (!newProduct.name.trim() || !newProduct.price) {
       toast.error('Nom et prix sont obligatoires');
       return;
@@ -143,21 +152,6 @@ const MyShop = () => {
             country: data.country,
           }, ...prev]);
         }
-      } else {
-        // Local optimistic add
-        setProducts(prev => [{
-          id: `local-${Date.now()}`,
-          name: newProduct.name,
-          category: newProduct.category,
-          price: parseInt(newProduct.price, 10),
-          currency: 'FCFA',
-          stock: parseInt(newProduct.stock || '0', 10),
-          imageUrl: `https://picsum.photos/seed/${Date.now()}/200`,
-          sales: 0,
-          city: newProduct.city,
-          country: newProduct.country,
-          isLocal: true,
-        }, ...prev]);
       }
       toast.success('✅ Produit publié !');
       setShowAddForm(false);
@@ -171,11 +165,13 @@ const MyShop = () => {
 
   const handleDelete = async (product: ShopProduct) => {
     if (!confirm(`Supprimer "${product.name}" ?`)) return;
-    if (user && !product.isLocal) {
+    if (!user || product.isLocal) { toast.error('Session invalide. Rechargez la boutique.'); return; }
+    {
       const { error } = await supabase
         .from('products')
         .update({ is_active: false })
-        .eq('id', product.id);
+        .eq('id', product.id)
+        .eq('seller_id', user.id);
       if (error) {
         toast.error('Suppression impossible');
         return;
