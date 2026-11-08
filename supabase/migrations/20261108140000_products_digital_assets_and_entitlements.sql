@@ -67,6 +67,33 @@ CREATE TRIGGER protect_product_owner
 BEFORE INSERT OR UPDATE ON public.products
 FOR EACH ROW EXECUTE FUNCTION public.protect_product_owner();
 
+CREATE OR REPLACE FUNCTION public.enforce_product_type_rules()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $
+BEGIN
+  IF auth.role() = 'service_role' OR current_user IN ('postgres', 'supabase_admin') THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'UPDATE' AND NEW.product_type IS DISTINCT FROM OLD.product_type
+    AND EXISTS (SELECT 1 FROM public.orders o WHERE o.product_id = OLD.id) THEN
+    RAISE EXCEPTION 'Product type cannot change after an order exists';
+  END IF;
+  IF NEW.product_type = 'digital' THEN
+    NEW.unlimited_stock := true;
+    NEW.stock := 0;
+    NEW.is_group_buy := false;
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS enforce_product_type_rules ON public.products;
+CREATE TRIGGER enforce_product_type_rules
+BEFORE INSERT OR UPDATE ON public.products
+FOR EACH ROW EXECUTE FUNCTION public.enforce_product_type_rules();
+
 CREATE TABLE IF NOT EXISTS public.product_variants (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE RESTRICT,
@@ -210,10 +237,9 @@ CREATE POLICY "Buyer reads own digital download history"
 -- Public product media and private paid files are intentionally separate buckets.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES
-  ('afrixa-product-media', 'afrixa-product-media', true, 10485760,
+  ('afrixa-product-media', 'afrixa-product-media', true, NULL,
    ARRAY['image/jpeg','image/png','image/webp','image/avif']),
-  ('afrixa-digital-private', 'afrixa-digital-private', false, 104857600,
-   ARRAY['application/pdf','application/zip','application/octet-stream','audio/mpeg','video/mp4','text/plain'])
+  ('afrixa-digital-private', 'afrixa-digital-private', false, NULL, NULL)
 ON CONFLICT (id) DO NOTHING;
 
 DROP POLICY IF EXISTS "Public reads Afrixa product media" ON storage.objects;
