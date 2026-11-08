@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
       .select('id,bucket_id,storage_path,status,scan_status')
       .eq('id', entitlement.asset_id).maybeSingle();
     if (assetError) throw assetError;
-    if (!asset || asset.status !== 'ready' || !['clean', 'not_configured'].includes(asset.scan_status)) {
+    if (!asset || asset.status !== 'ready' || asset.scan_status !== 'clean') {
       return json({ error: 'digital_asset_unavailable' }, 410);
     }
 
