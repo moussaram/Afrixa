@@ -365,7 +365,7 @@ const MyShop = () => {
         if (validationError || !validation?.ready) {
           throw validationError ?? new Error('Le fichier numérique n’a pas passé la validation.');
         }
-
+      }
 
       toast.success(editingProduct ? 'Modifications enregistrées. Le contenu modifié repasse en validation.' : 'Produit soumis à la modération. Il sera visible après approbation.');
       setShowAddForm(false);
