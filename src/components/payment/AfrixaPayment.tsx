@@ -21,6 +21,10 @@ interface PaymentProduct {
   imageUrl: string;
   sellerName: string;
   sellerId?: string;
+  productType?: 'physical' | 'digital';
+  stock?: number;
+  city?: string;
+  country?: string;
 }
 
 interface AfrixaPaymentProps {
@@ -42,6 +46,10 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
   const [quantity, setQuantity] = useState(1);
   const [address, setAddress] = useState('');
   const [deliveryCoordinates, setDeliveryCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [deliveryCity, setDeliveryCity] = useState('');
+  const [deliveryCountryCode, setDeliveryCountryCode] = useState('BJ');
+  const [deliveryQuote, setDeliveryQuote] = useState<{ id: string; amount_minor: number; currency: string; eta_min_minutes: number | null; eta_max_minutes: number | null; expires_at: string } | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
   const [mapsUnavailable, setMapsUnavailable] = useState(false);
   const addressAutocompleteRef = useRef<HTMLDivElement>(null);
   const [buyerNote, setBuyerNote] = useState('');
@@ -53,8 +61,11 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
   const [buyerEmail, setBuyerEmail] = useState('');
 
   const unit = customPrice ?? product.price;
+  const isDigital = product.productType === 'digital';
   const total = unit * quantity;
   const currency = product.currency ?? 'XOF';
+  const shippingFee = isDigital ? 0 : deliveryQuote?.amount_minor ?? 0;
+  const payableTotal = total + shippingFee;
   const { commissionAmount, sellerAmount, rate } = calculateSplit(total, commissionType);
   const selectedOp = operators.find(o => o.id === operator);
 
@@ -93,7 +104,39 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
     };
   }, [step]);
 
+  const requestDeliveryQuote = async () => {
+    if (isDigital) return;
+    if (!product.id || deliveryCity.trim().length < 2 || !/^[A-Z]{2}$/.test(deliveryCountryCode.trim().toUpperCase()) || address.trim().length < 5) {
+      toast.error('Renseignez une adresse, une ville et un code pays ISO à deux lettres.');
+      return;
+    }
+    setQuoteLoading(true);
+    setDeliveryQuote(null);
+    try {
+      const { data, error } = await supabase.rpc('quote_seller_delivery', {
+        p_product_id: product.id,
+        p_country_code: deliveryCountryCode.trim().toUpperCase(),
+        p_city: deliveryCity.trim(),
+        p_quantity: quantity,
+      });
+      if (error) throw error;
+      if (!data || data.expires_at <= new Date().toISOString()) throw new Error('Le devis de livraison est invalide ou expiré.');
+      setDeliveryQuote(data);
+      toast.success('Frais de livraison calculés.');
+    } catch (error) {
+      console.error('Seller delivery quote failed', error);
+      toast.error(error instanceof Error ? error.message : 'Cette boutique ne livre pas encore dans cette zone.');
+    } finally {
+      setQuoteLoading(false);
+    }
+  };
+
   const startPayment = async () => {
+    if (!isDigital && (!address.trim() || !deliveryQuote || deliveryQuote.expires_at <= new Date().toISOString())) {
+      toast.error('Obtenez un devis de livraison valide avant de payer.');
+      setStep(1);
+      return;
+    }
     if (!operator || !phone.trim()) {
       toast.error('Choisissez un opérateur et saisissez votre numéro');
       return;
@@ -122,15 +165,17 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
           product_image: product.imageUrl,
           quantity,
           unit_price: unit,
-          total_price: total,
+          total_price: payableTotal,
           commission_rate: rate,
           commission_amount: commissionAmount,
-          seller_amount: sellerAmount,
+          seller_amount: sellerAmount + shippingFee,
           payment_operator: operator,
           buyer_phone: phone,
-          delivery_address: address,
-          delivery_lat: deliveryCoordinates?.lat ?? null,
-          delivery_lng: deliveryCoordinates?.lng ?? null,
+          delivery_address: isDigital ? null : address,
+          delivery_lat: isDigital ? null : deliveryCoordinates?.lat ?? null,
+          delivery_lng: isDigital ? null : deliveryCoordinates?.lng ?? null,
+          delivery_method: isDigital ? 'digital' : 'seller',
+          delivery_quote_id: isDigital ? null : deliveryQuote?.id,
           buyer_note: buyerNote,
           status: 'en_attente',
           payment_reference: orderRef,
@@ -141,21 +186,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
       if (orderErr) throw orderErr;
       setOrderId(order.id);
 
-      // 2. Create payment_transactions row
-      const { error: transactionError } = await supabase.from('payment_transactions').insert({
-        order_id: order.id,
-        fedapay_ref: orderRef,
-        amount: total,
-        commission_amount: commissionAmount,
-        seller_amount: sellerAmount,
-        currency,
-        operator,
-        buyer_phone: phone,
-        status: 'initiated',
-        escrow_status: 'held',
-      });
-      if (transactionError) throw transactionError;
-
+      // The database creates the payment intent atomically with the order.
       const checkout = await createFedaPayCheckout(order.id);
       window.location.assign(checkout.checkoutUrl);
     } catch (e) {
@@ -214,7 +245,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-[#0A0A0F] border border-border/20">
+              {!isDigital && <div className="flex items-center justify-between p-4 rounded-2xl bg-[#0A0A0F] border border-border/20">
                 <span className="text-sm font-medium text-foreground">Quantité</span>
                 <div className="flex items-center gap-3">
                   <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
@@ -225,15 +256,18 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
                     <Plus className="w-4 h-4 text-primary-foreground" />
                   </button>
                 </div>
-              </div>
+              </div>}
 
               <div className="p-4 rounded-2xl bg-[#0A0A0F] border border-border/20 space-y-1.5">
-                <div className="flex justify-between"><span className="text-sm text-muted-foreground">Total</span><span className="text-xl font-bold text-primary">{total.toLocaleString()} {currency}</span></div>
+                <div className="flex justify-between"><span className="text-sm text-muted-foreground">Sous-total produit</span><span className="text-sm font-semibold text-foreground">{total.toLocaleString()} {currency}</span></div>
+                {!isDigital && <div className="flex justify-between"><span className="text-sm text-muted-foreground">Livraison</span><span className="text-sm font-semibold text-foreground">{deliveryQuote ? `${shippingFee.toLocaleString()} ${deliveryQuote.currency}` : 'À calculer'}</span></div>}
+                <div className="flex justify-between"><span className="text-sm text-muted-foreground">Total estimé</span><span className="text-xl font-bold text-primary">{payableTotal.toLocaleString()} {currency}</span></div>
                 <div className="flex justify-between text-[11px] text-muted-foreground/70"><span>Commission Afrixa ({(rate * 100).toFixed(0)}%)</span><span>{commissionAmount.toLocaleString()} {currency}</span></div>
                 <div className="flex justify-between text-[11px] text-muted-foreground/70"><span>Vendeur reçoit</span><span>{sellerAmount.toLocaleString()} {currency}</span></div>
               </div>
 
-              <div>
+              {!isDigital && <div className="space-y-3">
+                <p className="text-sm font-semibold text-foreground">Livraison organisée par le vendeur</p>
                 {!mapsUnavailable && <div ref={addressAutocompleteRef} className="afrixa-address-autocomplete" />}
                 {mapsUnavailable && (
                   <div className="relative">
@@ -249,7 +283,16 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
                   <p className="mt-2 text-xs text-muted-foreground">Adresse sélectionnée : {address}</p>
                 )}
                 {mapsUnavailable && <p className="mt-1 text-xs text-muted-foreground">Saisie manuelle (Google Maps indisponible)</p>}
-              </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input value={deliveryCity} onChange={e => { setDeliveryCity(e.target.value); setDeliveryQuote(null); }} placeholder="Ville de livraison" className="w-full px-3 py-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground text-sm" />
+                  <input value={deliveryCountryCode} maxLength={2} onChange={e => { setDeliveryCountryCode(e.target.value.toUpperCase()); setDeliveryQuote(null); }} placeholder="Code pays (BJ)" className="w-full px-3 py-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground text-sm" />
+                </div>
+                <button type="button" onClick={requestDeliveryQuote} disabled={quoteLoading || !address.trim() || !deliveryCity.trim()} className="w-full py-2.5 rounded-xl border border-primary/40 text-primary text-sm font-semibold disabled:opacity-50">
+                  {quoteLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Calculer les frais de livraison'}
+                </button>
+                {deliveryQuote && <p className="text-xs text-emerald-400">Devis valide jusqu’au {new Date(deliveryQuote.expires_at).toLocaleTimeString('fr-FR')} · {deliveryQuote.eta_min_minutes ?? 0}–{deliveryQuote.eta_max_minutes ?? 0} min estimées</p>}
+              </div>}
+              {isDigital && <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-foreground">Produit numérique : le fichier sera accessible dans « Mes achats numériques » après confirmation du paiement.</div>}
 
               <div className="relative">
                 <MessageSquare className="absolute left-4 top-4 w-4 h-4 text-muted-foreground" />
@@ -257,7 +300,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
                   className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground placeholder:text-muted-foreground text-sm min-h-[60px] resize-none focus:border-primary" />
               </div>
 
-              <button onClick={() => address.length >= 5 ? setStep(2) : toast.error('Adresse requise')}
+              <button onClick={() => isDigital ? setStep(2) : address.length >= 5 && deliveryQuote ? setStep(2) : toast.error('Adresse et devis de livraison requis')}
                 className="w-full py-3.5 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm">
                 Continuer →
               </button>
@@ -300,12 +343,12 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
               <div className="p-4 rounded-2xl bg-[#0A0A0F] border border-border/20 space-y-3 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">Produit</span><span className="text-foreground font-medium">{product.name}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Quantité</span><span className="text-foreground font-medium">{quantity}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Adresse</span><span className="text-foreground font-medium text-right max-w-[60%]">{address}</span></div>
+                {!isDigital && <><div className="flex justify-between"><span className="text-muted-foreground">Adresse</span><span className="text-foreground font-medium text-right max-w-[60%]">{address}</span></div><div className="flex justify-between"><span className="text-muted-foreground">Livraison</span><span className="text-foreground font-medium">{shippingFee.toLocaleString()} {currency}</span></div></>}
                 <div className="border-t border-border/20" />
                 <div className="flex justify-between"><span className="text-muted-foreground">Sous-total</span><span className="text-foreground font-medium">{total.toLocaleString()} {currency}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Commission service (incluse)</span><span className="text-muted-foreground/80">{commissionAmount.toLocaleString()} {currency}</span></div>
                 <div className="border-t border-border/20" />
-                <div className="flex justify-between"><span className="font-semibold text-foreground">Total</span><span className="text-xl font-bold text-primary">{total.toLocaleString()} {currency}</span></div>
+                <div className="flex justify-between"><span className="font-semibold text-foreground">Total</span><span className="text-xl font-bold text-primary">{payableTotal.toLocaleString()} {currency}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Paiement</span><span className="text-foreground font-medium">{selectedOp?.emoji} {selectedOp?.name}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Numéro</span><span className="text-foreground font-medium">{maskPhone(phone)}</span></div>
               </div>
@@ -319,7 +362,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
 
               <button onClick={startPayment} disabled={processing}
                 className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm disabled:opacity-50">
-                {processing ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : `Payer ${total.toLocaleString()} ${currency}`}
+                {processing ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : `Payer ${payableTotal.toLocaleString()} ${currency}`}
               </button>
             </div>
           )}
