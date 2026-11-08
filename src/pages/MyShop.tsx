@@ -84,7 +84,7 @@ const MyShop = () => {
         category: p.category,
         price: p.price,
         currency: p.currency || 'XOF',
-        productType: p.product_type,
+        productType: p.product_type === 'digital' ? 'digital' : 'physical',
         stock: p.stock ?? 0,
         imageUrl: p.images?.[0] ?? '',
         sales: p.sales_count ?? 0,
