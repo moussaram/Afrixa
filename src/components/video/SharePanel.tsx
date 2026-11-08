@@ -4,10 +4,12 @@ import { Video } from '@/types';
 import { useCloudflarePlaybackAssets } from '@/hooks/useCloudflarePlaybackAssets';
 import { cn } from '@/lib/utils';
 import { formatNumber } from '@/lib/formatters';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SharePanelProps {
   video: Video;
   onClose: () => void;
+  onShareRecorded?: () => void;
 }
 
 const shareOptions = [
@@ -53,7 +55,7 @@ const shareOptions = [
   },
 ];
 
-export const SharePanel = ({ video, onClose }: SharePanelProps) => {
+export const SharePanel = ({ video, onClose, onShareRecorded }: SharePanelProps) => {
   const { thumbnailUrl } = useCloudflarePlaybackAssets(video.id);
   const [copied, setCopied] = useState(false);
 
@@ -61,10 +63,29 @@ export const SharePanel = ({ video, onClose }: SharePanelProps) => {
   const videoUrl = `${window.location.origin}/video/${video.id}`;
   const shareTitle = `Regarde cette vidéo de @${video.user.username} sur Afrixa !`;
 
+  const recordShare = async (channel: 'copy_link' | 'native' | 'whatsapp' | 'facebook' | 'messenger' | 'twitter' | 'telegram') => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) return;
+    // The migration adds this table before the feature is deployed.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = supabase as any;
+    const { error: shareError } = await client.from('video_shares').insert({
+      video_id: video.id,
+      user_id: data.user.id,
+      channel,
+    });
+    if (shareError) {
+      console.warn('Unable to record Afrixa share event', shareError);
+      return;
+    }
+    onShareRecorded?.();
+  };
+
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(videoUrl);
       setCopied(true);
+      void recordShare('copy_link');
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // Fallback for non-secure contexts
@@ -72,9 +93,10 @@ export const SharePanel = ({ video, onClose }: SharePanelProps) => {
       el.value = videoUrl;
       document.body.appendChild(el);
       el.select();
-      document.execCommand('copy');
+      const copiedSuccessfully = document.execCommand('copy');
       document.body.removeChild(el);
-      setCopied(true);
+      setCopied(copiedSuccessfully);
+      if (copiedSuccessfully) void recordShare('copy_link');
       setTimeout(() => setCopied(false), 2000);
     }
   };
@@ -87,6 +109,7 @@ export const SharePanel = ({ video, onClose }: SharePanelProps) => {
           text: video.description,
           url: videoUrl,
         });
+        await recordShare('native');
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         console.warn('Partage natif impossible', error);
@@ -138,7 +161,10 @@ export const SharePanel = ({ video, onClose }: SharePanelProps) => {
             {shareOptions.map((opt) => (
               <button
                 key={opt.id}
-                onClick={() => opt.action(videoUrl, shareTitle)}
+                onClick={() => {
+                  opt.action(videoUrl, shareTitle);
+                  void recordShare(opt.id as 'whatsapp' | 'facebook' | 'messenger' | 'twitter' | 'telegram');
+                }}
                 className="flex flex-col items-center gap-2 group"
               >
                 <div className={cn(
