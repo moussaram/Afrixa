@@ -445,7 +445,7 @@ export const VideoCard = ({
             className="w-12 h-12 rounded-full border-2 border-foreground object-cover cursor-pointer"
             onClick={() => navigate(`/user/${video.user.id}`)}
           />
-          {video.user.id !== currentUser.id && (
+          {video.user.id !== authenticatedUser?.id && (
             <button
               onClick={() => {
                 if (!isFollowing) void trackFollow();
