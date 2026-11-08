@@ -476,7 +476,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 DECLARE
   order_row public.orders%ROWTYPE;
   delivery_row public.deliveries%ROWTYPE;
@@ -544,7 +544,7 @@ BEGIN
   RETURN jsonb_build_object('success', true, 'order_status', next_order_status,
     'delivery_status', next_delivery_status);
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.transition_seller_delivery(uuid, text, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.transition_seller_delivery(uuid, text, uuid) TO service_role;
@@ -558,7 +558,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 DECLARE
   order_row public.orders%ROWTYPE;
   delivery_row public.deliveries%ROWTYPE;
@@ -593,7 +593,7 @@ BEGIN
   WHERE id = p_order_id AND buyer_confirmed_at IS NULL;
   RETURN jsonb_build_object('confirmed', true, 'idempotent', false);
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.confirm_order_delivery(uuid, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.confirm_order_delivery(uuid, uuid) TO service_role;
@@ -605,7 +605,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 BEGIN
   IF NEW.status = 'annulee' AND OLD.status IS DISTINCT FROM NEW.status
     AND NEW.stock_released_at IS NULL AND NEW.product_type = 'physical'
@@ -619,7 +619,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS release_cancelled_order_stock ON public.orders;
 CREATE TRIGGER release_cancelled_order_stock
