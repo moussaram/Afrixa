@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Package, TrendingUp, Clock, DollarSign, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -54,7 +54,7 @@ const SellerSales = () => {
   const [error, setError] = useState<string | null>(null);
   const [transitionLoading, setTransitionLoading] = useState(false);
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     if (!user) {
       setOrders([]);
       setLoading(false);
@@ -76,9 +76,9 @@ const SellerSales = () => {
       setOrders((data ?? []) as SellerOrder[]);
     }
     setLoading(false);
-  };
+  }, [user]);
 
-  useEffect(() => { void loadOrders(); }, [user?.id]);
+  useEffect(() => { void loadOrders(); }, [loadOrders]);
 
   const filtered = orders.filter(order => activeTab === 'terminee'
     ? ['livree', 'terminee'].includes(order.status)
