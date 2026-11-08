@@ -94,3 +94,29 @@ Une insuffisance ne sera déclarée corrigée qu'après :
 6. preuves consignées sans secrets.
 
 Les éléments nécessitant des accès ou décisions du propriétaire (identifiants API, comptes sandbox/production, secrets, activation des services, règles commerciales, politique de remboursement, configuration Supabase) resteront marqués bloqués jusqu'à leur fourniture et validation.
+
+
+## Mise à jour finale de la tranche commerce et livraison
+
+- Les commandes physiques calculent maintenant leurs montants et réservent le stock dans la transaction SQL ; les échecs de paiement qui annulent une commande libèrent la réservation et inscrivent un mouvement d'inventaire.
+- La création d'une commande crée une intention de paiement FedaPay en base ; le navigateur demande ensuite la session de paiement hébergée à l'Edge Function existante.
+- Les événements de commande sont inscrits dans `order_timeline` pour le suivi acheteur, y compris la création, les étapes vendeur, la livraison signalée et la confirmation de réception.
+- Les commandes numériques obtiennent leur droit d'accès uniquement après confirmation du paiement par FedaPay. Les liens de téléchargement restent privés, temporaires et soumis à une vérification d'entitlement.
+- **Sécurité des fichiers numériques :** le téléversement signé et la vérification de type/empreinte sont implémentés, mais les fichiers restent en quarantaine (`scan_status = pending`) jusqu'à l'intégration d'un moteur d'analyse antivirus privé. Le checkout et le téléchargement exigent un résultat `clean`. Aucun fichier n'est rendu téléchargeable sans cette validation.
+- Les migrations SQL restent préparées dans GitHub ; elles ne sont pas exécutées sur le projet Supabase distant. Le workflow CI doit être confirmé sur le dernier SHA après le dernier commit.
+
+## Vérification des intégrations de livraison externes
+
+- OuiGoo confirme publiquement une API REST et un compte Business requis. Le connecteur WordPress officiel identifie l'hôte API `api.business.ouigoo.co`, mais les schémas d'authentification, de devis, de création d'expédition, d'annulation et de webhooks nécessaires à une intégration Afrixa directe n'ont pas été établis à partir d'une documentation API complète. Le fournisseur reste désactivé ; aucune route n'est devinée.
+- Yango dispose d'un portail partenaire au Bénin, mais cela ne confirme pas à lui seul un accès à une API de livraison B2B pour Afrixa. Le contrat de livraison public retrouvé concerne la Côte d'Ivoire et précise une zone de service centrée sur Abidjan. Le fournisseur reste désactivé tant que Yango ne confirme pas par écrit la couverture, le contrat et l'accès API pour le Bénin.
+- Les fournisseurs OuiGoo et Yango sont donc enregistrés dans le système, mais ne peuvent pas recevoir de vraies commandes avant validation contractuelle et technique. Une clé API seule ne remplace pas la documentation des endpoints ni la confirmation de couverture.
+
+## Limites qui nécessitent encore une intervention du propriétaire
+
+1. Fournir/activer les accès API officiels et sandbox nécessaires (FedaPay, OuiGoo, Yango si contrat Bénin, antivirus privé, Cloudflare, Agora, Firebase/FCM et Google Maps/Vision selon les fonctions activées).
+2. Appliquer les migrations dans un projet Supabase de staging après sauvegarde vérifiée, puis tester RLS avec comptes acheteur/vendeur/admin.
+3. Configurer les secrets Edge Functions depuis les consoles officielles ; aucun secret ne doit être placé dans le dépôt ou dans une variable `VITE_*`.
+4. Exécuter les scénarios de paiement réel en sandbox, de webhook signé, d'échec/annulation, de livraison, de remboursement et de versement ; conserver les preuves de test.
+5. Effectuer une sauvegarde/restauration testée, les contrôles de charge/résilience et la validation mobile/navigateur avant mise en production.
+
+Ces points sont des dépendances d'accès, d'exploitation et de validation. Ils ne sont pas déclarés terminés par la seule présence du code dans la branche.
