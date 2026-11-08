@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Package, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -45,7 +45,7 @@ const Orders = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     if (!user) {
       setOrders([]);
       setLoading(false);
@@ -67,9 +67,9 @@ const Orders = () => {
       setOrders((data ?? []) as OrderRow[]);
     }
     setLoading(false);
-  };
+  }, [user]);
 
-  useEffect(() => { void loadOrders(); }, [user?.id]);
+  useEffect(() => { void loadOrders(); }, [loadOrders]);
 
   const filtered = orders.filter(order => {
     if (activeTab === 'all') return true;
