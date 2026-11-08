@@ -88,7 +88,7 @@ const Chat = () => {
         return;
       }
       const otherId = conv.participant_1 === user.id ? conv.participant_2 : conv.participant_1;
-      const { data: prof } = await (supabase as any)
+      const { data: prof } = await supabase
         .from('public_profiles')
         .select('user_id, username, prenom, nom, avatar_url')
         .eq('user_id', otherId)
