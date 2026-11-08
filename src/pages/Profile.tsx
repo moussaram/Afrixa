@@ -21,7 +21,7 @@ const tabs = [
 
 type ProfileVendor = { is_vendor?: boolean };
 type VideoRow = {
-  id: string; user_id: string; hls_url: string | null; thumbnail_url: string | null;
+  id: string; user_id: string; thumbnail_url: string | null;
   description: string | null; views_count: number | null; likes_count: number | null;
   comments_count: number | null; shares_count: number | null; saves_count: number | null; created_at: string;
 };
@@ -60,7 +60,7 @@ const Profile = () => {
     try {
       const [videoResult, followingResult, followersResult, unreadResult, likeResult, saveResult] = await Promise.all([
         supabase.from('videos')
-          .select('id,user_id,hls_url,thumbnail_url,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
+          .select('id,user_id,thumbnail_url,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
           .eq('user_id', userId).order('created_at', { ascending: false }).limit(100),
         supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', userId),
         supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', userId),
@@ -89,7 +89,7 @@ const Profile = () => {
       const allRows = [...ownRows, ...((extraRows || []) as VideoRow[])];
       const authorIds = Array.from(new Set(allRows.map(row => row.user_id)));
       const { data: authors, error: authorError } = authorIds.length
-        ? await supabase.from('profiles').select('user_id,username,prenom,nom,avatar_url').in('user_id', authorIds)
+        ? await supabase.from('public_profiles').select('user_id,username,prenom,nom,avatar_url').in('user_id', authorIds)
         : { data: [], error: null };
       if (authorError) throw authorError;
       const authorMap = new Map((authors || []).map(author => [author.user_id, author]));
@@ -100,7 +100,7 @@ const Profile = () => {
         mapped.set(row.id, {
           id: row.id,
           user: { id: row.user_id, username: author?.username || 'utilisateur', displayName: name, avatar: author?.avatar_url || '/placeholder.svg', followers: 0, following: 0, likes: 0 },
-          videoUrl: row.hls_url || '',
+          videoUrl: '',
           thumbnailUrl: row.thumbnail_url || '/placeholder.svg',
           description: row.description || '',
           hashtags: [],
