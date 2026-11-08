@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Download, FileCheck2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Download, FileCheck2, RefreshCw, ReceiptText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -123,10 +123,15 @@ const DigitalLibrary = () => {
               <p className="text-xs text-muted-foreground">Acheté le {new Date(item.granted_at).toLocaleDateString('fr-FR')}</p>
               <p className="text-xs text-emerald-500 mt-1">{item.status === 'active' ? 'Accès actif' : 'Accès suspendu'}</p>
             </div>
+            <div className="flex flex-col gap-2">
+            <button onClick={() => navigate(`/orders/${item.order_id}`)} className="inline-flex items-center justify-center gap-1 rounded-xl border border-border/40 px-3 py-2 text-xs font-semibold text-foreground">
+              <ReceiptText className="w-3.5 h-3.5" />Commande
+            </button>
             <button onClick={() => void download(item.id)} disabled={item.status !== 'active' || downloadingId === item.id}
               className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">
               <Download className="w-4 h-4" />{downloadingId === item.id ? 'Préparation…' : 'Télécharger'}
             </button>
+            </div>
           </article>
         ))}
       </main>
