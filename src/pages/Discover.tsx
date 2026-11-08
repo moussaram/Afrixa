@@ -24,7 +24,6 @@ type ProfileRow = {
 type VideoRow = {
   id: string;
   user_id: string;
-  hls_url: string;
   thumbnail_url: string | null;
   title: string | null;
   description: string | null;
@@ -53,7 +52,7 @@ const toVideo = (row: VideoRow, profile?: ProfileRow): Video => {
   return {
     id: row.id,
     user,
-    videoUrl: row.hls_url,
+    videoUrl: '',
     thumbnailUrl: row.thumbnail_url || '/placeholder.svg',
     description,
     hashtags,
@@ -84,12 +83,12 @@ const Discover = () => {
       setLoadError(false);
       try {
         const query = searchQuery.trim();
-        const profilesQuery = supabase.from('profiles')
+        const profilesQuery = supabase.from('public_profiles')
           .select('user_id,username,prenom,nom,avatar_url,bio')
           .order('created_at', { ascending: false })
           .limit(query ? 20 : 12);
         const videosQuery = supabase.from('videos')
-          .select('id,user_id,hls_url,thumbnail_url,title,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
+          .select('id,user_id,thumbnail_url,title,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
           .eq('is_published', true)
           .eq('moderation_status', 'approved')
           .order('created_at', { ascending: false })
