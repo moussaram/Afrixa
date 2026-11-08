@@ -36,32 +36,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const requestId = ++profileRequestId.current;
     setProfileError(null);
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .select(PROFILE_COLUMNS)
-      .eq('user_id', authUser.id)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(PROFILE_COLUMNS)
+        .eq('user_id', authUser.id)
+        .maybeSingle();
 
-    if (requestId !== profileRequestId.current) return;
+      if (requestId !== profileRequestId.current) return;
 
-    if (error) {
+      if (error) {
+        setProfile(null);
+        setProfileError('Impossible de récupérer ton profil. Vérifie ta connexion puis réessaie.');
+        console.error('Profile fetch failed', { userId: authUser.id, error });
+        return;
+      }
+
+      if (!data) {
+        setProfile(null);
+        setProfileError('Ton compte est connecté, mais ton profil Afrixa est introuvable. La finalisation du profil est nécessaire.');
+        return;
+      }
+
+      setProfile({
+        ...(data as unknown as Profile),
+        mobile_verifie: !!authUser.phone_confirmed_at,
+        email_verifie: !!authUser.email_confirmed_at,
+      });
+    } catch (error) {
+      if (requestId !== profileRequestId.current) return;
       setProfile(null);
-      setProfileError('Impossible de récupérer ton profil. Vérifie ta connexion puis réessaie.');
-      console.error('Profile fetch failed', { userId: authUser.id, error });
-      return;
+      setProfileError('Une erreur inattendue a empêché le chargement du profil.');
+      console.error('Unexpected profile fetch failure', { userId: authUser.id, error });
+    } finally {
+      if (requestId === profileRequestId.current) setLoading(false);
     }
-
-    if (!data) {
-      setProfile(null);
-      setProfileError('Ton compte est connecté, mais ton profil Afrixa est introuvable. La finalisation du profil est nécessaire.');
-      return;
-    }
-
-    setProfile({
-      ...(data as unknown as Profile),
-      mobile_verifie: !!authUser.phone_confirmed_at,
-      email_verifie: !!authUser.email_confirmed_at,
-    });
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -70,6 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfileError(null);
       return;
     }
+    setLoading(true);
     await fetchProfile(user);
   }, [fetchProfile, user]);
 
@@ -85,9 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (nextSession?.user) {
         setLoading(true);
-        void fetchProfile(nextSession.user).finally(() => {
-          if (active) setLoading(false);
-        });
+        void fetchProfile(nextSession.user);
       } else {
         setLoading(false);
       }
