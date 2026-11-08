@@ -11,7 +11,8 @@ BEGIN;
 DROP POLICY IF EXISTS "creator_program_owner_update" ON public.creator_program;
 DROP POLICY IF EXISTS "creator_program_own_all" ON public.creator_program;
 
-REVOKE UPDATE, DELETE ON TABLE public.creator_program
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+  ON TABLE public.creator_program
   FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT ON TABLE public.creator_program TO authenticated;
 
@@ -41,7 +42,7 @@ GRANT SELECT ON TABLE public.premium_subscriptions TO authenticated;
 
 -- Coin purchase requests may be created by their owner, but cannot be edited
 -- or deleted by that owner after submission. Confirmation remains server-only.
-REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
   ON TABLE public.coin_purchases
   FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT ON TABLE public.coin_purchases TO authenticated;
