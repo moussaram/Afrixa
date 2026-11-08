@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     const contentId = typeof body?.content_id === 'string' ? body.content_id : '';
     const decision = body?.decision;
     const reason = typeof body?.reason === 'string' ? body.reason.trim().slice(0, 500) : '';
-    if (!['product', 'video'].includes(contentType) || !uuidPattern.test(contentId)
+    if (!['product', 'video', 'story'].includes(contentType) || !uuidPattern.test(contentId)
       || !['approved', 'rejected'].includes(decision) || (decision === 'rejected' && reason.length < 3)) {
       return json({ error: 'invalid_moderation_decision' }, 400);
     }
@@ -55,6 +55,14 @@ Deno.serve(async (req) => {
         publication_status: decision === 'approved' ? 'published' : 'rejected',
         is_active: decision === 'approved',
       }).eq('id', contentId);
+      if (updateError) throw updateError;
+    } else if (contentType === 'story') {
+      const { data: story, error: storyError } = await admin.from('stories')
+        .select('id').eq('id', contentId).maybeSingle();
+      if (storyError) throw storyError;
+      if (!story) return json({ error: 'story_not_found' }, 404);
+      const { error: updateError } = await admin.from('stories')
+        .update({ moderation_status: decision }).eq('id', contentId);
       if (updateError) throw updateError;
     } else {
       const { data: video, error: videoError } = await admin.from('videos')
