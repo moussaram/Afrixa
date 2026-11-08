@@ -14,6 +14,12 @@ export type Database = {
   }
   public: {
     Tables: {
+      user_fcm_tokens: {
+        Row: { created_at: string; id: string; platform: string | null; token: string; updated_at: string; user_id: string }
+        Insert: { created_at?: string; id?: string; platform?: string | null; token: string; updated_at?: string; user_id: string }
+        Update: { created_at?: string; id?: string; platform?: string | null; token?: string; updated_at?: string; user_id?: string }
+        Relationships: []
+      }
       videos: {
         Row: {
           allow_download: boolean | null
