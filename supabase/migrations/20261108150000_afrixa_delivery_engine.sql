@@ -9,7 +9,6 @@ ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS delivery_lng double precision,
   ADD COLUMN IF NOT EXISTS buyer_confirmed_at timestamptz,
   ADD COLUMN IF NOT EXISTS delivery_confirmed_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS stock_released_at timestamptz,
   ADD CONSTRAINT orders_delivery_coordinates_pair_check
     CHECK ((delivery_lat IS NULL) = (delivery_lng IS NULL)) NOT VALID;
 
@@ -611,33 +610,6 @@ REVOKE ALL ON FUNCTION public.confirm_order_delivery(uuid, uuid) FROM PUBLIC, an
 GRANT EXECUTE ON FUNCTION public.confirm_order_delivery(uuid, uuid) TO service_role;
 
 
--- Restore reserved stock exactly once when an unpaid order is cancelled.
-CREATE OR REPLACE FUNCTION public.release_cancelled_order_stock()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF NEW.status = 'annulee' AND OLD.status IS DISTINCT FROM NEW.status
-    AND NEW.stock_released_at IS NULL AND NEW.product_type = 'physical'
-    AND NEW.product_id IS NOT NULL THEN
-    UPDATE public.products
-    SET stock = COALESCE(stock, 0) + NEW.quantity,
-        updated_at = now()
-    WHERE id = NEW.product_id AND COALESCE(unlimited_stock, false) = false;
-    UPDATE public.orders SET stock_released_at = now()
-    WHERE id = NEW.id AND stock_released_at IS NULL;
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS release_cancelled_order_stock ON public.orders;
-CREATE TRIGGER release_cancelled_order_stock
-AFTER UPDATE OF status ON public.orders
-FOR EACH ROW EXECUTE FUNCTION public.release_cancelled_order_stock();
-
 CREATE OR REPLACE FUNCTION public.activate_delivery_after_payment()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -651,13 +623,6 @@ BEGIN
     INSERT INTO public.delivery_events(delivery_id, source, event_type, normalized_status)
     SELECT id, 'system', 'delivery.payment_confirmed', 'awaiting_seller'
     FROM public.deliveries WHERE order_id = NEW.order_id;
-    INSERT INTO public.digital_entitlements(user_id, product_id, order_id, asset_id, status)
-    SELECT o.buyer_id, o.product_id, o.id, o.digital_asset_id, 'active'
-    FROM public.orders o
-    WHERE o.id = NEW.order_id AND o.product_type = 'digital'
-      AND o.digital_asset_id IS NOT NULL
-    ON CONFLICT (user_id, order_id, product_id) DO NOTHING;
-
     UPDATE public.orders SET status = 'livree', updated_at = now()
     WHERE id = NEW.order_id AND product_type = 'digital' AND status = 'en_attente';
     INSERT INTO public.order_timeline(order_id, status, message)
