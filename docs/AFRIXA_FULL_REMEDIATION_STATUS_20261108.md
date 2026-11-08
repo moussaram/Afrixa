@@ -27,14 +27,39 @@ Cette branche conserve les corrections antérieures de la PR #5 et ajoute une pr
 
 Cette migration est préparée dans le dépôt mais **n'a pas été appliquée** à Supabase. Les fonctions Edge de confirmation de paiement, remboursement, libération de stock et versement doivent être raccordées à ces règles avant activation en staging.
 
+### Tranches supplémentaires : commerce, livraison, modération et profils
+
+- `src/pages/MyShop.tsx` : formulaire vendeur connecté aux vrais produits, sélection physique/numérique, téléversement d'image, téléversement privé du fichier numérique, édition, archivage et configuration du point de retrait, de la zone et du tarif de livraison vendeur.
+- `src/components/payment/AfrixaPayment.tsx` : le checkout physique demande un devis de livraison serveur valide avant paiement ; le checkout numérique ne demande pas d'adresse physique. Les frais de livraison sont intégrés au montant serveur de la commande.
+- `supabase/migrations/20261108140000_products_digital_assets_and_entitlements.sql` : types de produits, variantes et stock, fichiers numériques privés, droits d'accès et journal des téléchargements.
+- `supabase/migrations/20261108150000_afrixa_delivery_engine.sql` : points de retrait, zones et tarifs vendeurs, devis expirables, snapshots de livraison, événements et transitions atomiques côté serveur.
+- `supabase/migrations/20261108160000_atomic_order_payment_intents.sql` : création automatique de l'intention FedaPay dans la même transaction SQL que la commande ; le navigateur ne crée plus une seconde ligne de paiement.
+- `supabase/functions/create-digital-upload`, `complete-digital-upload` et `download-digital-product` : téléversement signé, vérification de type et empreinte, droits d'accès après paiement et URL privée de téléchargement à durée courte.
+- `src/pages/DigitalLibrary.tsx` : bibliothèque réelle des achats numériques.
+- `supabase/functions/seller-delivery-transition` et `confirm-order-delivery` : progression de livraison vendeur et confirmation par l'acheteur ; `release-escrow` exige désormais cette confirmation avant le versement.
+- `supabase/migrations/20261108170000_secure_marketplace_moderation.sql` et `moderate-marketplace-content` : publication des produits et vidéos verrouillée derrière une décision d'administration journalisée.
+- `supabase/migrations/20261108180000_stories_moderation_and_views.sql` : stories temporaires soumises à validation et comptage des vues côté base.
+- `src/pages/AdminModeration.tsx` : file de modération des produits, vidéos et stories.
+- `src/components/stories/StoriesRail.tsx` : stories réelles et création de stories texte, avec affichage public seulement après approbation.
+- `src/pages/Profile.tsx` et `src/pages/UserProfile.tsx` : profils, abonnements, vidéos et statistiques chargés depuis Supabase.
+- `src/components/profile-menu/ActivityCenter.tsx` et `supabase/migrations/20261108190000_social_activity_notifications.sql` : activités, commentaires, mentions J'aime et notifications générées par les interactions réelles.
+- `src/integrations/supabase/types.ts` : ajout des définitions manquantes utilisées par les nouveaux parcours et suppression de plusieurs casts `any` sur les tokens FCM.
+
+### Limites d'intégration externe qui restent explicites
+
+- **OuiGoo** : les chemins d'API de création de course, tarification, suivi, annulation et les schémas de payload n'ont pas été suffisamment vérifiés pour envoyer des commandes réelles. Aucun endpoint n'a été inventé.
+- **Yango** : l'accès à une API partenaire de livraison utilisable au Bénin n'a pas été confirmé. Le fournisseur reste désactivé ; une clé seule ne suffit pas si le service et le contrat ne couvrent pas le territoire.
+- **Analyse antivirus** : les fichiers numériques sont vérifiés structurellement et leur empreinte est calculée, mais aucun moteur antivirus n'est configuré. Les fichiers portent explicitement `scan_status = not_configured` ; il ne faut pas présenter cela comme une analyse antivirus réussie.
+- **Variantes** : les tables et contraintes de variantes existent, mais le sélecteur de variantes et la réservation du stock par variante ne sont pas encore raccordés au parcours de paiement.
+- **Suivi de visionnage** : l'historique individuel de visionnage reste non implémenté ; l'interface l'indique au lieu d'afficher de fausses données.
+
 ## Vérifications
 
-- Les modifications ont été écrites sur cette branche GitHub.
-- Aucun secret, identifiant fournisseur ou environnement de production n'a été lu ou modifié.
-- Aucune migration n'a été appliquée à Supabase.
-- Aucun build, lint, test RLS, test FedaPay, test Cloudflare, test Agora ou test navigateur n'a été exécuté dans cet environnement.
-- Le workflow CI nouvellement ajouté doit être exécuté par GitHub après push ; son résultat n'est pas présumé.
-
+- Les changements sont poussés sur la branche GitHub de la PR #6.
+- Un passage CI antérieur a confirmé lint et build sur un commit précédent ; les derniers ajouts doivent encore être validés par le run déclenché sur le dernier commit de la branche.
+- Les migrations SQL sont des fichiers versionnés uniquement : **aucune n'a été appliquée à Supabase** et aucune base de staging n'a été interrogée.
+- Aucun test RLS, concurrence de stock, test d'intégration FedaPay, test de webhook, test Cloudflare, test Agora ou test navigateur n'est déclaré exécuté.
+- Aucun secret, jeton ou identifiant de production n'a été lu, demandé ou écrit dans le dépôt.
 ## Travaux encore ouverts selon le document source
 
 ### Backend, paiements et sécurité
