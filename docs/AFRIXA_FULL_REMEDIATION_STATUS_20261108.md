@@ -120,3 +120,40 @@ Les éléments nécessitant des accès ou décisions du propriétaire (identifia
 5. Effectuer une sauvegarde/restauration testée, les contrôles de charge/résilience et la validation mobile/navigateur avant mise en production.
 
 Ces points sont des dépendances d'accès, d'exploitation et de validation. Ils ne sont pas déclarés terminés par la seule présence du code dans la branche.
+
+## Phase 1 — Sécurité et confidentialité (travaux poussés)
+
+### Corrections versionnées sur la branche
+- RLS vidéos : accès public seulement pour les vidéos publiées/approuvées des comptes publics ; accès abonnés contrôlé ; vidéos privées réservées au propriétaire et aux administrateurs ; prise en compte des blocages.
+- Profils : accès direct à la table profiles limité au propriétaire ; nouvelle vue public_profiles qui n'expose que les champs d'affichage et respecte les comptes privés et les blocages. Les recherches, conversations, commentaires, stories, profils publics et le fil utilisent cette projection.
+- Discussions : lecture et création de commentaires limitées aux vidéos visibles ; contrôle serveur de who_can_comment.
+- Messagerie : contrôle de who_can_message à la création de conversation et à chaque envoi ; blocage des messages après blocage utilisateur ; participants et identité des messages protégés contre les changements client.
+- Réseau social : règles de lecture des abonnements, likes, sauvegardes, stories, lives, séries, clubs de fans, collaborations, défis et sélections créateur alignées sur la visibilité du contenu.
+- Finances créateurs : écritures directes client bloquées pour les soldes, événements financiers, abonnements payants et adhésions de clubs de fans ; seules les demandes explicitement prévues restent insérables, sans possibilité de confirmer le paiement côté navigateur.
+- Publicités : données financières des campagnes retirées de la surface publique ; écritures client d'impressions publicitaires désactivées en attendant un endpoint serveur signé.
+- Cloudflare Stream : les nouveaux uploads exigent requireSignedURLs ; les lecteurs et miniatures utilisent des jetons de lecture temporaires ; une fonction administrateur permet de sécuriser les vidéos existantes par lots ; une migration récupère les UID Cloudflare présents dans les anciennes URL HLS.
+
+### Migrations ajoutées
+- supabase/migrations/20261108200000_restore_video_privacy_rls.sql
+- supabase/migrations/20261108210000_secure_creator_entitlements.sql
+- supabase/migrations/20261108220000_private_profile_data.sql
+- supabase/migrations/20261108230000_secure_video_discussion_visibility.sql
+- supabase/migrations/20261108240000_secure_messaging_permissions.sql
+- supabase/migrations/20261108250000_secure_story_live_visibility.sql
+- supabase/migrations/20261108260000_secure_social_graph_and_engagement.sql
+- supabase/migrations/20261108270000_secure_creator_content_visibility.sql
+- supabase/migrations/20261108280000_secure_ad_delivery_data.sql
+- supabase/migrations/20261108290000_backfill_cloudflare_video_ids.sql
+
+### Fonctions et frontend concernés
+- Edge Functions : get-cloudflare-playback-token, secure-cloudflare-existing-videos, durcissement de create-cloudflare-upload.
+- Frontend : vue public_profiles typée ; feed, profils, découverte, stories, commentaires, conversations, activité, miniatures et lecteur vidéo adaptés aux vues publiques et aux URL signées.
+
+### Validation et dépendances
+- CI GitHub Actions run 42513987650 : installation, lint et build réussis sur le commit e8b681da5f3a0a1f05d5d74a3624a312118138e5.
+- Les migrations ne sont pas appliquées à Supabase ; aucune vérification RLS distante ou aucun test staging n'est revendiqué.
+- Après déploiement des Edge Functions et application des migrations en staging, un administrateur doit exécuter secure-cloudflare-existing-videos par lots jusqu'à complete = true, puis traiter les failed_video_ids et le compteur legacy_without_cloudflare_uid.
+- Les vidéos sans UID Cloudflare récupérable ne peuvent pas recevoir de jeton signé via ce parcours ; elles doivent être migrées vers Cloudflare ou traitées explicitement avant activation de la protection générale.
+- Les secrets Cloudflare existants doivent être configurés côté Edge Functions (CF_STREAM_ACCOUNT_ID, CF_STREAM_API_TOKEN, CF_STREAM_CUSTOMER_CODE) ; le jeton API doit autoriser l'édition Stream et la création de tokens.
+- L'API Cloudflare /token convient aux faibles volumes ; le passage à une clé de signature sera nécessaire avant une montée en charge importante.
+- La Phase 1 reste ouverte jusqu'à la validation des migrations et des scénarios RLS/Cloudflare sur un environnement de staging.
