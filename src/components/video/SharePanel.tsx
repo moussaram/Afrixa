@@ -1,6 +1,7 @@
 import { X, Link, MessageCircle, Facebook, Twitter, Send } from 'lucide-react';
 import { useState } from 'react';
 import { Video } from '@/types';
+import { useCloudflarePlaybackAssets } from '@/hooks/useCloudflarePlaybackAssets';
 import { cn } from '@/lib/utils';
 import { formatNumber } from '@/lib/formatters';
 
@@ -53,6 +54,7 @@ const shareOptions = [
 ];
 
 export const SharePanel = ({ video, onClose }: SharePanelProps) => {
+  const { thumbnailUrl } = useCloudflarePlaybackAssets(video.id);
   const [copied, setCopied] = useState(false);
 
   // Generate deep link
@@ -118,7 +120,7 @@ export const SharePanel = ({ video, onClose }: SharePanelProps) => {
         {/* Video preview */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border/30">
           <img
-            src={video.thumbnailUrl}
+            src={thumbnailUrl || '/placeholder.svg'}
             alt={video.description}
             className="w-14 h-20 object-cover rounded-lg flex-shrink-0"
           />
