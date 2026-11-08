@@ -719,6 +719,8 @@ export type Database = {
           is_active: boolean | null
           is_featured: boolean | null
           is_group_buy: boolean | null
+          moderation_status: string
+          moderation_status?: string
           name: string
           price: number
           product_type: string
@@ -785,6 +787,7 @@ export type Database = {
           is_active?: boolean | null
           is_featured?: boolean | null
           is_group_buy?: boolean | null
+          moderation_status?: string
           name?: string
           price?: number
           product_type?: string
