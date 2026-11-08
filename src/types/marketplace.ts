@@ -15,7 +15,7 @@ export interface Product {
   country: string;
   views: number;
   sales: number;
-  rating: number;
+  rating: number | null;
   createdAt: string;
   productType?: 'physical' | 'digital';
   promoPrice?: number | null;
