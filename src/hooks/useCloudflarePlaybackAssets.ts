@@ -42,13 +42,13 @@ const getPlaybackAssets = async (videoId: string, cacheKey: string): Promise<Clo
 export const useCloudflarePlaybackAssets = (videoId: string, enabled = true) => {
   const { user } = useAuth();
   const cacheKey = `${user?.id ?? 'anonymous'}:${videoId}`;
-  const [assets, setAssets] = useState<CloudflarePlaybackAssets | null>(null);
+  const [assetState, setAssetState] = useState<{ cacheKey: string; assets: CloudflarePlaybackAssets } | null>(null);
   const [error, setError] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!enabled || !videoId) {
-      setAssets(null);
+      setAssetState(null);
       setError(false);
       return;
     }
@@ -58,7 +58,7 @@ export const useCloudflarePlaybackAssets = (videoId: string, enabled = true) => 
 
     const applyAssets = (nextAssets: CloudflarePlaybackAssets) => {
       if (!active) return;
-      setAssets(nextAssets);
+      setAssetState({ cacheKey, assets: nextAssets });
       setError(false);
       const refreshDelay = Math.max(1_000, nextAssets.expiresAt - Date.now() - 60_000);
       refreshTimer = window.setTimeout(() => {
@@ -72,7 +72,7 @@ export const useCloudflarePlaybackAssets = (videoId: string, enabled = true) => 
       .then(applyAssets)
       .catch(() => {
         if (active) {
-          setAssets(null);
+          setAssetState(null);
           setError(true);
         }
       });
@@ -84,9 +84,9 @@ export const useCloudflarePlaybackAssets = (videoId: string, enabled = true) => 
   }, [videoId, enabled, refreshKey, cacheKey]);
 
   return {
-    playbackUrl: assets?.playbackUrl ?? null,
-    thumbnailUrl: assets?.thumbnailUrl ?? null,
-    loading: enabled && !assets && !error,
+    playbackUrl: assetState?.cacheKey === cacheKey ? assetState.assets.playbackUrl : null,
+    thumbnailUrl: assetState?.cacheKey === cacheKey ? assetState.assets.thumbnailUrl : null,
+    loading: enabled && assetState?.cacheKey !== cacheKey && !error,
     error,
   };
 };
