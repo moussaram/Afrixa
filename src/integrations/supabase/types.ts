@@ -14,6 +14,18 @@ export type Database = {
   }
   public: {
     Tables: {
+      stories: {
+        Row: { background_color: string | null; created_at: string | null; duration: number | null; expires_at: string | null; id: string; is_archived: boolean | null; media_url: string | null; moderation_status: string; text_color: string | null; text_content: string | null; type: string; user_id: string | null; views_count: number | null }
+        Insert: { background_color?: string | null; created_at?: string | null; duration?: number | null; expires_at?: string | null; id?: string; is_archived?: boolean | null; media_url?: string | null; moderation_status?: string; text_color?: string | null; text_content?: string | null; type: string; user_id?: string | null; views_count?: number | null }
+        Update: { background_color?: string | null; created_at?: string | null; duration?: number | null; expires_at?: string | null; id?: string; is_archived?: boolean | null; media_url?: string | null; moderation_status?: string; text_color?: string | null; text_content?: string | null; type?: string; user_id?: string | null; views_count?: number | null }
+        Relationships: []
+      }
+      story_views: {
+        Row: { id: string; story_id: string | null; viewed_at: string | null; viewer_id: string | null }
+        Insert: { id?: string; story_id?: string | null; viewed_at?: string | null; viewer_id?: string | null }
+        Update: { id?: string; story_id?: string | null; viewed_at?: string | null; viewer_id?: string | null }
+        Relationships: []
+      }
       user_fcm_tokens: {
         Row: { created_at: string; id: string; platform: string | null; token: string; updated_at: string; user_id: string }
         Insert: { created_at?: string; id?: string; platform?: string | null; token: string; updated_at?: string; user_id: string }
