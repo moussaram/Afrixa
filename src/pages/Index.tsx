@@ -10,7 +10,6 @@ import type { User, Video } from '@/types';
 type FeedVideoRow = {
   id: string;
   user_id: string;
-  thumbnail_url: string | null;
   title: string | null;
   description: string | null;
   duration: number | null;
@@ -55,7 +54,7 @@ const toVideo = (row: FeedVideoRow, profile?: ProfileRow, isFollowing = false): 
     id: row.id,
     user,
     videoUrl: '',
-    thumbnailUrl: row.thumbnail_url || FALLBACK_AVATAR,
+    thumbnailUrl: FALLBACK_AVATAR,
     description,
     hashtags,
     music: { title: 'Audio original', artist: username, coverUrl: profile?.avatar_url || FALLBACK_AVATAR },
@@ -104,7 +103,7 @@ const Index = () => {
 
       let query = supabase
         .from('videos')
-        .select('id,user_id,thumbnail_url,title,description,duration,views_count,likes_count,comments_count,shares_count,saves_count,created_at,sound_id')
+        .select('id,user_id,title,description,duration,views_count,likes_count,comments_count,shares_count,saves_count,created_at,sound_id')
         .eq('is_published', true)
         .eq('moderation_status', 'approved')
         .order('created_at', { ascending: false })
