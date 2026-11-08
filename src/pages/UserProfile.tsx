@@ -34,7 +34,7 @@ type PublicProfile = {
   nationalite_flag: string | null;
 };
 type VideoRow = {
-  id: string; user_id: string; hls_url: string; thumbnail_url: string | null;
+  id: string; user_id: string;  thumbnail_url: string | null;
   description: string | null; views_count: number; likes_count: number;
   comments_count: number; shares_count: number; saves_count: number; created_at: string;
 };
@@ -68,11 +68,11 @@ const UserProfile = () => {
     setError(null);
     try {
       const [profileResult, videoResult, followersResult, followingResult] = await Promise.all([
-        supabase.from('profiles')
+        supabase.from('public_profiles')
           .select('user_id,username,prenom,nom,avatar_url,bio,profession,nationalite,nationalite_flag')
           .eq('user_id', userId).maybeSingle(),
         supabase.from('videos')
-          .select('id,user_id,hls_url,thumbnail_url,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
+          .select('id,user_id,thumbnail_url,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
           .eq('user_id', userId).eq('is_published', true).eq('moderation_status', 'approved')
           .order('created_at', { ascending: false }).limit(100),
         supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', userId),
@@ -97,7 +97,7 @@ const UserProfile = () => {
           following: followingResult.count || 0,
           likes: 0,
         },
-        videoUrl: row.hls_url || '',
+        videoUrl: '',
         thumbnailUrl: row.thumbnail_url || '/placeholder.svg',
         description: row.description || '',
         hashtags: [],
