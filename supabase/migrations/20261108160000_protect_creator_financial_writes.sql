@@ -15,11 +15,11 @@ DROP POLICY IF EXISTS "creator_earnings_owner_select" ON public.creator_earnings
 DROP POLICY IF EXISTS "gift_transactions_participants_select" ON public.gift_transactions;
 
 -- RLS is the row-level boundary; explicit grants also prevent direct writes
--- through any accidental future permissive policy.
+-- through any accidental future permissive policy or inherited PUBLIC grant.
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
   ON TABLE public.creator_wallet, public.afrixa_coins,
             public.creator_earnings, public.gift_transactions
-  FROM anon, authenticated;
+  FROM PUBLIC, anon, authenticated;
 
 GRANT SELECT
   ON TABLE public.creator_wallet, public.afrixa_coins,
