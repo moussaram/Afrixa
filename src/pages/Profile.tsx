@@ -209,5 +209,4 @@ const Profile = () => {
   );
 };
 
-type ProfileVendor = { is_vendor?: boolean };
 export default Profile;
