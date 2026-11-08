@@ -42,10 +42,10 @@ export const ProductCard = ({ product, onView }: ProductCardProps) => {
           <span className="text-xs text-muted-foreground truncate">{product.sellerName}</span>
         </div>
         <div className="flex items-center justify-between mt-2">
-          <div className="flex items-center gap-1">
+          {product.rating !== null && product.rating > 0 ? <div className="flex items-center gap-1">
             <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-            <span className="text-xs text-muted-foreground">{product.rating}</span>
-          </div>
+            <span className="text-xs text-muted-foreground">{product.rating.toFixed(1)}</span>
+          </div> : <span className="text-xs text-muted-foreground">Pas encore noté</span>}
           <span className="text-xs text-muted-foreground">{formatNumber(product.sales)} vendus</span>
         </div>
         <button className="w-full mt-2 py-2 rounded-xl bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors flex items-center justify-center gap-1.5">
