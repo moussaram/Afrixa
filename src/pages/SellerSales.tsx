@@ -19,6 +19,8 @@ interface SellerOrder {
   status: string;
   delivery_address: string | null;
   buyer_note: string | null;
+  product_type: string;
+  delivery_method: string | null;
   created_at: string;
 }
 
@@ -49,6 +51,7 @@ const SellerSales = () => {
   const [selectedOrder, setSelectedOrder] = useState<SellerOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [transitionLoading, setTransitionLoading] = useState(false);
 
   const loadOrders = async () => {
     if (!user) {
@@ -61,7 +64,7 @@ const SellerSales = () => {
     setError(null);
     const { data, error: queryError } = await supabase
       .from('orders')
-      .select('id, product_name, product_image, buyer_id, quantity, total_price, commission_amount, seller_amount, status, delivery_address, buyer_note, created_at')
+      .select('id, product_name, product_image, buyer_id, quantity, total_price, commission_amount, seller_amount, status, delivery_address, buyer_note, product_type, delivery_method, created_at')
       .eq('seller_id', user.id)
       .order('created_at', { ascending: false })
       .range(0, 99);
@@ -79,6 +82,26 @@ const SellerSales = () => {
   const filtered = orders.filter(order => activeTab === 'terminee'
     ? ['livree', 'terminee'].includes(order.status)
     : order.status === activeTab);
+
+  const transitionDelivery = async (action: 'start_preparation' | 'mark_in_transit' | 'report_delivered') => {
+    if (!selectedOrder) return;
+    setTransitionLoading(true);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('seller-delivery-transition', {
+        body: { order_id: selectedOrder.id, action },
+      });
+      if (invokeError) throw invokeError;
+      if (data?.error) throw new Error(String(data.error));
+      toast.success(action === 'start_preparation' ? 'Préparation démarrée.' : action === 'mark_in_transit' ? 'Commande marquée comme expédiée.' : 'Livraison signalée comme effectuée. Le client doit confirmer la réception.');
+      setSelectedOrder(null);
+      await loadOrders();
+    } catch (transitionError) {
+      console.error('Seller delivery transition failed', transitionError);
+      toast.error(transitionError instanceof Error ? transitionError.message : 'Impossible de mettre à jour la livraison.');
+    } finally {
+      setTransitionLoading(false);
+    }
+  };
 
   const today = new Date();
   const isToday = (value: string) => {
