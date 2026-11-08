@@ -31,6 +31,21 @@ CREATE POLICY "comments_owner_insert"
     )
   );
 
+
+DROP POLICY IF EXISTS "comments_owner_update" ON public.comments;
+CREATE POLICY "comments_owner_update"
+  ON public.comments
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1
+      FROM public.videos AS visible_video
+      WHERE visible_video.id = comments.video_id
+    )
+  );
+
 DROP POLICY IF EXISTS "Commentaires visibles par tous" ON public.video_comments;
 DROP POLICY IF EXISTS "video_comments_visible_when_video_visible" ON public.video_comments;
 CREATE POLICY "video_comments_visible_when_video_visible"
@@ -49,6 +64,21 @@ DROP POLICY IF EXISTS "Utilisateur peut commenter" ON public.video_comments;
 CREATE POLICY "Utilisateur peut commenter"
   ON public.video_comments
   FOR INSERT
+  WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1
+      FROM public.videos AS visible_video
+      WHERE visible_video.id = video_comments.video_id
+    )
+  );
+
+
+DROP POLICY IF EXISTS "Utilisateur peut modifier son commentaire" ON public.video_comments;
+CREATE POLICY "Utilisateur peut modifier son commentaire"
+  ON public.video_comments
+  FOR UPDATE
+  USING (auth.uid() = user_id)
   WITH CHECK (
     auth.uid() = user_id
     AND EXISTS (
