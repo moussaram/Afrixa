@@ -110,6 +110,7 @@ export function useSocialInteractions(video: Video) {
 export function useFollow(initialFollowing: boolean, targetUserId: string, currentUserId: string) {
   const [isFollowing, setIsFollowing] = useState(initialFollowing);
   const [isLoading, setIsLoading] = useState(false);
+  useEffect(() => { setIsFollowing(initialFollowing); }, [initialFollowing, targetUserId]);
   const toggle = useCallback(async () => {
     if (targetUserId === currentUserId || isLoading) return;
     if (!currentUserId) {
