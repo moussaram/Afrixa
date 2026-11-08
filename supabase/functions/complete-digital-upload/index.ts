@@ -71,17 +71,18 @@ Deno.serve(async (req) => {
       detected_mime_type: detectedMime,
       byte_size: file.size,
       sha256: hex(digest),
-      status: 'ready',
-      scan_status: 'not_configured',
+      status: 'quarantined',
+      scan_status: 'pending',
       validated_at: new Date().toISOString(),
     }).eq('id', asset.id).eq('status', 'quarantined');
     if (updateError) throw updateError;
     return json({
-      ready: true,
+      ready: false,
+      pending_scan: true,
       asset_id: asset.id,
       mime_type: detectedMime,
       byte_size: file.size,
-      malware_scan: 'not_configured',
+      malware_scan: 'pending_configuration',
     });
   } catch (error) {
     console.error('Digital asset validation failed', error);
