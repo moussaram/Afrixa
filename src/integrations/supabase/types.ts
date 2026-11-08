@@ -1066,7 +1066,18 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          nom: string | null
+          prenom: string | null
+          user_id: string
+          username: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       quote_seller_delivery: {
