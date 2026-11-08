@@ -451,6 +451,89 @@ CREATE TRIGGER create_seller_delivery_after_order
 AFTER INSERT ON public.orders
 FOR EACH ROW EXECUTE FUNCTION public.create_seller_delivery_after_order();
 
+
+CREATE OR REPLACE FUNCTION public.transition_seller_delivery(
+  p_order_id uuid,
+  p_action text,
+  p_actor_id uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+DECLARE
+  order_row public.orders%ROWTYPE;
+  delivery_row public.deliveries%ROWTYPE;
+  next_order_status text;
+  next_delivery_status text;
+  expected_order_status text;
+  expected_delivery_status text;
+  event_name text;
+BEGIN
+  IF auth.role() <> 'service_role' THEN
+    RAISE EXCEPTION 'Trusted server workflow required';
+  END IF;
+
+  SELECT * INTO order_row FROM public.orders WHERE id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Order not found'; END IF;
+  IF order_row.seller_id IS DISTINCT FROM p_actor_id THEN RAISE EXCEPTION 'Seller ownership mismatch'; END IF;
+  IF order_row.product_type <> 'physical' OR order_row.delivery_method <> 'seller' THEN
+    RAISE EXCEPTION 'This order does not use seller-managed delivery';
+  END IF;
+
+  SELECT * INTO delivery_row FROM public.deliveries WHERE order_id = p_order_id FOR UPDATE;
+  IF NOT FOUND OR delivery_row.provider_code <> 'seller' THEN
+    RAISE EXCEPTION 'Seller delivery record not found';
+  END IF;
+
+  CASE p_action
+    WHEN 'start_preparation' THEN
+      expected_order_status := 'payee';
+      expected_delivery_status := 'awaiting_seller';
+      next_order_status := 'en_preparation';
+      next_delivery_status := 'preparing';
+      event_name := 'seller.preparation_started';
+    WHEN 'mark_in_transit' THEN
+      expected_order_status := 'en_preparation';
+      expected_delivery_status := 'preparing';
+      next_order_status := 'expediee';
+      next_delivery_status := 'in_transit';
+      event_name := 'seller.delivery_in_transit';
+    WHEN 'report_delivered' THEN
+      expected_order_status := 'expediee';
+      expected_delivery_status := 'in_transit';
+      next_order_status := 'livree';
+      next_delivery_status := 'delivered_reported';
+      event_name := 'seller.delivery_reported';
+    ELSE
+      RAISE EXCEPTION 'Unsupported seller delivery action';
+  END CASE;
+
+  IF order_row.status = next_order_status AND delivery_row.status = next_delivery_status THEN
+    RETURN jsonb_build_object('success', true, 'idempotent', true,
+      'order_status', order_row.status, 'delivery_status', delivery_row.status);
+  END IF;
+  IF order_row.status <> expected_order_status OR delivery_row.status <> expected_delivery_status THEN
+    RAISE EXCEPTION 'Invalid delivery transition from order %, delivery %', order_row.status, delivery_row.status;
+  END IF;
+
+  UPDATE public.orders SET status = next_order_status, updated_at = now()
+  WHERE id = p_order_id AND status = expected_order_status;
+  UPDATE public.deliveries SET status = next_delivery_status, updated_at = now()
+  WHERE id = delivery_row.id AND status = expected_delivery_status;
+
+  INSERT INTO public.delivery_events(delivery_id, source, event_type, normalized_status)
+  VALUES (delivery_row.id, 'seller', event_name, next_delivery_status);
+
+  RETURN jsonb_build_object('success', true, 'order_status', next_order_status,
+    'delivery_status', next_delivery_status);
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.transition_seller_delivery(uuid, text, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.transition_seller_delivery(uuid, text, uuid) TO service_role;
+
 CREATE OR REPLACE FUNCTION public.activate_delivery_after_payment()
 RETURNS trigger
 LANGUAGE plpgsql
