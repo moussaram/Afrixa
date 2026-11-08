@@ -566,8 +566,6 @@ export type Database = {
           auto_confirm_date?: string | null
           buyer_confirmed_at?: string | null
           delivery_confirmed_by?: string | null
-          buyer_confirmed_at?: string | null
-          delivery_confirmed_by?: string | null
           buyer_id: string
           buyer_note?: string | null
           buyer_phone?: string | null
@@ -602,6 +600,8 @@ export type Database = {
         }
         Update: {
           auto_confirm_date?: string | null
+          buyer_confirmed_at?: string | null
+          delivery_confirmed_by?: string | null
           buyer_id?: string
           buyer_note?: string | null
           buyer_phone?: string | null
