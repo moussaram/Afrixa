@@ -10,7 +10,7 @@ AS $$
 DECLARE
   product_row public.products%ROWTYPE;
   effective_price integer;
-  commission_rate_value numeric := 0.05;
+  commission_rate_value numeric;
 BEGIN
   IF auth.role() = 'service_role' THEN
     RETURN NEW;
@@ -40,6 +40,8 @@ BEGIN
   IF product_row.seller_id = NEW.buyer_id THEN
     RAISE EXCEPTION 'A seller cannot purchase their own product';
   END IF;
+
+  commission_rate_value := CASE WHEN COALESCE(product_row.is_group_buy, false) THEN 0.03 ELSE 0.05 END;
 
   IF NOT COALESCE(product_row.unlimited_stock, false) THEN
     IF COALESCE(product_row.stock, 0) < NEW.quantity THEN
@@ -76,10 +78,77 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS a_order_checkout_integrity ON public.orders;
 DROP TRIGGER IF EXISTS enforce_order_checkout_integrity ON public.orders;
-CREATE TRIGGER enforce_order_checkout_integrity
+CREATE TRIGGER a_order_checkout_integrity
 BEFORE INSERT OR UPDATE ON public.orders
 FOR EACH ROW EXECUTE FUNCTION public.enforce_order_checkout_integrity();
+
+
+-- Release stock only when a reserved, unpaid order is cancelled. The transition
+-- guard makes the operation idempotent and keeps stock restoration atomic.
+CREATE OR REPLACE FUNCTION public.restore_order_stock_after_cancellation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+BEGIN
+  IF OLD.status = 'en_attente' AND NEW.status = 'annulee'
+    AND NEW.product_id IS NOT NULL THEN
+    UPDATE public.products
+    SET stock = COALESCE(stock, 0) + NEW.quantity,
+        updated_at = now()
+    WHERE id = NEW.product_id
+      AND COALESCE(unlimited_stock, false) = false;
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS restore_order_stock_after_cancellation ON public.orders;
+CREATE TRIGGER restore_order_stock_after_cancellation
+AFTER UPDATE OF status ON public.orders
+FOR EACH ROW EXECUTE FUNCTION public.restore_order_stock_after_cancellation();
+
+-- Keep an append-only status history. Clients have no direct INSERT policy;
+-- this trigger records only actual database transitions.
+CREATE OR REPLACE FUNCTION public.append_order_timeline_event()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+DECLARE
+  event_message text;
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    event_message := 'Commande créée, en attente de paiement';
+  ELSE
+    event_message := CASE NEW.status
+      WHEN 'payee' THEN 'Paiement confirmé'
+      WHEN 'en_preparation' THEN 'Le vendeur prépare la commande'
+      WHEN 'expediee' THEN 'Commande expédiée'
+      WHEN 'livree' THEN 'Livraison confirmée'
+      WHEN 'terminee' THEN 'Commande terminée'
+      WHEN 'annulee' THEN 'Commande annulée'
+      WHEN 'litige' THEN 'Un litige a été ouvert'
+      ELSE 'Statut de commande mis à jour'
+    END;
+  END IF;
+
+  INSERT INTO public.order_timeline(order_id, status, message)
+  VALUES (NEW.id, NEW.status, event_message);
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS append_order_timeline_event ON public.orders;
+CREATE TRIGGER append_order_timeline_event
+AFTER INSERT OR UPDATE OF status ON public.orders
+FOR EACH ROW
+WHEN (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM NEW.status)
+EXECUTE FUNCTION public.append_order_timeline_event();
 
 -- Buyers and sellers must not edit financial amounts, ownership, status or escrow
 -- directly. Trusted Edge Functions use the service_role key on the server.
