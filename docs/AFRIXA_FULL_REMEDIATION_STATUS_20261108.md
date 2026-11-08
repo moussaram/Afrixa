@@ -21,6 +21,8 @@ Cette branche conserve les corrections antérieures de la PR #5 et ajoute une pr
 
 - `src/pages/Index.tsx` : le fil « Pour toi » et « Abonnements » lit désormais les vidéos publiées dans Supabase, charge les profils auteurs, gère les états d'erreur/vide et propose une pagination par lots de 20. Les données de démonstration ne sont plus utilisées dans le fil principal.
 - `src/components/video/VideoCard.tsx` : les contrôles d'abonnement comparent maintenant l'auteur à l'utilisateur réellement authentifié, et non au compte fictif de démonstration.
+- `src/pages/Discover.tsx` : les comptes, vidéos et tendances sont maintenant issus des données publiées dans Supabase ; les défis non alimentés par un vrai backend ne présentent plus de faux prix ni de faux nombres de participants.
+- Le typage Supabase versionné ne contient pas encore la table `videos` malgré ses migrations : le code isole temporairement ce décalage par un cast local explicite. La génération complète des types depuis le schéma réel reste à effectuer et à vérifier.
 - `supabase/migrations/20261108120000_secure_checkout_financial_ledger.sql` : ajoute une validation serveur des commandes (propriétaire, produit actif, vendeur, prix, commission, stock réservé dans la même transaction), bloque les modifications directes des statuts et montants, supprime des politiques d'écriture client sur les commissions/événements de commande/paiements, protège les soldes Afrixa Coins et crée un journal financier immuable et idempotent.
 
 Cette migration est préparée dans le dépôt mais **n'a pas été appliquée** à Supabase. Les fonctions Edge de confirmation de paiement, remboursement, libération de stock et versement doivent être raccordées à ces règles avant activation en staging.
