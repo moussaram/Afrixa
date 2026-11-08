@@ -69,7 +69,7 @@ CREATE POLICY "Approved public catalog and owner product access"
     (is_active = true AND publication_status = 'published'
       AND moderation_status = 'approved' AND deleted_at IS NULL)
     OR auth.uid() = seller_id
-    OR auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
+    OR (auth.jwt() -> 'app_metadata' ->> 'role' = 'admin' OR COALESCE((auth.jwt() -> 'app_metadata' -> 'roles') ? 'admin', false))
   );
 
 DROP POLICY IF EXISTS "Admins review pending products" ON public.products;
