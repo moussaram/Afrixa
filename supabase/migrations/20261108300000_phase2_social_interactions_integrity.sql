@@ -2,6 +2,11 @@
 -- notifications for the tables actually used by the current application.
 BEGIN;
 
+ALTER TABLE public.notifications
+  ADD COLUMN IF NOT EXISTS actor_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_notifications_actor_created
+  ON public.notifications(actor_id, created_at DESC);
+
 -- Keep aggregate counters derived from the source rows, never from browser writes.
 CREATE OR REPLACE FUNCTION public.sync_video_interaction_counts()
 RETURNS trigger
@@ -167,9 +172,10 @@ BEGIN
   SELECT COALESCE(username, 'Un utilisateur') INTO actor_name
   FROM public.profiles WHERE user_id = NEW.follower_id;
 
-  INSERT INTO public.notifications(user_id, title, message, type, reference_id)
+  INSERT INTO public.notifications(user_id, actor_id, title, message, type, reference_id)
   VALUES (
     NEW.following_id,
+    NEW.follower_id,
     'Nouvel abonné',
     COALESCE(actor_name, 'Un utilisateur') || ' vous suit maintenant.',
     'new_follower',
@@ -191,8 +197,8 @@ BEGIN
   SELECT user_id INTO owner_id FROM public.videos WHERE id = NEW.video_id;
   IF owner_id IS NOT NULL AND owner_id <> NEW.user_id
      AND public.social_notification_enabled(owner_id, 'likes_enabled') THEN
-    INSERT INTO public.notifications(user_id, title, message, type, reference_id)
-    VALUES (owner_id, 'Nouvelle mention J’aime', 'Une personne a aimé votre vidéo.', 'video_like', NEW.video_id);
+    INSERT INTO public.notifications(user_id, actor_id, title, message, type, reference_id)
+    VALUES (owner_id, NEW.user_id, 'Nouvelle mention J’aime', 'Une personne a aimé votre vidéo.', 'video_like', NEW.video_id);
   END IF;
   RETURN NEW;
 END;
@@ -218,9 +224,10 @@ BEGIN
 
   IF video_owner_id IS NOT NULL AND video_owner_id <> NEW.user_id
      AND public.social_notification_enabled(video_owner_id, 'comments_enabled') THEN
-    INSERT INTO public.notifications(user_id, title, message, type, reference_id)
+    INSERT INTO public.notifications(user_id, actor_id, title, message, type, reference_id)
     VALUES (
       video_owner_id,
+      NEW.user_id,
       'Nouveau commentaire',
       'Une personne a commenté votre vidéo.',
       CASE WHEN NEW.parent_id IS NULL THEN 'video_comment' ELSE 'comment_reply' END,
@@ -236,8 +243,8 @@ BEGIN
        AND parent_owner_id <> NEW.user_id
        AND parent_owner_id IS DISTINCT FROM video_owner_id
        AND public.social_notification_enabled(parent_owner_id, 'comments_enabled') THEN
-      INSERT INTO public.notifications(user_id, title, message, type, reference_id)
-      VALUES (parent_owner_id, 'Nouvelle réponse', 'Une personne a répondu à votre commentaire.', 'comment_reply', NEW.id);
+      INSERT INTO public.notifications(user_id, actor_id, title, message, type, reference_id)
+      VALUES (parent_owner_id, NEW.user_id, 'Nouvelle réponse', 'Une personne a répondu à votre commentaire.', 'comment_reply', NEW.id);
     END IF;
   END IF;
 
@@ -264,8 +271,8 @@ BEGIN
 
   IF comment_owner_id IS NOT NULL AND comment_owner_id <> NEW.user_id
      AND public.social_notification_enabled(comment_owner_id, 'likes_enabled') THEN
-    INSERT INTO public.notifications(user_id, title, message, type, reference_id)
-    VALUES (comment_owner_id, 'J’aime votre commentaire', 'Une personne a aimé votre commentaire.', 'comment_like', NEW.comment_id);
+    INSERT INTO public.notifications(user_id, actor_id, title, message, type, reference_id)
+    VALUES (comment_owner_id, NEW.user_id, 'J’aime votre commentaire', 'Une personne a aimé votre commentaire.', 'comment_like', NEW.comment_id);
   END IF;
   RETURN NEW;
 END;
@@ -290,8 +297,8 @@ BEGIN
 
   IF actor_id IS NOT NULL AND actor_id <> NEW.mentioned_user_id
      AND public.social_notification_enabled(NEW.mentioned_user_id, 'comments_enabled') THEN
-    INSERT INTO public.notifications(user_id, title, message, type, reference_id)
-    VALUES (NEW.mentioned_user_id, 'Vous avez été mentionné', 'Une personne vous a mentionné dans un commentaire.', 'mention', NEW.comment_id);
+    INSERT INTO public.notifications(user_id, actor_id, title, message, type, reference_id)
+    VALUES (NEW.mentioned_user_id, actor_id, 'Vous avez été mentionné', 'Une personne vous a mentionné dans un commentaire.', 'mention', NEW.comment_id);
   END IF;
   RETURN NEW;
 END;
