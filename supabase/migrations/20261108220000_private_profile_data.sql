@@ -69,14 +69,14 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $function$
   SELECT COALESCE(
     (SELECT NOT COALESCE(profile.is_private, false)
      FROM public.profiles AS profile
      WHERE profile.user_id = target_user_id),
     false
   );
-$;
+$function$;
 
 REVOKE ALL ON FUNCTION public.is_publicly_followable(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.is_publicly_followable(uuid) TO authenticated;
