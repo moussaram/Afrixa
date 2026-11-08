@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS public.pickup_locations (
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(id, seller_id),
   CHECK ((latitude IS NULL) = (longitude IS NULL)),
   CHECK (latitude IS NULL OR (latitude BETWEEN -90 AND 90)),
   CHECK (longitude IS NULL OR (longitude BETWEEN -180 AND 180))
@@ -64,11 +65,12 @@ CREATE TABLE IF NOT EXISTS public.seller_delivery_settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   seller_id uuid NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
   enabled boolean NOT NULL DEFAULT false,
-  pickup_location_id uuid REFERENCES public.pickup_locations(id) ON DELETE SET NULL,
+  pickup_location_id uuid,
   preparation_minutes integer NOT NULL DEFAULT 60 CHECK (preparation_minutes BETWEEN 0 AND 10080),
   policy_text text,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  FOREIGN KEY (pickup_location_id, seller_id) REFERENCES public.pickup_locations(id, seller_id) ON DELETE SET NULL
 );
 ALTER TABLE public.seller_delivery_settings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Seller manages own delivery settings"
@@ -83,9 +85,10 @@ CREATE TABLE IF NOT EXISTS public.seller_delivery_zones (
   city text NOT NULL,
   zone_code text,
   enabled boolean NOT NULL DEFAULT true,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(seller_id, country_code, lower(city))
+  created_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS seller_delivery_zone_unique
+  ON public.seller_delivery_zones(seller_id, country_code, lower(city));
 ALTER TABLE public.seller_delivery_zones ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Seller manages own delivery zones"
   ON public.seller_delivery_zones FOR ALL
@@ -226,7 +229,8 @@ ALTER TABLE public.delivery_attempts ENABLE ROW LEVEL SECURITY;
 CREATE OR REPLACE FUNCTION public.quote_seller_delivery(
   p_product_id uuid,
   p_country_code text,
-  p_city text
+  p_city text,
+  p_quantity integer DEFAULT 1
 )
 RETURNS public.delivery_quotes
 LANGUAGE plpgsql
@@ -240,6 +244,7 @@ DECLARE
   result_row public.delivery_quotes%ROWTYPE;
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;
+  IF p_quantity IS NULL OR p_quantity < 1 OR p_quantity > 1000 THEN RAISE EXCEPTION 'Invalid quantity'; END IF;
   SELECT * INTO product_row FROM public.products
   WHERE id = p_product_id AND is_active = true
     AND publication_status = 'published' AND product_type = 'physical'
@@ -264,6 +269,14 @@ BEGIN
   WHERE r.zone_id = zone_row.id AND r.seller_id = product_row.seller_id AND r.enabled = true
   ORDER BY r.created_at DESC LIMIT 1;
   IF NOT FOUND THEN RAISE EXCEPTION 'Seller delivery rate is not configured'; END IF;
+  IF product_row.price * p_quantity < rate_row.minimum_order_minor THEN
+    RAISE EXCEPTION 'Minimum order amount for seller delivery is not reached';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.seller_delivery_settings s
+    JOIN public.pickup_locations p ON p.id = s.pickup_location_id AND p.seller_id = s.seller_id
+    WHERE s.seller_id = product_row.seller_id AND s.enabled = true AND p.is_active = true) THEN
+    RAISE EXCEPTION 'Seller pickup location is not configured';
+  END IF;
 
   INSERT INTO public.delivery_quotes(
     buyer_id, seller_id, product_id, provider_code, zone_id, amount_minor, currency,
@@ -279,8 +292,8 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.quote_seller_delivery(uuid, text, text) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.quote_seller_delivery(uuid, text, text) TO authenticated;
+REVOKE ALL ON FUNCTION public.quote_seller_delivery(uuid, text, text, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.quote_seller_delivery(uuid, text, text, integer) TO authenticated;
 
 -- A quote is consumed exactly once by checkout. Server-derived totals include
 -- shipping; commission is calculated only on merchandise, not on shipping.
@@ -356,8 +369,8 @@ BEGIN
         AND status = 'quoted' AND expires_at > now()
       FOR UPDATE;
       IF NOT FOUND THEN RAISE EXCEPTION 'Delivery quote is invalid or expired'; END IF;
-      IF quote_row.provider_code <> 'seller' THEN
-        RAISE EXCEPTION 'External delivery providers are not enabled for checkout';
+      IF quote_row.provider_code <> 'seller' OR quote_row.currency <> product_row.currency THEN
+        RAISE EXCEPTION 'Delivery quote provider or currency is not valid';
       END IF;
       NEW.delivery_method := 'seller';
       NEW.delivery_provider := quote_row.provider_code;
@@ -366,14 +379,17 @@ BEGIN
       UPDATE public.delivery_quotes SET status = 'consumed' WHERE id = quote_row.id;
     ELSE
       NEW.delivery_method := COALESCE(NEW.delivery_method, 'seller');
-      IF NEW.delivery_method = 'yango' OR NEW.delivery_method = 'ouigoo' THEN
+      IF NEW.delivery_method IN ('yango', 'ouigoo') THEN
         RAISE EXCEPTION 'Selected delivery provider is not enabled';
       END IF;
-      IF NEW.delivery_method NOT IN ('seller', 'pickup') THEN
+      IF NEW.delivery_method = 'seller' THEN
+        RAISE EXCEPTION 'A current seller delivery quote is required';
+      END IF;
+      IF NEW.delivery_method <> 'pickup' THEN
         RAISE EXCEPTION 'Unsupported delivery method';
       END IF;
-      NEW.delivery_provider := NEW.delivery_method;
-      NEW.delivery_fee := CASE WHEN NEW.delivery_method = 'pickup' THEN 0 ELSE COALESCE(product_row.delivery_fee, 0) END;
+      NEW.delivery_provider := 'seller';
+      NEW.delivery_fee := 0;
     END IF;
 
     IF NOT COALESCE(product_row.unlimited_stock, false) THEN
