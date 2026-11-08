@@ -57,11 +57,12 @@ Deno.serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: order, error: orderError } = await admin.from('orders')
-      .select('id, buyer_id, seller_id, seller_amount, commission_amount, payment_operator, status, escrow_released')
+      .select('id, buyer_id, seller_id, seller_amount, commission_amount, payment_operator, status, escrow_released, buyer_confirmed_at')
       .eq('id', orderId).maybeSingle();
     if (orderError) throw orderError;
     if (!order || order.buyer_id !== buyerId) return json({ error: 'order_not_found' }, 404);
     if (order.status !== 'livree') return json({ error: 'order_not_delivered' }, 409);
+    if (!order.buyer_confirmed_at) return json({ error: 'buyer_confirmation_required' }, 409);
     if (order.escrow_released) return json({ error: 'escrow_already_released' }, 409);
 
     const { data: tx, error: txError } = await admin.from('payment_transactions')
