@@ -13,6 +13,10 @@ interface ProductBottomSheetProps {
     sellerName: string;
     sellerId?: string;
     sellerVerified?: boolean;
+    productType?: 'physical' | 'digital';
+    stock?: number;
+    city?: string;
+    country?: string;
   };
   onClose: () => void;
 }
@@ -31,7 +35,7 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
         <div className="w-12 h-1.5 bg-muted rounded-full mx-auto mt-3" />
 
         <div className="flex items-center justify-between px-4 py-3">
-          <h3 className="font-semibold text-foreground">Produit tagué</h3>
+          <h3 className="font-semibold text-foreground">{product.productType === 'digital' ? 'Produit numérique' : 'Produit physique'}</h3>
           <button onClick={onClose} className="p-1 rounded-full hover:bg-muted">
             <X className="w-5 h-5 text-muted-foreground" />
           </button>
@@ -48,6 +52,7 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
               <div>
                 <h4 className="font-semibold text-foreground text-sm">{product.name}</h4>
                 <p className="text-xs text-muted-foreground mt-0.5">{product.sellerName}</p>
+                {product.productType === 'digital' ? <p className="text-xs text-emerald-400 mt-1">Téléchargement après confirmation du paiement</p> : <p className="text-xs text-muted-foreground mt-1">Stock : {product.stock ?? 0}</p>}
               </div>
               <p className="text-lg font-bold text-primary">
                 {product.price.toLocaleString()} {product.currency}
