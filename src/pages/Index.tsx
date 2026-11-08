@@ -4,6 +4,11 @@ import { VideoCard } from '@/components/video/VideoCard';
 import { FeedTutorialOverlay } from '@/components/onboarding/FeedTutorialOverlay';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+// The checked-in generated schema currently omits the videos table even though
+// its migrations exist. Keep this boundary explicit until types are regenerated.
+const db = supabase as unknown as SupabaseClient<any>;
 import { useAuth } from '@/contexts/useAuth';
 import type { User, Video } from '@/types';
 
