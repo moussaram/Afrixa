@@ -40,6 +40,14 @@ REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
   FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON TABLE public.premium_subscriptions TO authenticated;
 
+-- Coin balances may be initialized by their owner, but never changed or
+-- truncated directly. The existing trigger forces all client-created balances to zero.
+REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+  ON TABLE public.coin_balances
+  FROM PUBLIC, anon, authenticated;
+REVOKE INSERT ON TABLE public.coin_balances FROM PUBLIC, anon;
+GRANT SELECT, INSERT ON TABLE public.coin_balances TO authenticated;
+
 -- Coin purchase requests may be created by their owner, but cannot be edited
 -- or deleted by that owner after submission. Confirmation remains server-only.
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
