@@ -3,9 +3,10 @@ import { Heart, MessageCircle, Eye, UserPlus, Clock, RefreshCw } from 'lucide-re
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/useAuth';
+import { useCloudflarePlaybackAssets } from '@/hooks/useCloudflarePlaybackAssets';
 
 type ActivityTab = 'watch' | 'likes' | 'comments' | 'interactions';
-type ActivityVideo = { id: string; description: string | null; thumbnail_url: string | null; views_count: number | null; user_id: string };
+type ActivityVideo = { id: string; description: string | null; views_count: number | null; user_id: string };
 type LikeRow = { video_id: string; created_at: string };
 type CommentRow = { id: string; video_id: string; content: string; created_at: string };
 type NotificationRow = { id: string; title: string; message: string; type: string; is_read: boolean; created_at: string; order_id: string | null };
@@ -16,6 +17,11 @@ const tabs = [
   { id: 'comments' as ActivityTab, label: 'Commentaires', icon: MessageCircle },
   { id: 'interactions' as ActivityTab, label: 'Activité', icon: UserPlus },
 ];
+
+const ProtectedActivityThumbnail = ({ videoId, className }: { videoId: string; className: string }) => {
+  const { thumbnailUrl } = useCloudflarePlaybackAssets(videoId);
+  return <img loading="lazy" src={thumbnailUrl || '/placeholder.svg'} alt="" className={className} />;
+};
 
 export const ActivityCenter = () => {
   const { user } = useAuth();
@@ -50,7 +56,7 @@ export const ActivityCenter = () => {
       const commentRows = (commentResult.data || []) as CommentRow[];
       const videoIds = Array.from(new Set([...likeRows.map(row => row.video_id), ...commentRows.map(row => row.video_id)]));
       const { data: videoData, error: videoError } = videoIds.length
-        ? await supabase.from('videos').select('id,description,thumbnail_url,views_count,user_id').in('id', videoIds)
+        ? await supabase.from('videos').select('id,description,views_count,user_id').in('id', videoIds)
         : { data: [], error: null };
       if (videoError) throw videoError;
       const videoMap = new Map(((videoData || []) as ActivityVideo[]).map(video => [video.id, video]));
@@ -102,7 +108,7 @@ export const ActivityCenter = () => {
         {!loading && !error && activeTab === 'likes' && (
           likes.length ? <div className="grid grid-cols-3 gap-0.5 p-0.5">
             {likes.map(item => <div key={item.video_id} className="relative aspect-[9/16] bg-muted">
-              {item.video.thumbnail_url && <img loading="lazy" src={item.video.thumbnail_url} alt="" className="w-full h-full object-cover" />}
+              <ProtectedActivityThumbnail videoId={item.video.id} className="w-full h-full object-cover" />
               <div className="absolute bottom-1 left-1 flex items-center gap-0.5"><Heart className="w-3 h-3 text-destructive fill-destructive" /><span className="text-white text-xs font-bold drop-shadow">{formatTime(item.created_at)}</span></div>
             </div>)}
           </div> : <p className="py-12 text-center text-xs text-muted-foreground">Vous n'avez encore aimé aucune vidéo.</p>
@@ -110,7 +116,7 @@ export const ActivityCenter = () => {
         {!loading && !error && activeTab === 'comments' && (
           comments.length ? <div className="divide-y divide-border/20">
             {comments.map(item => <div key={item.id} className="flex gap-3 px-4 py-3">
-              {item.video.thumbnail_url ? <img loading="lazy" src={item.video.thumbnail_url} alt="" className="w-12 h-16 object-cover rounded-lg shrink-0" /> : <div className="w-12 h-16 rounded-lg bg-muted shrink-0" />}
+              <ProtectedActivityThumbnail videoId={item.video.id} className="w-12 h-16 object-cover rounded-lg shrink-0" />
               <div className="flex-1 min-w-0"><p className="text-sm text-foreground">{item.content}</p><p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.video.description}</p><p className="text-xs text-muted-foreground mt-1">{formatTime(item.created_at)}</p></div>
             </div>)}
           </div> : <p className="py-12 text-center text-xs text-muted-foreground">Vous n'avez encore publié aucun commentaire.</p>
