@@ -15,7 +15,7 @@ CREATE POLICY "profile_owner_select_private"
   TO authenticated
   USING (auth.uid() = user_id);
 
-REVOKE SELECT ON TABLE public.profiles FROM anon;
+REVOKE SELECT ON TABLE public.profiles FROM PUBLIC, anon;
 GRANT SELECT ON TABLE public.profiles TO authenticated;
 
 -- This owner-rights view deliberately exposes only fields intended for public
