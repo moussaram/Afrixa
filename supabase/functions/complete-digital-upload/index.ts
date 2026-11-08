@@ -58,6 +58,11 @@ Deno.serve(async (req) => {
     const { data: file, error: downloadError } = await admin.storage
       .from(asset.bucket_id).download(asset.storage_path);
     if (downloadError || !file || file.size <= 0) throw downloadError ?? new Error('Uploaded file is empty');
+    if (file.size > 104857600) {
+      await admin.storage.from(asset.bucket_id).remove([asset.storage_path]);
+      await admin.from('digital_product_assets').update({ status: 'rejected', scan_status: 'failed' }).eq('id', asset.id);
+      return json({ error: 'digital_file_too_large' }, 413);
+    }
     const header = new Uint8Array(await file.slice(0, 64).arrayBuffer());
     const detectedMime = detectType(header, asset.original_filename);
     if (!detectedMime) {
