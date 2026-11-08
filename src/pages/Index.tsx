@@ -41,7 +41,7 @@ type ProfileRow = {
 const PAGE_SIZE = 20;
 const FALLBACK_AVATAR = '/placeholder.svg';
 
-const toVideo = (row: FeedVideoRow, profile?: ProfileRow): Video => {
+const toVideo = (row: FeedVideoRow, profile?: ProfileRow, isFollowing = false): Video => {
   const username = profile?.username || 'utilisateur';
   const description = row.description || row.title || '';
   const hashtags = Array.from(description.matchAll(/#([\p{L}\p{N}_]+)/gu), match => match[1]);
@@ -51,6 +51,7 @@ const toVideo = (row: FeedVideoRow, profile?: ProfileRow): Video => {
     displayName: [profile?.prenom, profile?.nom].filter(Boolean).join(' ') || username,
     avatar: profile?.avatar_url || FALLBACK_AVATAR,
     bio: profile?.bio || '',
+    isFollowing,
     followers: 0,
     following: 0,
     likes: 0,
@@ -91,25 +92,20 @@ const Index = () => {
     setError(null);
 
     try {
-      let followedIds: string[] | null = null;
-      if (activeTab === 'following') {
-        if (!user?.id) {
-          setVideos([]);
-          setHasMore(false);
-          return;
-        }
+      let followedIds: string[] = [];
+      if (user?.id) {
         const { data: follows, error: followsError } = await supabase
           .from('follows')
           .select('following_id')
           .eq('follower_id', user.id);
         if (followsError) throw followsError;
         followedIds = (follows || []).map(item => item.following_id);
-        if (followedIds.length === 0) {
-          setVideos([]);
-          setHasMore(false);
-          setPage(0);
-          return;
-        }
+      }
+      if (activeTab === 'following' && followedIds.length === 0) {
+        setVideos([]);
+        setHasMore(false);
+        setPage(0);
+        return;
       }
 
       let query = supabase
@@ -119,7 +115,7 @@ const Index = () => {
         .order('created_at', { ascending: false })
         .range(nextPage * PAGE_SIZE, (nextPage + 1) * PAGE_SIZE - 1);
 
-      if (followedIds) query = query.in('user_id', followedIds);
+      if (activeTab === 'following') query = query.in('user_id', followedIds);
 
       const { data, error: videosError } = await query;
       if (videosError) throw videosError;
@@ -134,7 +130,8 @@ const Index = () => {
       if (profilesError) throw profilesError;
 
       const profileMap = new Map((profiles || []).map(profile => [profile.user_id, profile as ProfileRow]));
-      const mapped = rows.map(row => toVideo(row, profileMap.get(row.user_id)));
+      const followingSet = new Set(followedIds);
+      const mapped = rows.map(row => toVideo(row, profileMap.get(row.user_id), followingSet.has(row.user_id)));
       setVideos(current => append ? [...current, ...mapped] : mapped);
       setHasMore(rows.length === PAGE_SIZE);
       setPage(nextPage);
