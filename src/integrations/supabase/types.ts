@@ -789,6 +789,36 @@ export type Database = {
         }
         Relationships: []
       }
+      digital_entitlements: {
+        Row: { asset_id: string; granted_at: string; id: string; order_id: string; product_id: string; revoked_at: string | null; status: string; user_id: string }
+        Insert: { asset_id: string; granted_at?: string; id?: string; order_id: string; product_id: string; revoked_at?: string | null; status?: string; user_id: string }
+        Update: { asset_id?: string; granted_at?: string; id?: string; order_id?: string; product_id?: string; revoked_at?: string | null; status?: string; user_id?: string }
+        Relationships: []
+      }
+      pickup_locations: {
+        Row: { address: string; city: string; contact_name: string | null; contact_phone: string | null; country_code: string; created_at: string; id: string; instructions: string | null; is_active: boolean; is_default: boolean; label: string; latitude: number | null; longitude: number | null; seller_id: string; updated_at: string }
+        Insert: { address: string; city: string; contact_name?: string | null; contact_phone?: string | null; country_code: string; created_at?: string; id?: string; instructions?: string | null; is_active?: boolean; is_default?: boolean; label: string; latitude?: number | null; longitude?: number | null; seller_id: string; updated_at?: string }
+        Update: { address?: string; city?: string; contact_name?: string | null; contact_phone?: string | null; country_code?: string; created_at?: string; id?: string; instructions?: string | null; is_active?: boolean; is_default?: boolean; label?: string; latitude?: number | null; longitude?: number | null; seller_id?: string; updated_at?: string }
+        Relationships: []
+      }
+      seller_delivery_settings: {
+        Row: { created_at: string; enabled: boolean; id: string; pickup_location_id: string | null; policy_text: string | null; preparation_minutes: number; seller_id: string; updated_at: string }
+        Insert: { created_at?: string; enabled?: boolean; id?: string; pickup_location_id?: string | null; policy_text?: string | null; preparation_minutes?: number; seller_id: string; updated_at?: string }
+        Update: { created_at?: string; enabled?: boolean; id?: string; pickup_location_id?: string | null; policy_text?: string | null; preparation_minutes?: number; seller_id?: string; updated_at?: string }
+        Relationships: []
+      }
+      seller_delivery_zones: {
+        Row: { city: string; country_code: string; created_at: string; enabled: boolean; id: string; seller_id: string; zone_code: string | null }
+        Insert: { city: string; country_code: string; created_at?: string; enabled?: boolean; id?: string; seller_id: string; zone_code?: string | null }
+        Update: { city?: string; country_code?: string; created_at?: string; enabled?: boolean; id?: string; seller_id?: string; zone_code?: string | null }
+        Relationships: []
+      }
+      seller_delivery_rates: {
+        Row: { amount_minor: number; created_at: string; currency: string; enabled: boolean; eta_max_minutes: number; eta_min_minutes: number; id: string; minimum_order_minor: number; seller_id: string; updated_at: string; zone_id: string }
+        Insert: { amount_minor: number; created_at?: string; currency?: string; enabled?: boolean; eta_max_minutes?: number; eta_min_minutes?: number; id?: string; minimum_order_minor?: number; seller_id: string; updated_at?: string; zone_id: string }
+        Update: { amount_minor?: number; created_at?: string; currency?: string; enabled?: boolean; eta_max_minutes?: number; eta_min_minutes?: number; id?: string; minimum_order_minor?: number; seller_id?: string; updated_at?: string; zone_id?: string }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
