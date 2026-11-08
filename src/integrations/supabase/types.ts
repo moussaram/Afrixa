@@ -1070,7 +1070,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           bio: string | null
-          created_at: string
+          created_at: string | null
           nom: string | null
           prenom: string | null
           user_id: string
