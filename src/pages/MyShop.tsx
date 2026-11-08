@@ -25,6 +25,8 @@ interface ShopProduct {
   country?: string | null;
   isLocal?: boolean;
   productType: 'physical' | 'digital';
+  moderationStatus: string;
+  publicationStatus: string;
 }
 
 const MyShop = () => {
@@ -70,9 +72,8 @@ const MyShop = () => {
     try {
       const [productsResult, ordersResult] = await Promise.all([
         supabase.from('products')
-          .select('id, name, description, category, price, stock, images, sales_count, city, country, product_type, currency')
+          .select('id, name, description, category, price, stock, images, sales_count, city, country, product_type, currency, moderation_status, publication_status')
           .eq('seller_id', userId)
-          .eq('is_active', true)
           .order('created_at', { ascending: false }),
         supabase.from('orders')
           .select('id, total_price, seller_amount, status, created_at')
@@ -90,6 +91,8 @@ const MyShop = () => {
         price: p.price,
         currency: p.currency || 'XOF',
         productType: p.product_type === 'digital' ? 'digital' : 'physical',
+        moderationStatus: p.moderation_status,
+        publicationStatus: p.publication_status,
         stock: p.stock ?? 0,
         imageUrl: p.images?.[0] ?? '',
         sales: p.sales_count ?? 0,
@@ -325,8 +328,8 @@ const MyShop = () => {
         images: imageUrl ? [imageUrl] : [],
         city: newProduct.city.trim() || null,
         country: newProduct.country.trim() || null,
-        is_active: true,
-        publication_status: newProduct.productType === 'digital' && !digitalFile && editingProduct ? 'published' : newProduct.productType === 'digital' ? 'draft' : 'published',
+        is_active: false,
+        publication_status: 'draft',
       };
 
       let productId = editingProduct?.id;
@@ -361,14 +364,9 @@ const MyShop = () => {
         if (validationError || !validation?.ready) {
           throw validationError ?? new Error('Le fichier numérique n’a pas passé la validation.');
         }
-        const { error: publishError } = await supabase.from('products')
-          .update({ publication_status: 'published' })
-          .eq('id', productId)
-          .eq('seller_id', user.id);
-        if (publishError) throw publishError;
-      }
 
-      toast.success(editingProduct ? 'Produit mis à jour.' : 'Produit enregistré.');
+
+      toast.success(editingProduct ? 'Modifications enregistrées. Le contenu modifié repasse en validation.' : 'Produit soumis à la modération. Il sera visible après approbation.');
       setShowAddForm(false);
       resetProductForm();
       await loadProducts();
@@ -469,6 +467,7 @@ const MyShop = () => {
                   </p>
                   <div className="flex items-center gap-3 mt-1">
                     <span className="text-xs text-muted-foreground">{product.productType === 'digital' ? 'Produit numérique' : `Stock : ${product.stock}`}</span>
+                  <span className={cn('text-[10px] font-semibold', product.moderationStatus === 'approved' ? 'text-emerald-400' : product.moderationStatus === 'rejected' ? 'text-destructive' : 'text-amber-400')}>{product.moderationStatus === 'approved' ? 'Publié' : product.moderationStatus === 'rejected' ? 'Refusé' : 'En attente de validation'}</span>
                     <span className="text-xs text-muted-foreground">{formatNumber(product.sales)} vendus</span>
                   </div>
                 </div>
