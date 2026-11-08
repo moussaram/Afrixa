@@ -118,7 +118,7 @@ const Index = () => {
       const rows = (data || []) as FeedVideoRow[];
       const authorIds = Array.from(new Set(rows.map(row => row.user_id)));
       const { data: profiles, error: profilesError } = authorIds.length
-        ? await supabase.from('profiles')
+        ? await supabase.from('public_profiles')
             .select('user_id,username,prenom,nom,avatar_url,bio')
             .in('user_id', authorIds)
         : { data: [], error: null };
