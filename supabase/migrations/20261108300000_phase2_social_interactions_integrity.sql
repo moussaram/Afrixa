@@ -317,7 +317,7 @@ BEGIN
 
   SELECT user_id INTO video_owner_id
   FROM public.videos
-  WHERE id = NEW.video_id AND comments_disabled = false;
+  WHERE id = NEW.video_id AND COALESCE(comments_disabled, false) = false;
 
   IF video_owner_id IS NULL THEN
     RAISE EXCEPTION 'Les commentaires sont désactivés ou la vidéo est indisponible.'
