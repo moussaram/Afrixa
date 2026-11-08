@@ -34,6 +34,7 @@ const LiveStats = lazy(() => import("./pages/LiveStats"));
 const MyInfo = lazy(() => import("./pages/MyInfo"));
 const Login = lazy(() => import("./pages/auth/Login"));
 const MyShop = lazy(() => import("./pages/MyShop"));
+const PublicShop = lazy(() => import("./pages/PublicShop"));
 const DigitalLibrary = lazy(() => import("./pages/DigitalLibrary"));
 const AdminModeration = lazy(() => import("./pages/AdminModeration"));
 const Orders = lazy(() => import("./pages/Orders"));
@@ -145,7 +146,7 @@ const AppContent = () => {
           <Route path="/register" element={<Navigate to="/auth/register" replace />} />
           <Route path="/help" element={<Navigate to="/help-support" replace />} />
           <Route path="/my-space" element={<Navigate to="/profile" replace />} />
-          <Route path="/profile/:username/shop" element={<MyShop />} />
+          <Route path="/profile/:username/shop" element={<PublicShop />} />
           <Route path="/live/broadcast" element={<LiveBroadcast />} />
           <Route path="/live/view/:creatorId" element={<LiveViewer />} />
           <Route path="/live/stats" element={<LiveStats />} />
