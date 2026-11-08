@@ -2,6 +2,7 @@ import { Play } from 'lucide-react';
 import { Video } from '@/types';
 import { formatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
+import { useCloudflarePlaybackAssets } from '@/hooks/useCloudflarePlaybackAssets';
 
 interface VideoThumbnailProps {
   video: Video;
@@ -16,6 +17,7 @@ export const VideoThumbnail = ({
   showViews = true,
   className 
 }: VideoThumbnailProps) => {
+  const { thumbnailUrl } = useCloudflarePlaybackAssets(video.id);
   return (
     <div 
       onClick={onClick}
@@ -25,7 +27,7 @@ export const VideoThumbnail = ({
       )}
     >
       <img
-        src={video.thumbnailUrl}
+        src={thumbnailUrl || '/placeholder.svg'}
         alt={video.description}
         className="w-full h-full object-cover"
       />

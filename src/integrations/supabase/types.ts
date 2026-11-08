@@ -14,6 +14,165 @@ export type Database = {
   }
   public: {
     Tables: {
+      stories: {
+        Row: { background_color: string | null; created_at: string | null; duration: number | null; expires_at: string | null; id: string; is_archived: boolean | null; media_url: string | null; moderation_status: string; text_color: string | null; text_content: string | null; type: string; user_id: string | null; views_count: number | null }
+        Insert: { background_color?: string | null; created_at?: string | null; duration?: number | null; expires_at?: string | null; id?: string; is_archived?: boolean | null; media_url?: string | null; moderation_status?: string; text_color?: string | null; text_content?: string | null; type: string; user_id?: string | null; views_count?: number | null }
+        Update: { background_color?: string | null; created_at?: string | null; duration?: number | null; expires_at?: string | null; id?: string; is_archived?: boolean | null; media_url?: string | null; moderation_status?: string; text_color?: string | null; text_content?: string | null; type?: string; user_id?: string | null; views_count?: number | null }
+        Relationships: []
+      }
+      story_views: {
+        Row: { id: string; story_id: string | null; viewed_at: string | null; viewer_id: string | null }
+        Insert: { id?: string; story_id?: string | null; viewed_at?: string | null; viewer_id?: string | null }
+        Update: { id?: string; story_id?: string | null; viewed_at?: string | null; viewer_id?: string | null }
+        Relationships: []
+      }
+      user_fcm_tokens: {
+        Row: { created_at: string; id: string; platform: string | null; token: string; updated_at: string; user_id: string }
+        Insert: { created_at?: string; id?: string; platform?: string | null; token: string; updated_at?: string; user_id: string }
+        Update: { created_at?: string; id?: string; platform?: string | null; token?: string; updated_at?: string; user_id?: string }
+        Relationships: []
+      }
+      videos: {
+        Row: {
+          allow_download: boolean | null
+          allow_duet: boolean | null
+          allow_stitch: boolean | null
+          audio_track: string | null
+          cloudflare_status: string
+          cloudflare_uid: string | null
+          comments_count: number
+          comments_disabled: boolean | null
+          cover_timestamp: number | null
+          created_at: string
+          description: string | null
+          duration: number
+          episode_number: number | null
+          file_size: number | null
+          hls_url: string
+          id: string
+          is_exclusive: boolean | null
+          is_published: boolean
+          lat: number | null
+          likes_count: number
+          lng: number | null
+          location_name: string | null
+          moderation_status: string
+          privacy: string
+          resolution: string | null
+          saves_count: number
+          search_vector: string | null
+          series_id: string | null
+          shares_count: number
+          sound_id: string | null
+          thumbnail_url: string | null
+          title: string | null
+          updated_at: string
+          user_id: string
+          views_count: number
+          tagged_products: string[] | null
+        }
+        Insert: {
+          allow_download?: boolean | null
+          allow_duet?: boolean | null
+          allow_stitch?: boolean | null
+          audio_track?: string | null
+          cloudflare_status?: string
+          cloudflare_uid?: string | null
+          comments_count?: number
+          comments_disabled?: boolean | null
+          cover_timestamp?: number | null
+          created_at?: string
+          description?: string | null
+          duration?: number
+          episode_number?: number | null
+          file_size?: number | null
+          hls_url: string
+          id?: string
+          is_exclusive?: boolean | null
+          is_published?: boolean
+          lat?: number | null
+          likes_count?: number
+          lng?: number | null
+          location_name?: string | null
+          moderation_status?: string
+          privacy?: string
+          resolution?: string | null
+          saves_count?: number
+          search_vector?: string | null
+          series_id?: string | null
+          shares_count?: number
+          sound_id?: string | null
+          thumbnail_url?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id: string
+          views_count?: number
+          tagged_products?: string[] | null
+        }
+        Update: {
+          allow_download?: boolean | null
+          allow_duet?: boolean | null
+          allow_stitch?: boolean | null
+          audio_track?: string | null
+          cloudflare_status?: string
+          cloudflare_uid?: string | null
+          comments_count?: number
+          comments_disabled?: boolean | null
+          cover_timestamp?: number | null
+          created_at?: string
+          description?: string | null
+          duration?: number
+          episode_number?: number | null
+          file_size?: number | null
+          hls_url?: string
+          id?: string
+          is_exclusive?: boolean | null
+          is_published?: boolean
+          lat?: number | null
+          likes_count?: number
+          lng?: number | null
+          location_name?: string | null
+          moderation_status?: string
+          privacy?: string
+          resolution?: string | null
+          saves_count?: number
+          search_vector?: string | null
+          series_id?: string | null
+          shares_count?: number
+          sound_id?: string | null
+          thumbnail_url?: string | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+          views_count?: number
+          tagged_products?: string[] | null
+        }
+        Relationships: []
+      }
+      follows: {
+        Row: { created_at: string; follower_id: string; following_id: string }
+        Insert: { created_at?: string; follower_id: string; following_id: string }
+        Update: { created_at?: string; follower_id?: string; following_id?: string }
+        Relationships: []
+      }
+      video_comments: {
+        Row: { content: string; created_at: string; id: string; is_deleted: boolean; parent_id: string | null; updated_at: string; user_id: string; video_id: string }
+        Insert: { content: string; created_at?: string; id?: string; is_deleted?: boolean; parent_id?: string | null; updated_at?: string; user_id: string; video_id: string }
+        Update: { content?: string; created_at?: string; id?: string; is_deleted?: boolean; parent_id?: string | null; updated_at?: string; user_id?: string; video_id?: string }
+        Relationships: []
+      }
+      video_likes: {
+        Row: { created_at: string; user_id: string; video_id: string }
+        Insert: { created_at?: string; user_id: string; video_id: string }
+        Update: { created_at?: string; user_id?: string; video_id?: string }
+        Relationships: []
+      }
+      video_saves: {
+        Row: { created_at: string; user_id: string; video_id: string }
+        Insert: { created_at?: string; user_id: string; video_id: string }
+        Update: { created_at?: string; user_id?: string; video_id?: string }
+        Relationships: []
+      }
       live_sessions: {
         Row: {
           agora_channel: string
@@ -393,15 +552,23 @@ export type Database = {
       orders: {
         Row: {
           auto_confirm_date: string | null
+          buyer_confirmed_at: string | null
+          delivery_confirmed_by: string | null
           buyer_id: string
           buyer_note: string | null
           buyer_phone: string | null
           commission_amount: number
           commission_rate: number
           created_at: string
+          currency: string
           delivery_address: string | null
+          delivery_fee: number
           delivery_lat: number | null
           delivery_lng: number | null
+          delivery_method: string | null
+          delivery_provider: string | null
+          delivery_quote_id: string | null
+          digital_asset_id: string | null
           dispute_reason: string | null
           escrow_released: boolean
           id: string
@@ -410,6 +577,7 @@ export type Database = {
           product_id: string | null
           product_image: string | null
           product_name: string
+          product_type: string
           quantity: number
           seller_amount: number
           seller_id: string
@@ -420,15 +588,23 @@ export type Database = {
         }
         Insert: {
           auto_confirm_date?: string | null
+          buyer_confirmed_at?: string | null
+          delivery_confirmed_by?: string | null
           buyer_id: string
           buyer_note?: string | null
           buyer_phone?: string | null
           commission_amount?: number
           commission_rate?: number
           created_at?: string
+          currency?: string
           delivery_address?: string | null
+          delivery_fee?: number
           delivery_lat?: number | null
           delivery_lng?: number | null
+          delivery_method?: string | null
+          delivery_provider?: string | null
+          delivery_quote_id?: string | null
+          digital_asset_id?: string | null
           dispute_reason?: string | null
           escrow_released?: boolean
           id?: string
@@ -437,6 +613,7 @@ export type Database = {
           product_id?: string | null
           product_image?: string | null
           product_name: string
+          product_type?: string
           quantity?: number
           seller_amount?: number
           seller_id: string
@@ -447,15 +624,23 @@ export type Database = {
         }
         Update: {
           auto_confirm_date?: string | null
+          buyer_confirmed_at?: string | null
+          delivery_confirmed_by?: string | null
           buyer_id?: string
           buyer_note?: string | null
           buyer_phone?: string | null
           commission_amount?: number
           commission_rate?: number
           created_at?: string
+          currency?: string
           delivery_address?: string | null
+          delivery_fee?: number
           delivery_lat?: number | null
           delivery_lng?: number | null
+          delivery_method?: string | null
+          delivery_provider?: string | null
+          delivery_quote_id?: string | null
+          digital_asset_id?: string | null
           dispute_reason?: string | null
           escrow_released?: boolean
           id?: string
@@ -464,6 +649,7 @@ export type Database = {
           product_id?: string | null
           product_image?: string | null
           product_name?: string
+          product_type?: string
           quantity?: number
           seller_amount?: number
           seller_id?: string
@@ -537,9 +723,12 @@ export type Database = {
           city: string | null
           country: string | null
           created_at: string
+          currency: string
+          deleted_at: string | null
           delivery_delay: string | null
           delivery_fee: number | null
           description: string | null
+          dimensions_mm: Json | null
           group_duration: string | null
           group_price_10: number | null
           group_price_5: number | null
@@ -548,24 +737,32 @@ export type Database = {
           is_active: boolean | null
           is_featured: boolean | null
           is_group_buy: boolean | null
+          moderation_status: string
           name: string
           price: number
+          product_type: string
           promo_price: number | null
+          publication_status: string
           sales_count: number | null
           seller_id: string
+          sku: string | null
           stock: number | null
           unlimited_stock: boolean | null
           updated_at: string
           views_count: number | null
+          weight_grams: number | null
         }
         Insert: {
           category: string
           city?: string | null
           country?: string | null
           created_at?: string
+          currency?: string
+          deleted_at?: string | null
           delivery_delay?: string | null
           delivery_fee?: number | null
           description?: string | null
+          dimensions_mm?: Json | null
           group_duration?: string | null
           group_price_10?: number | null
           group_price_5?: number | null
@@ -574,24 +771,32 @@ export type Database = {
           is_active?: boolean | null
           is_featured?: boolean | null
           is_group_buy?: boolean | null
+          moderation_status?: string
           name: string
           price: number
+          product_type?: string
           promo_price?: number | null
+          publication_status?: string
           sales_count?: number | null
           seller_id: string
+          sku?: string | null
           stock?: number | null
           unlimited_stock?: boolean | null
           updated_at?: string
           views_count?: number | null
+          weight_grams?: number | null
         }
         Update: {
           category?: string
           city?: string | null
           country?: string | null
           created_at?: string
+          currency?: string
+          deleted_at?: string | null
           delivery_delay?: string | null
           delivery_fee?: number | null
           description?: string | null
+          dimensions_mm?: Json | null
           group_duration?: string | null
           group_price_10?: number | null
           group_price_5?: number | null
@@ -600,15 +805,20 @@ export type Database = {
           is_active?: boolean | null
           is_featured?: boolean | null
           is_group_buy?: boolean | null
+          moderation_status?: string
           name?: string
           price?: number
+          product_type?: string
           promo_price?: number | null
+          publication_status?: string
           sales_count?: number | null
           seller_id?: string
+          sku?: string | null
           stock?: number | null
           unlimited_stock?: boolean | null
           updated_at?: string
           views_count?: number | null
+          weight_grams?: number | null
         }
         Relationships: []
       }
@@ -856,10 +1066,40 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string | null
+          nom: string | null
+          prenom: string | null
+          user_id: string
+          username: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      quote_seller_delivery: {
+        Args: { p_city: string; p_country_code: string; p_product_id: string; p_quantity?: number }
+        Returns: {
+          amount_minor: number
+          buyer_id: string
+          created_at: string
+          currency: string
+          eta_max_minutes: number | null
+          eta_min_minutes: number | null
+          expires_at: string
+          id: string
+          input_snapshot: Json
+          product_id: string
+          provider_code: string
+          quote_reference: string | null
+          seller_id: string
+          status: string
+          zone_id: string | null
+        }
+      }
     }
     Enums: {
       [_ in never]: never

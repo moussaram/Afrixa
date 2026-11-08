@@ -52,7 +52,7 @@ export const useConversations = () => {
       let profiles: OtherProfile[] = [];
       if (otherIds.length > 0) {
         const { data: profs } = await supabase
-          .from('profiles')
+          .from('public_profiles')
           .select('user_id, username, prenom, nom, avatar_url')
           .in('user_id', otherIds);
         profiles = profs || [];

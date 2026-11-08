@@ -5,19 +5,21 @@ import { Button } from '@/components/ui/button';
 interface StoryViewerProps {
   stories: Array<{ id: string; media_url?: string; text_content?: string; background_color?: string; duration?: number }>;
   onClose: () => void;
+  onView?: (storyId: string) => void;
 }
 
-export const StoryViewer = ({ stories, onClose }: StoryViewerProps) => {
+export const StoryViewer = ({ stories, onClose, onView }: StoryViewerProps) => {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
     const current = stories[index];
+    if (current?.id) onView?.(current.id);
     const timer = setTimeout(() => {
       if (index >= stories.length - 1) onClose();
       else setIndex(value => value + 1);
     }, (current?.duration ?? 5) * 1000);
     return () => clearTimeout(timer);
-  }, [index, onClose, stories]);
+  }, [index, onClose, onView, stories]);
 
   const story = stories[index];
   if (!story) return null;

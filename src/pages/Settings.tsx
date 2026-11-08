@@ -188,7 +188,7 @@ const Settings = () => {
   useEffect(() => {
     if (!user) { setPushEnabled(false); return; }
     let active = true;
-    (supabase as any).from('user_fcm_tokens').select('id')
+    supabase.from('user_fcm_tokens').select('id')
       .eq('user_id', user.id).eq('platform', 'web_fid').limit(1)
       .then(({ data, error }: { data: unknown[] | null; error: unknown }) => {
         if (active && !error) setPushEnabled(Boolean(data?.length));

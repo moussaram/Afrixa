@@ -53,7 +53,7 @@ export default function LiveViewer() {
       }
       setSessionId(session.id);
       setTitle(session.title);
-      const { data: profile } = await supabase.from('profiles')
+      const { data: profile } = await supabase.from('public_profiles')
         .select('username, prenom, nom').eq('user_id', session.host_id).maybeSingle();
       if (active && profile) setCreatorName(profile.username || [profile.prenom, profile.nom].filter(Boolean).join(' ') || 'Créateur en direct');
     })();

@@ -88,6 +88,23 @@ Deno.serve(async (req) => {
       return json({ error: 'upload_url_invalid' }, 502);
     }
 
+    // New uploads must require signed URLs before their playback UID is stored.
+    try {
+      const { body: protectionBody } = await cloudflareStreamRequest(`/${videoUid}`, {
+        method: 'POST',
+        body: JSON.stringify({ uid: videoUid, requireSignedURLs: true }),
+      });
+      const protectedVideo = protectionBody?.result as Record<string, unknown> | undefined;
+      if (protectedVideo?.requireSignedURLs !== true) {
+        throw new Error('Cloudflare did not confirm signed URL protection');
+      }
+    } catch (protectionError) {
+      try { await cloudflareStreamRequest(`/${videoUid}`, { method: 'DELETE' }); }
+      catch (cleanupError) { console.error('Failed to clean up an unprotected Cloudflare video', cleanupError); }
+      console.error('Cloudflare signed URL protection could not be enabled');
+      return json({ error: 'video_protection_unavailable' }, 503);
+    }
+
     const playbackBase = `https://customer-${customerCode}.cloudflarestream.com/${videoUid}`;
     const { data: video, error: insertError } = await admin.from('videos').insert({
       user_id: user.id,

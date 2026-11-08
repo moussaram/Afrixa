@@ -34,6 +34,9 @@ const LiveStats = lazy(() => import("./pages/LiveStats"));
 const MyInfo = lazy(() => import("./pages/MyInfo"));
 const Login = lazy(() => import("./pages/auth/Login"));
 const MyShop = lazy(() => import("./pages/MyShop"));
+const PublicShop = lazy(() => import("./pages/PublicShop"));
+const DigitalLibrary = lazy(() => import("./pages/DigitalLibrary"));
+const AdminModeration = lazy(() => import("./pages/AdminModeration"));
 const Orders = lazy(() => import("./pages/Orders"));
 const OrderDetail = lazy(() => import("./pages/OrderDetail"));
 const Marketplace = lazy(() => import("./pages/Marketplace"));
@@ -78,7 +81,8 @@ const AppContent = () => {
   // Redirect to login if not authenticated (sauf pages auth)
   const isAuthPage = location.pathname.startsWith('/auth');
   const isPaymentReturn = location.pathname === '/payment/return';
-  if (!loading && !user && !isAuthPage && !isPaymentReturn) {
+  const isPublicShop = location.pathname.startsWith('/profile/') && location.pathname.endsWith('/shop');
+  if (!loading && !user && !isAuthPage && !isPaymentReturn && !isPublicShop) {
     return <Navigate to="/auth/login" replace />;
   }
 
@@ -120,6 +124,9 @@ const AppContent = () => {
           <Route path="/my-shop" element={<MyShop />} />
           <Route path="/ma-boutique" element={<MyShop />} />
           <Route path="/orders" element={<Orders />} />
+          <Route path="/admin/moderation" element={<AdminModeration />} />
+          <Route path="/digital-library" element={<DigitalLibrary />} />
+          <Route path="/mes-achats-numeriques" element={<DigitalLibrary />} />
           <Route path="/orders/:orderId" element={<OrderDetail />} />
           <Route path="/marketplace" element={<Marketplace />} />
           <Route path="/group-buy" element={<GroupBuy />} />
@@ -140,7 +147,7 @@ const AppContent = () => {
           <Route path="/register" element={<Navigate to="/auth/register" replace />} />
           <Route path="/help" element={<Navigate to="/help-support" replace />} />
           <Route path="/my-space" element={<Navigate to="/profile" replace />} />
-          <Route path="/profile/:username/shop" element={<MyShop />} />
+          <Route path="/profile/:username/shop" element={<PublicShop />} />
           <Route path="/live/broadcast" element={<LiveBroadcast />} />
           <Route path="/live/view/:creatorId" element={<LiveViewer />} />
           <Route path="/live/stats" element={<LiveStats />} />

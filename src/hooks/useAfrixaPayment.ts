@@ -7,7 +7,11 @@ import { getFriendlyTransactionError } from '@/lib/transactionErrors';
 export type PaymentStatus = 'idle' | 'processing' | 'success' | 'failed';
 
 export interface InitPaymentData {
-  productId?: string;
+  productId: string;
+  deliveryQuoteId?: string;
+  deliveryMethod?: 'seller' | 'pickup' | 'digital';
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
   productName: string;
   productImage?: string;
   quantity: number;
@@ -51,7 +55,7 @@ export const useAfrixaPayment = () => {
         .insert({
           buyer_id: buyerId,
           seller_id: data.sellerId,
-          product_id: data.productId ?? null,
+          product_id: data.productId,
           product_name: data.productName,
           product_image: data.productImage ?? null,
           quantity: data.quantity,
@@ -62,7 +66,11 @@ export const useAfrixaPayment = () => {
           seller_amount: sellerAmount,
           payment_operator: selectedOperator,
           buyer_phone: buyerPhone,
-          delivery_address: data.deliveryAddress,
+          delivery_address: data.deliveryMethod === 'digital' ? null : data.deliveryAddress,
+          delivery_method: data.deliveryMethod ?? 'seller',
+          delivery_quote_id: data.deliveryQuoteId ?? null,
+          delivery_lat: data.deliveryLatitude ?? null,
+          delivery_lng: data.deliveryLongitude ?? null,
           buyer_note: data.buyerNote ?? null,
           status: 'en_attente',
           payment_reference: ref,
@@ -71,28 +79,11 @@ export const useAfrixaPayment = () => {
         .single();
       if (orderErr || !order) throw orderErr ?? new Error('Création commande échouée');
 
-      // 2. Create payment transaction
-      const { data: tx, error: txErr } = await supabase
-        .from('payment_transactions')
-        .insert({
-          order_id: order.id,
-          fedapay_ref: ref,
-          amount: totalPrice,
-          commission_amount: commissionAmount,
-          seller_amount: sellerAmount,
-          currency: 'XOF',
-          operator: selectedOperator,
-          buyer_phone: buyerPhone,
-          status: 'initiated',
-          escrow_status: 'held',
-        })
-        .select()
-        .single();
-      if (txErr || !tx) throw txErr ?? new Error('Transaction non créée');
+      // The database creates the payment intent atomically with the order.
 
       setOrderId(order.id);
       setOrderRef(ref);
-      return { orderId: order.id, orderRef: ref, totalPrice };
+      return { orderId: order.id, orderRef: ref, totalPrice: order.total_price };
     } catch (e) {
       setPaymentStatus('failed');
       toast.error(getFriendlyTransactionError(e));

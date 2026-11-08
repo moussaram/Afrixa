@@ -37,7 +37,7 @@ const NewMessage = () => {
       setError(null);
       setLoading(true);
       const { data, error: e } = await supabase
-        .from('profiles')
+        .from('public_profiles')
         .select('user_id, username, prenom, nom, avatar_url')
         .neq('user_id', user.id)
         .limit(100);

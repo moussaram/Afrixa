@@ -68,12 +68,13 @@ export const usePersistedSettings = (
     localStorage.setItem('afrixa:user-settings:v1', serialized);
     if (!userId || !hydrated) return;
 
+    const settingsSnapshot = JSON.parse(serialized) as typeof settings;
     const revision = ++revisionRef.current;
     const timeout = window.setTimeout(() => {
       writeQueueRef.current = writeQueueRef.current.catch(() => undefined).then(async () => {
         const { error } = await supabase.from('user_settings').upsert({
           user_id: userId,
-          settings: settings as Json,
+          settings: settingsSnapshot as Json,
           updated_at: new Date().toISOString(),
         });
         if (error) {
@@ -84,7 +85,7 @@ export const usePersistedSettings = (
           }
           return;
         }
-        savedSettingsRef.current = settings;
+        savedSettingsRef.current = settingsSnapshot;
         toast.success('Paramètres sauvegardés');
       });
     }, 500);
