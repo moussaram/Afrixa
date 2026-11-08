@@ -8,11 +8,11 @@ import { SharePanel } from './SharePanel';
 import { ProductBottomSheet } from '@/components/marketplace/ProductBottomSheet';
 import { useSocialInteractions, useFollow } from '@/hooks/useSocialInteractions';
 import { useNavigate } from 'react-router-dom';
-import { currentUser } from '@/data/mockData';
 import { CreatorBadge } from '@/components/creators/CreatorBadge';
 import { CreatorTipButton } from '@/components/creators/CreatorTipButton';
 import { AdvancedVideoControls } from '@/components/video/AdvancedVideoControls';
 import { trackFollow, trackProductView, trackVideoComplete, trackVideoLike, trackVideoView } from '@/lib/firebase/analytics';
+import { useAuth } from '@/contexts/useAuth';
 
 // Mock: some videos have tagged products
 const taggedProducts: Record<string, { name: string; price: number; currency: string; imageUrl: string; sellerName: string }> = {
@@ -38,6 +38,7 @@ export const VideoCard = ({
   onSave,
 }: VideoCardProps) => {
   const navigate = useNavigate();
+  const { user: authenticatedUser } = useAuth();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -110,7 +111,7 @@ export const VideoCard = ({
   const { isFollowing, toggle: toggleFollow } = useFollow(
     video.user.isFollowing ?? false,
     video.user.id,
-    currentUser.id
+    authenticatedUser?.id || ''
   );
 
   // Play/pause when becoming active
@@ -289,7 +290,7 @@ export const VideoCard = ({
               )}
             </div>
             {/* Inline follow button */}
-            {video.user.id !== currentUser.id && (
+            {video.user.id !== authenticatedUser?.id && (
               <button
                 onClick={toggleFollow}
                 className={cn(
