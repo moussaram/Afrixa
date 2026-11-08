@@ -23,6 +23,13 @@ export function useSocialInteractions(video: Video) {
         return;
       }
       const userId = data.user.id;
+      const { data: videoCounts } = await supabase.from('videos')
+        .select('likes_count,saves_count').eq('id', video.id).maybeSingle();
+      if (!active) return;
+      if (videoCounts) {
+        setLikeCount(videoCounts.likes_count ?? video.likes);
+        setSaveCount(videoCounts.saves_count ?? video.saves);
+      }
       const [likeResult, saveResult] = await Promise.all([
         supabase.from('video_likes').select('video_id')
           .eq('video_id', video.id).eq('user_id', userId).maybeSingle(),
@@ -35,7 +42,7 @@ export function useSocialInteractions(video: Video) {
     };
     void loadUserInteractions();
     return () => { active = false; };
-  }, [video.id]);
+  }, [video.id, video.likes, video.saves]);
 
   const toggleLike = useCallback(async () => {
     if (isLikeLoading) return;
