@@ -89,6 +89,7 @@ CREATE POLICY "Utilisateur peut suivre"
   WITH CHECK (
     auth.uid() = follower_id
     AND public.is_publicly_followable(following_id)
+    AND NOT public.are_users_blocked(auth.uid(), following_id)
   );
 
 COMMIT;
