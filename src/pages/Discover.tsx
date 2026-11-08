@@ -6,11 +6,6 @@ import { MarketplaceContent } from '@/components/marketplace/MarketplaceContent'
 import { GroupBuyList } from '@/components/groupbuy/GroupBuyList';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import type { SupabaseClient } from '@supabase/supabase-js';
-
-// The checked-in generated schema currently omits the videos table even though
-// its migrations exist. Keep this boundary explicit until types are regenerated.
-const db = supabase as unknown as SupabaseClient<any>;
 import type { User, Video } from '@/types';
 
 const boutiqueCategory = { id: 'boutique', name: 'Boutique', icon: '🛍️' };
@@ -93,7 +88,7 @@ const Discover = () => {
           .select('user_id,username,prenom,nom,avatar_url,bio')
           .order('created_at', { ascending: false })
           .limit(query ? 20 : 12);
-        const videosQuery = db.from('videos')
+        const videosQuery = supabase.from('videos')
           .select('id,user_id,hls_url,thumbnail_url,title,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
           .eq('is_published', true)
           .order('created_at', { ascending: false })
