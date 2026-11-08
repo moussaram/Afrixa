@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS public.seller_delivery_settings (
   policy_text text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  FOREIGN KEY (pickup_location_id, seller_id) REFERENCES public.pickup_locations(id, seller_id) ON DELETE SET NULL
+  FOREIGN KEY (pickup_location_id, seller_id) REFERENCES public.pickup_locations(id, seller_id) ON DELETE RESTRICT
 );
 ALTER TABLE public.seller_delivery_settings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Seller manages own delivery settings"
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS public.deliveries (
   eta_max timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(order_id)
+  UNIQUE(order_id, idempotency_key)
 );
 CREATE INDEX IF NOT EXISTS deliveries_seller_status_idx
   ON public.deliveries(seller_id, status, created_at DESC);
@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS public.delivery_events (
     CHECK (processing_status IN ('received','processed','ignored','failed'))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS delivery_events_provider_event_unique
-  ON public.delivery_events(provider_event_id) WHERE provider_event_id IS NOT NULL;
+  ON public.delivery_events(delivery_id, provider_event_id) WHERE provider_event_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS delivery_events_delivery_idx
   ON public.delivery_events(delivery_id, received_at DESC);
 ALTER TABLE public.delivery_events ENABLE ROW LEVEL SECURITY;
