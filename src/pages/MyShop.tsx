@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Plus, Package, TrendingUp, Clock, DollarSign, Edit, Trash2, Flame, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Package, TrendingUp, Clock, DollarSign, Edit, Trash2, Flame, Loader2, BookOpen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
@@ -283,6 +283,7 @@ const MyShop = () => {
             <ArrowLeft className="w-6 h-6 text-foreground" />
           </button>
           <h1 className="flex-1 text-lg font-bold text-foreground">🏪 Ma Boutique</h1>
+          <button onClick={() => navigate("/digital-library")} className="p-2 rounded-xl bg-muted/40" title="Mes achats numériques" aria-label="Mes achats numériques"><BookOpen className="w-5 h-5 text-foreground" /></button>
           <button
             onClick={() => setShowAddForm(true)}
             className="p-2 rounded-xl gradient-primary"
