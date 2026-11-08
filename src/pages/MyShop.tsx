@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Plus, Package, TrendingUp, Clock, DollarSign, Edit, Trash2, Flame, Loader2, BookOpen, Truck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatNumber } from '@/lib/formatters';
@@ -55,8 +55,10 @@ const MyShop = () => {
     country: '',
   });
 
-  const loadProducts = async () => {
-    if (!user) {
+  const userId = user?.id;
+
+  const loadProducts = useCallback(async () => {
+    if (!userId) {
       setProducts([]);
       setSellerOrders([]);
       setLoadError('Connectez-vous pour gérer votre boutique.');
@@ -69,12 +71,12 @@ const MyShop = () => {
       const [productsResult, ordersResult] = await Promise.all([
         supabase.from('products')
           .select('id, name, description, category, price, stock, images, sales_count, city, country, product_type, currency')
-          .eq('seller_id', user.id)
+          .eq('seller_id', userId)
           .eq('is_active', true)
           .order('created_at', { ascending: false }),
         supabase.from('orders')
           .select('id, total_price, seller_amount, status, created_at')
-          .eq('seller_id', user.id)
+          .eq('seller_id', userId)
           .order('created_at', { ascending: false })
           .range(0, 499),
       ]);
@@ -102,14 +104,14 @@ const MyShop = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
 
 
-  const loadDeliverySettings = async () => {
-    if (!user) return;
+  const loadDeliverySettings = useCallback(async () => {
+    if (!userId) return;
     const [{ data: settings }, { data: pickup }] = await Promise.all([
-      supabase.from('seller_delivery_settings').select('enabled,pickup_location_id,preparation_minutes,policy_text').eq('seller_id', user.id).maybeSingle(),
-      supabase.from('pickup_locations').select('id,label,contact_name,contact_phone,address,city,country_code,is_default').eq('seller_id', user.id).eq('is_default', true).maybeSingle(),
+      supabase.from('seller_delivery_settings').select('enabled,pickup_location_id,preparation_minutes,policy_text').eq('seller_id', userId).maybeSingle(),
+      supabase.from('pickup_locations').select('id,label,contact_name,contact_phone,address,city,country_code,is_default').eq('seller_id', userId).eq('is_default', true).maybeSingle(),
     ]);
     if (!pickup) return;
     setDeliveryForm(current => ({
@@ -123,11 +125,11 @@ const MyShop = () => {
       preparationMinutes: String(settings?.preparation_minutes ?? 60),
     }));
     const { data: zone } = await supabase.from('seller_delivery_zones')
-      .select('id').eq('seller_id', user.id).eq('country_code', pickup.country_code).ilike('city', pickup.city).maybeSingle();
+      .select('id').eq('seller_id', userId).eq('country_code', pickup.country_code).ilike('city', pickup.city).maybeSingle();
     if (zone) {
       const { data: rate } = await supabase.from('seller_delivery_rates')
         .select('amount_minor,eta_min_minutes,eta_max_minutes')
-        .eq('seller_id', user.id).eq('zone_id', zone.id).maybeSingle();
+        .eq('seller_id', userId).eq('zone_id', zone.id).maybeSingle();
       if (rate) setDeliveryForm(current => ({
         ...current,
         fee: String(rate.amount_minor),
@@ -136,7 +138,7 @@ const MyShop = () => {
       }));
     }
     if (settings?.enabled) setDeliveryForm(current => ({ ...current }));
-  };
+  }, [userId]);
 
   const saveDeliverySettings = async () => {
     if (!user) return;
@@ -228,10 +230,9 @@ const MyShop = () => {
   };
 
   useEffect(() => {
-    loadProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void loadProducts();
     void loadDeliverySettings();
-  }, [user?.id]);
+  }, [loadProducts, loadDeliverySettings]);
 
   const now = new Date();
   const todayOrders = sellerOrders.filter(o => {
