@@ -534,6 +534,55 @@ $;
 REVOKE ALL ON FUNCTION public.transition_seller_delivery(uuid, text, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.transition_seller_delivery(uuid, text, uuid) TO service_role;
 
+
+CREATE OR REPLACE FUNCTION public.confirm_order_delivery(
+  p_order_id uuid,
+  p_actor_id uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+DECLARE
+  order_row public.orders%ROWTYPE;
+  delivery_row public.deliveries%ROWTYPE;
+BEGIN
+  IF auth.role() <> 'service_role' THEN RAISE EXCEPTION 'Trusted server workflow required'; END IF;
+  SELECT * INTO order_row FROM public.orders WHERE id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Order not found'; END IF;
+  IF order_row.buyer_id IS DISTINCT FROM p_actor_id THEN RAISE EXCEPTION 'Buyer ownership mismatch'; END IF;
+  IF order_row.status <> 'livree' THEN RAISE EXCEPTION 'Order is not reported delivered'; END IF;
+  IF order_row.buyer_confirmed_at IS NOT NULL THEN
+    RETURN jsonb_build_object('confirmed', true, 'idempotent', true);
+  END IF;
+
+  IF order_row.product_type = 'digital' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.digital_entitlements e
+      WHERE e.order_id = order_row.id AND e.user_id = p_actor_id AND e.status = 'active'
+    ) THEN RAISE EXCEPTION 'Digital entitlement is not active'; END IF;
+  ELSE
+    SELECT * INTO delivery_row FROM public.deliveries WHERE order_id = p_order_id FOR UPDATE;
+    IF NOT FOUND OR delivery_row.status <> 'delivered_reported' THEN
+      RAISE EXCEPTION 'Seller has not reported delivery';
+    END IF;
+    UPDATE public.deliveries SET status = 'delivered', updated_at = now()
+    WHERE id = delivery_row.id AND status = 'delivered_reported';
+    INSERT INTO public.delivery_events(delivery_id, source, event_type, normalized_status)
+    VALUES (delivery_row.id, 'buyer', 'buyer.delivery_confirmed', 'delivered');
+  END IF;
+
+  UPDATE public.orders
+  SET buyer_confirmed_at = now(), delivery_confirmed_by = p_actor_id, updated_at = now()
+  WHERE id = p_order_id AND buyer_confirmed_at IS NULL;
+  RETURN jsonb_build_object('confirmed', true, 'idempotent', false);
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.confirm_order_delivery(uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.confirm_order_delivery(uuid, uuid) TO service_role;
+
 CREATE OR REPLACE FUNCTION public.activate_delivery_after_payment()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -547,6 +596,8 @@ BEGIN
     INSERT INTO public.delivery_events(delivery_id, source, event_type, normalized_status)
     SELECT id, 'system', 'delivery.payment_confirmed', 'awaiting_seller'
     FROM public.deliveries WHERE order_id = NEW.order_id;
+    UPDATE public.orders SET status = 'livree', updated_at = now()
+    WHERE id = NEW.order_id AND product_type = 'digital' AND status = 'en_attente';
   END IF;
   RETURN NEW;
 END;
