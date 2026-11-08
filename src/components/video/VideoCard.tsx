@@ -13,6 +13,7 @@ import { CreatorTipButton } from '@/components/creators/CreatorTipButton';
 import { AdvancedVideoControls } from '@/components/video/AdvancedVideoControls';
 import { trackFollow, trackProductView, trackVideoComplete, trackVideoLike, trackVideoView } from '@/lib/firebase/analytics';
 import { useAuth } from '@/contexts/useAuth';
+import { useCloudflarePlaybackAssets } from '@/hooks/useCloudflarePlaybackAssets';
 
 // Mock: some videos have tagged products
 const taggedProducts: Record<string, { name: string; price: number; currency: string; imageUrl: string; sellerName: string }> = {
@@ -39,6 +40,8 @@ export const VideoCard = ({
 }: VideoCardProps) => {
   const navigate = useNavigate();
   const { user: authenticatedUser } = useAuth();
+  const { playbackUrl, thumbnailUrl: protectedThumbnailUrl, loading: playbackLoading, error: playbackError } =
+    useCloudflarePlaybackAssets(video.id, isActive);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -64,28 +67,24 @@ export const VideoCard = ({
 
   useEffect(() => {
     const element = videoRef.current;
-    if (!element) return;
-    if (!video.videoUrl.includes('.m3u8')) {
-      element.src = video.videoUrl;
-      return;
-    }
+    if (!element || !playbackUrl) return;
 
     let hls: { destroy: () => void } | null = null;
     let active = true;
     if (element.canPlayType('application/vnd.apple.mpegurl')) {
-      element.src = video.videoUrl;
+      element.src = playbackUrl;
     } else {
       import('hls.js').then(({ default: Hls }) => {
         if (!active) return;
         if (Hls.isSupported()) {
           const player = new Hls({ enableWorker: true });
           hls = player;
-          player.loadSource(video.videoUrl);
+          player.loadSource(playbackUrl);
           player.attachMedia(element);
         } else {
-          element.src = video.videoUrl;
+          element.src = playbackUrl;
         }
-      }).catch((error) => console.error('Unable to load the HLS player', error));
+      }).catch((error) => console.error('Unable to load the signed HLS player', error));
     }
 
     return () => {
@@ -95,7 +94,7 @@ export const VideoCard = ({
       element.removeAttribute('src');
       element.load();
     };
-  }, [video.videoUrl]);
+  }, [playbackUrl]);
 
   const {
     isLiked,
@@ -118,7 +117,7 @@ export const VideoCard = ({
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (isActive) {
+    if (isActive && playbackUrl) {
       if (!viewTrackedRef.current) void trackVideoView();
       viewTrackedRef.current = true;
       completionTrackedRef.current = false;
@@ -126,15 +125,17 @@ export const VideoCard = ({
       setIsPlaying(true);
     } else {
       v.pause();
-      v.currentTime = 0;
+      if (!isActive) {
+        v.currentTime = 0;
+        viewTrackedRef.current = false;
+      }
       setIsPlaying(false);
-      viewTrackedRef.current = false;
     }
-  }, [isActive]);
+  }, [isActive, playbackUrl]);
 
   const handleVideoClick = () => {
     const v = videoRef.current;
-    if (!v) return;
+    if (!v || !playbackUrl) return;
     if (isPlaying) {
       v.pause();
       setIsPlaying(false);
@@ -214,7 +215,7 @@ export const VideoCard = ({
       {/* Video */}
       <video
         ref={videoRef}
-        src={video.videoUrl}
+        src={playbackUrl || undefined}
         className="w-full h-full object-cover"
         loop
         muted={isMuted}
@@ -228,8 +229,15 @@ export const VideoCard = ({
         onContextMenu={event => event.preventDefault()}
         onTimeUpdate={handleTimeUpdate}
         onCanPlay={() => { if (isActive) videoRef.current?.play().catch(() => {}); }}
-        poster={video.thumbnailUrl}
+        poster={protectedThumbnailUrl || undefined}
       />
+      {isActive && !playbackUrl && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 px-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            {playbackError ? 'Cette vidéo ne peut pas être lue pour le moment.' : playbackLoading ? 'Sécurisation du flux vidéo…' : 'Chargement vidéo…'}
+          </p>
+        </div>
+      )}
       <AdvancedVideoControls videoRef={videoRef} videoId={video.id} speed={playbackSpeed} onSpeedChange={setPlaybackSpeed} />
 
       {seekFeedback && (
