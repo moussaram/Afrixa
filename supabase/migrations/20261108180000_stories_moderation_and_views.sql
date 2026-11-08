@@ -71,6 +71,20 @@ CREATE POLICY "Admins review pending stories"
   ON public.stories FOR SELECT
   USING (auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
 
+DROP POLICY IF EXISTS "story_views_owner_all" ON public.story_views;
+CREATE POLICY "Users read own story views"
+  ON public.story_views FOR SELECT USING (auth.uid() = viewer_id);
+CREATE POLICY "Users record views of approved stories"
+  ON public.story_views FOR INSERT
+  WITH CHECK (
+    auth.uid() = viewer_id
+    AND EXISTS (
+      SELECT 1 FROM public.stories s
+      WHERE s.id = story_id AND s.moderation_status = 'approved'
+        AND s.expires_at > now() AND s.is_archived = false
+    )
+  );
+
 CREATE OR REPLACE FUNCTION public.increment_story_view_count()
 RETURNS trigger
 LANGUAGE plpgsql
