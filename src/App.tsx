@@ -81,7 +81,7 @@ const AppContent = () => {
   // Redirect to login if not authenticated (sauf pages auth)
   const isAuthPage = location.pathname.startsWith('/auth');
   const isPaymentReturn = location.pathname === '/payment/return';
-  const isPublicShop = /^\\/profile\\/[^/]+\\/shop$/.test(location.pathname);
+  const isPublicShop = location.pathname.startsWith('/profile/') && location.pathname.endsWith('/shop');
   if (!loading && !user && !isAuthPage && !isPaymentReturn && !isPublicShop) {
     return <Navigate to="/auth/login" replace />;
   }
