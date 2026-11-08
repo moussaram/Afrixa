@@ -364,7 +364,7 @@ BEGIN
   IF product_row.product_type = 'digital' THEN
     SELECT * INTO asset_row FROM public.digital_product_assets
     WHERE product_id = product_row.id AND seller_id = product_row.seller_id
-      AND status = 'ready' AND scan_status IN ('clean', 'not_configured')
+      AND status = 'ready' AND scan_status = 'clean'
     ORDER BY created_at DESC LIMIT 1;
     IF NOT FOUND THEN RAISE EXCEPTION 'Digital product file is not ready for delivery'; END IF;
     NEW.digital_asset_id := asset_row.id;
