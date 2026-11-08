@@ -23,7 +23,7 @@ ALTER TABLE public.products
     CHECK (publication_status IN ('draft', 'published', 'archived', 'rejected')) NOT VALID,
   DROP CONSTRAINT IF EXISTS products_currency_check,
   ADD CONSTRAINT products_currency_check
-    CHECK (currency IN ('XOF', 'XAF', 'USD', 'EUR')) NOT VALID,
+    CHECK (currency = 'XOF') NOT VALID,
   DROP CONSTRAINT IF EXISTS products_weight_nonnegative_check,
   ADD CONSTRAINT products_weight_nonnegative_check
     CHECK (weight_grams IS NULL OR weight_grams >= 0) NOT VALID;
