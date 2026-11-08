@@ -108,7 +108,7 @@ const Discover = () => {
         const videoRows = (videoResult.data || []) as VideoRow[];
         const authorIds = Array.from(new Set(videoRows.map(row => row.user_id)));
         const authorsResult = authorIds.length
-          ? await supabase.from('profiles')
+          ? await supabase.from('public_profiles')
               .select('user_id,username,prenom,nom,avatar_url,bio')
               .in('user_id', authorIds)
           : { data: [], error: null };
