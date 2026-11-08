@@ -48,7 +48,7 @@ export const StoriesRail = () => {
       const rows = ((storyRows || []) as StoryRow[]).filter(row => row.user_id);
       const ids = Array.from(new Set(rows.map(row => row.user_id as string)));
       const { data: profileRows, error: profileError } = ids.length
-        ? await supabase.from('profiles').select('user_id,username,avatar_url,prenom,nom').in('user_id', ids)
+        ? await supabase.from('public_profiles').select('user_id,username,avatar_url,prenom,nom').in('user_id', ids)
         : { data: [], error: null };
       if (profileError) throw profileError;
       const profileMap = new Map(((profileRows || []) as StoryProfile[]).map(item => [item.user_id, item]));
