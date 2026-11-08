@@ -49,6 +49,10 @@ export const VideoCard = ({
   const longPressTriggeredRef = useRef(false);
   const previousSpeedRef = useRef(1);
 
+  useEffect(() => {
+    setShareCount(video.shares);
+  }, [video.id, video.shares]);
+
   useEffect(() => () => {
     if (longPressRef.current) window.clearTimeout(longPressRef.current);
     if (seekFeedbackTimerRef.current) window.clearTimeout(seekFeedbackTimerRef.current);
@@ -57,6 +61,7 @@ export const VideoCard = ({
   const completionTrackedRef = useRef(false);
   const viewTrackedRef = useRef(false);
   const [showComments, setShowComments] = useState(false);
+  const [shareCount, setShareCount] = useState(video.shares);
   const [showShare, setShowShare] = useState(false);
   const [showProduct, setShowProduct] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
@@ -388,7 +393,7 @@ export const VideoCard = ({
           <div className="p-2 rounded-full text-foreground">
             <Share2 className="w-7 h-7" />
           </div>
-          <span className="text-xs text-foreground">{formatNumber(video.shares)}</span>
+          <span className="text-xs text-foreground">{formatNumber(shareCount)}</span>
         </button>
 
         {/* Comments */}
@@ -501,7 +506,7 @@ export const VideoCard = ({
         />
       )}
       {showShare && (
-        <SharePanel video={video} onClose={() => setShowShare(false)} />
+        <SharePanel video={video} onClose={() => setShowShare(false)} onShareRecorded={() => setShareCount(count => count + 1)} />
       )}
       {showProduct && taggedProducts[video.id] && (
         <ProductBottomSheet
