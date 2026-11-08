@@ -36,7 +36,7 @@ const NewMessage = () => {
     try {
       setError(null);
       setLoading(true);
-      const { data, error: e } = await (supabase as any)
+      const { data, error: e } = await supabase
         .from('public_profiles')
         .select('user_id, username, prenom, nom, avatar_url')
         .neq('user_id', user.id)
