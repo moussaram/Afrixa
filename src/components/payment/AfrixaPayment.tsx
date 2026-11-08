@@ -91,6 +91,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
       if (disposed || !selectedAddress) return;
       setAddress(selectedAddress);
       setDeliveryCoordinates(coordinates);
+      setDeliveryQuote(null);
       setMapsUnavailable(false);
     }).then((remove) => {
       if (disposed) remove();
@@ -248,11 +249,11 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
               {!isDigital && <div className="flex items-center justify-between p-4 rounded-2xl bg-[#0A0A0F] border border-border/20">
                 <span className="text-sm font-medium text-foreground">Quantité</span>
                 <div className="flex items-center gap-3">
-                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                  <button onClick={() => { setQuantity(Math.max(1, quantity - 1)); setDeliveryQuote(null); }} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
                     <Minus className="w-4 h-4 text-foreground" />
                   </button>
                   <span className="text-lg font-bold w-8 text-center text-foreground">{quantity}</span>
-                  <button onClick={() => setQuantity(quantity + 1)} className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center">
+                  <button onClick={() => { setQuantity(quantity + 1); setDeliveryQuote(null); }} className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center">
                     <Plus className="w-4 h-4 text-primary-foreground" />
                   </button>
                 </div>
@@ -275,6 +276,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
                     <input type="text" placeholder="Adresse de livraison" value={address} onChange={e => {
                       setAddress(e.target.value);
                       setDeliveryCoordinates(null);
+                      setDeliveryQuote(null);
                     }}
                       className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground placeholder:text-muted-foreground text-sm focus:border-primary" />
                   </div>
