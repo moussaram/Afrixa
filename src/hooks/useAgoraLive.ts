@@ -35,6 +35,7 @@ export function useAgoraLive(sessionId: string | undefined, role: LiveRole) {
     let active = true;
     let renewTimer: number | undefined;
     const client = AgoraRTC.createClient({ mode: 'live', codec: 'vp8' });
+    const remoteUsers = remoteUsersRef.current;
     clientRef.current = client;
 
     const handlePublished = async (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
@@ -110,7 +111,7 @@ export function useAgoraLive(sessionId: string | undefined, role: LiveRole) {
       client.off('user-joined', handleJoined);
       tracksRef.current.forEach(track => { track.stop(); track.close(); });
       tracksRef.current = [];
-      remoteUsersRef.current.clear();
+      remoteUsers.clear();
       void client.leave();
       clientRef.current = null;
     };
