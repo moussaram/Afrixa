@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Package, RefreshCw, Clock } from 'lucide-react';
+import { ArrowLeft, Package, RefreshCw, Clock, CheckCircle2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/useAuth';
+import { toast } from 'sonner';
 
 interface OrderRecord {
   id: string;
@@ -24,6 +25,9 @@ interface OrderRecord {
   status: string;
   created_at: string;
   updated_at: string;
+  product_type: string;
+  delivery_method: string | null;
+  buyer_confirmed_at: string | null;
 }
 
 interface TimelineRecord {
@@ -52,6 +56,7 @@ const OrderDetail = () => {
   const [timeline, setTimeline] = useState<TimelineRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDelivery, setConfirmingDelivery] = useState(false);
 
   const loadOrder = async () => {
     if (!user || !orderId) {
@@ -64,7 +69,7 @@ const OrderDetail = () => {
     setError(null);
     const { data, error: orderError } = await supabase
       .from('orders')
-      .select('id, product_name, product_image, buyer_id, seller_id, quantity, unit_price, total_price, commission_amount, seller_amount, payment_operator, payment_reference, buyer_phone, delivery_address, buyer_note, status, created_at, updated_at')
+      .select('id, product_name, product_image, buyer_id, seller_id, quantity, unit_price, total_price, commission_amount, seller_amount, payment_operator, payment_reference, buyer_phone, delivery_address, buyer_note, status, created_at, updated_at, product_type, delivery_method, buyer_confirmed_at')
       .eq('id', orderId)
       .eq('buyer_id', user.id)
       .maybeSingle();
@@ -83,6 +88,33 @@ const OrderDetail = () => {
       .order('created_at', { ascending: true });
     setTimeline(timelineError ? [] : (timelineData ?? []) as TimelineRecord[]);
     setLoading(false);
+  };
+
+  const confirmDelivery = async () => {
+    if (!order) return;
+    setConfirmingDelivery(true);
+    try {
+      const { data: confirmation, error: confirmationError } = await supabase.functions.invoke('confirm-order-delivery', {
+        body: { order_id: order.id },
+      });
+      if (confirmationError) throw confirmationError;
+      if (confirmation?.error) throw new Error(String(confirmation.error));
+      toast.success('Réception confirmée. Le versement vendeur peut maintenant être traité.');
+      const { data: payout, error: payoutError } = await supabase.functions.invoke('release-escrow', {
+        body: { order_id: order.id },
+      });
+      if (payoutError || payout?.error) {
+        toast.message('Votre confirmation est enregistrée. Le versement vendeur reste en attente de configuration ou de vérification.');
+      } else if (payout?.pending) {
+        toast.success('Demande de versement transmise au prestataire.');
+      }
+      await loadOrder();
+    } catch (confirmError) {
+      console.error('Delivery confirmation failed', confirmError);
+      toast.error(confirmError instanceof Error ? confirmError.message : 'Impossible de confirmer la réception.');
+    } finally {
+      setConfirmingDelivery(false);
+    }
   };
 
   useEffect(() => { void loadOrder(); }, [user?.id, orderId]);
@@ -143,6 +175,18 @@ const OrderDetail = () => {
               ))}
             </div> : <p className="text-xs text-muted-foreground">Aucun événement de suivi enregistré pour le moment.</p>}
           </section>
+
+          {order.status === 'livree' && !order.buyer_confirmed_at && (
+            <button onClick={() => void confirmDelivery()} disabled={confirmingDelivery}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">
+              <CheckCircle2 className="w-4 h-4" />{confirmingDelivery ? 'Confirmation…' : 'Confirmer la réception'}
+            </button>
+          )}
+          {order.buyer_confirmed_at && (
+            <p className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-xs text-emerald-400">
+              Réception confirmée le {new Date(order.buyer_confirmed_at).toLocaleString('fr-FR')}. Le versement vendeur suit le traitement du prestataire.
+            </p>
+          )}
 
           <section className="p-4 rounded-2xl bg-[#1A1A2E] border border-border/20 space-y-2">
             <h3 className="text-sm font-semibold text-foreground mb-2">Paiement et livraison</h3>
