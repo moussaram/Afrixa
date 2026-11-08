@@ -61,6 +61,7 @@ const MarketplaceContent = () => {
           .select('id,name,description,category,price,promo_price,currency,product_type,seller_id,stock,unlimited_stock,images,city,country,views_count,sales_count,created_at')
           .eq('is_active', true)
           .eq('publication_status', 'published')
+          .eq('moderation_status', 'approved')
           .is('deleted_at', null)
           .order('sales_count', { ascending: false })
           .order('created_at', { ascending: false })
@@ -136,6 +137,7 @@ const MarketplaceContent = () => {
           .from('videos')
           .select('id,user_id,hls_url,thumbnail_url,views_count,tagged_products')
           .eq('is_published', true)
+          .eq('moderation_status', 'approved')
           .not('tagged_products', 'is', null)
           .order('created_at', { ascending: false })
           .limit(30);
