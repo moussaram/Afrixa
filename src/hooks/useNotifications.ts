@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/useAuth';
-import { mockNotifications } from '@/data/mockData';
 import type { Notification as AppNotification } from '@/types';
 
 interface DbNotification {
@@ -43,7 +42,7 @@ export function useNotifications() {
 
   const load = useCallback(async () => {
     if (!user) {
-      setNotifications(mockNotifications);
+      setNotifications([]);
       setLoading(false);
       return;
     }
@@ -52,11 +51,11 @@ export function useNotifications() {
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
-    if (error || !data || data.length === 0) {
-      // Fallback to mock so the UI is never empty in dev / when RLS blocks
-      setNotifications(mockNotifications);
+    if (error) {
+      console.error('Unable to load account notifications', error);
+      setNotifications([]);
     } else {
-      setNotifications((data as DbNotification[]).map(dbToApp));
+      setNotifications(((data ?? []) as DbNotification[]).map(dbToApp));
     }
     setLoading(false);
   }, [user]);
@@ -82,18 +81,28 @@ export function useNotifications() {
   }, [user, load]);
 
   const markRead = useCallback(async (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-    if (user) {
-      await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    if (!user) return;
+    const { error } = await supabase.from('notifications').update({ is_read: true })
+      .eq('id', id).eq('user_id', user.id);
+    if (error) {
+      console.error('Unable to mark notification as read', error);
+      await load();
+      return;
     }
-  }, [user]);
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+  }, [load, user]);
 
   const markAllRead = useCallback(async () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    if (user) {
-      await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id).eq('is_read', false);
+    if (!user) return;
+    const { error } = await supabase.from('notifications').update({ is_read: true })
+      .eq('user_id', user.id).eq('is_read', false);
+    if (error) {
+      console.error('Unable to mark all notifications as read', error);
+      await load();
+      return;
     }
-  }, [user]);
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+  }, [load, user]);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
