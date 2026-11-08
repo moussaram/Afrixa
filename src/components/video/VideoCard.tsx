@@ -49,10 +49,6 @@ export const VideoCard = ({
   const longPressTriggeredRef = useRef(false);
   const previousSpeedRef = useRef(1);
 
-  useEffect(() => {
-    setShareCount(video.shares);
-  }, [video.id, video.shares]);
-
   useEffect(() => () => {
     if (longPressRef.current) window.clearTimeout(longPressRef.current);
     if (seekFeedbackTimerRef.current) window.clearTimeout(seekFeedbackTimerRef.current);
@@ -62,6 +58,9 @@ export const VideoCard = ({
   const viewTrackedRef = useRef(false);
   const [showComments, setShowComments] = useState(false);
   const [shareCount, setShareCount] = useState(video.shares);
+  useEffect(() => {
+    setShareCount(video.shares);
+  }, [video.id, video.shares]);
   const [showShare, setShowShare] = useState(false);
   const [showProduct, setShowProduct] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
