@@ -29,6 +29,7 @@ ON CONFLICT (code) DO UPDATE SET
   capabilities = EXCLUDED.capabilities,
   updated_at = now();
 ALTER TABLE public.delivery_providers ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.delivery_providers TO anon, authenticated;
 CREATE POLICY "Public reads delivery provider availability"
   ON public.delivery_providers FOR SELECT USING (true);
 
@@ -162,8 +163,7 @@ CREATE TABLE IF NOT EXISTS public.deliveries (
   eta_min timestamptz,
   eta_max timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(order_id, idempotency_key)
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS deliveries_seller_status_idx
   ON public.deliveries(seller_id, status, created_at DESC);
@@ -270,7 +270,7 @@ BEGIN
   WHERE r.zone_id = zone_row.id AND r.seller_id = product_row.seller_id AND r.enabled = true
   ORDER BY r.created_at DESC LIMIT 1;
   IF NOT FOUND THEN RAISE EXCEPTION 'Seller delivery rate is not configured'; END IF;
-  IF product_row.price * p_quantity < rate_row.minimum_order_minor THEN
+  IF (CASE WHEN product_row.promo_price IS NOT NULL AND product_row.promo_price > 0 AND product_row.promo_price < product_row.price THEN product_row.promo_price ELSE product_row.price END) * p_quantity < rate_row.minimum_order_minor THEN
     RAISE EXCEPTION 'Minimum order amount for seller delivery is not reached';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.seller_delivery_settings s
@@ -343,6 +343,9 @@ BEGIN
   NEW.product_type := product_row.product_type;
   NEW.currency := product_row.currency;
   NEW.status := 'en_attente';
+  NEW.auto_confirm_date := NULL;
+  NEW.buyer_confirmed_at := NULL;
+  NEW.delivery_confirmed_by := NULL;
   NEW.escrow_released := false;
   NEW.dispute_reason := NULL;
   NEW.auto_confirm_date := NULL;
