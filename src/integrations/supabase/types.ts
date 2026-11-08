@@ -529,6 +529,20 @@ export type Database = {
         Row: {
           auto_confirm_date: string | null
           buyer_id: string
+          currency?: string
+          delivery_fee?: number
+          delivery_method?: string | null
+          delivery_provider?: string | null
+          delivery_quote_id?: string | null
+          digital_asset_id?: string | null
+          product_type?: string
+          currency: string
+          delivery_fee: number
+          delivery_method: string | null
+          delivery_provider: string | null
+          delivery_quote_id: string | null
+          digital_asset_id: string | null
+          product_type: string
           buyer_note: string | null
           buyer_phone: string | null
           commission_amount: number
@@ -583,6 +597,13 @@ export type Database = {
         Update: {
           auto_confirm_date?: string | null
           buyer_id?: string
+          currency?: string
+          delivery_fee?: number
+          delivery_method?: string | null
+          delivery_provider?: string | null
+          delivery_quote_id?: string | null
+          digital_asset_id?: string | null
+          product_type?: string
           buyer_note?: string | null
           buyer_phone?: string | null
           commission_amount?: number
@@ -669,6 +690,20 @@ export type Database = {
       products: {
         Row: {
           category: string
+          currency?: string
+          deleted_at?: string | null
+          dimensions_mm?: Json | null
+          product_type?: string
+          publication_status?: string
+          sku?: string | null
+          weight_grams?: number | null
+          currency: string
+          deleted_at: string | null
+          dimensions_mm: Json | null
+          product_type: string
+          publication_status: string
+          sku: string | null
+          weight_grams: number | null
           city: string | null
           country: string | null
           created_at: string
@@ -721,6 +756,13 @@ export type Database = {
         }
         Update: {
           category?: string
+          currency?: string
+          deleted_at?: string | null
+          dimensions_mm?: Json | null
+          product_type?: string
+          publication_status?: string
+          sku?: string | null
+          weight_grams?: number | null
           city?: string | null
           country?: string | null
           created_at?: string
@@ -994,7 +1036,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      quote_seller_delivery: {
+        Args: { p_city: string; p_country_code: string; p_product_id: string; p_quantity?: number }
+        Returns: {
+          amount_minor: number
+          buyer_id: string
+          created_at: string
+          currency: string
+          eta_max_minutes: number | null
+          eta_min_minutes: number | null
+          expires_at: string
+          id: string
+          input_snapshot: Json
+          product_id: string
+          provider_code: string
+          quote_reference: string | null
+          seller_id: string
+          status: string
+          zone_id: string | null
+        }
+      }
     }
     Enums: {
       [_ in never]: never
