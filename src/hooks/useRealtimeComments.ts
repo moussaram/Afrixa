@@ -55,7 +55,7 @@ export const useRealtimeComments = (videoId: string, userId?: string) => {
     const commentIds = commentRows.map((comment: { id: string }) => comment.id);
     const [{ data: profiles }, { data: likes }] = await Promise.all([
       userIds.length
-        ? client.from('profiles').select('user_id,username,prenom,nom,avatar_url').in('user_id', userIds)
+        ? client.from('public_profiles').select('user_id,username,prenom,nom,avatar_url').in('user_id', userIds)
         : Promise.resolve({ data: [] }),
       userId && commentIds.length
         ? client.from('comment_likes').select('comment_id').eq('user_id', userId).in('comment_id', commentIds)
