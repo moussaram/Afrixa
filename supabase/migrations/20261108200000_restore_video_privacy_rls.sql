@@ -3,6 +3,26 @@
 -- video visible regardless of its privacy setting.
 BEGIN;
 
+-- Used by RLS to respect account-level privacy without exposing private
+-- profile columns to other users.
+CREATE OR REPLACE FUNCTION public.is_publicly_followable(target_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+  SELECT COALESCE(
+    (SELECT NOT COALESCE(profile.is_private, false)
+     FROM public.profiles AS profile
+     WHERE profile.user_id = target_user_id),
+    false
+  );
+$function$;
+
+REVOKE ALL ON FUNCTION public.is_publicly_followable(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_publicly_followable(uuid) TO anon, authenticated;
+
 DROP POLICY IF EXISTS "Videos publiees visibles par tous" ON public.videos;
 DROP POLICY IF EXISTS "Videos visibles selon leur confidentialite" ON public.videos;
 DROP POLICY IF EXISTS "Approved videos visible to public" ON public.videos;
@@ -24,13 +44,18 @@ CREATE POLICY "Videos visibles selon leur confidentialite v2"
       is_published = true
       AND moderation_status = 'approved'
       AND privacy = 'public'
+      AND public.is_publicly_followable(user_id)
     )
 
-    -- Followers-only content is visible only to authenticated followers.
+    -- Followers-only videos and videos from private accounts are visible
+    -- only to authenticated followers.
     OR (
       is_published = true
       AND moderation_status = 'approved'
-      AND privacy = 'followers'
+      AND (
+        privacy = 'followers'
+        OR (privacy = 'public' AND NOT public.is_publicly_followable(user_id))
+      )
       AND auth.uid() IS NOT NULL
       AND EXISTS (
         SELECT 1
