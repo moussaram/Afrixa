@@ -12,7 +12,7 @@ DECLARE
   effective_price integer;
   commission_rate_value numeric := 0.05;
 BEGIN
-  IF auth.role() = 'service_role' OR current_user IN ('postgres', 'supabase_admin') THEN
+  IF auth.role() = 'service_role' THEN
     RETURN NEW;
   END IF;
 
