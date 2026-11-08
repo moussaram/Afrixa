@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Package, RefreshCw, Clock, CheckCircle2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -58,7 +58,7 @@ const OrderDetail = () => {
   const [error, setError] = useState<string | null>(null);
   const [confirmingDelivery, setConfirmingDelivery] = useState(false);
 
-  const loadOrder = async () => {
+  const loadOrder = useCallback(async () => {
     if (!user || !orderId) {
       setOrder(null);
       setLoading(false);
@@ -88,7 +88,7 @@ const OrderDetail = () => {
       .order('created_at', { ascending: true });
     setTimeline(timelineError ? [] : (timelineData ?? []) as TimelineRecord[]);
     setLoading(false);
-  };
+  }, [user, orderId]);
 
   const confirmDelivery = async () => {
     if (!order) return;
@@ -117,7 +117,7 @@ const OrderDetail = () => {
     }
   };
 
-  useEffect(() => { void loadOrder(); }, [user?.id, orderId]);
+  useEffect(() => { void loadOrder(); }, [loadOrder]);
 
   const status = order ? statusConfig[order.status] ?? { label: order.status, color: 'text-muted-foreground' } : null;
 
