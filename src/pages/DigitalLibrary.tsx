@@ -67,7 +67,7 @@ const DigitalLibrary = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user]);
 
   useEffect(() => { void loadLibrary(); }, [loadLibrary]);
 
