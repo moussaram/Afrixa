@@ -144,10 +144,15 @@ END;
 $;
 
 DROP TRIGGER IF EXISTS append_order_timeline_event ON public.orders;
-CREATE TRIGGER append_order_timeline_event
-AFTER INSERT OR UPDATE OF status ON public.orders
+DROP TRIGGER IF EXISTS append_order_timeline_on_insert ON public.orders;
+DROP TRIGGER IF EXISTS append_order_timeline_on_status_update ON public.orders;
+CREATE TRIGGER append_order_timeline_on_insert
+AFTER INSERT ON public.orders
+FOR EACH ROW EXECUTE FUNCTION public.append_order_timeline_event();
+CREATE TRIGGER append_order_timeline_on_status_update
+AFTER UPDATE OF status ON public.orders
 FOR EACH ROW
-WHEN (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM NEW.status)
+WHEN (OLD.status IS DISTINCT FROM NEW.status)
 EXECUTE FUNCTION public.append_order_timeline_event();
 
 -- Buyers and sellers must not edit financial amounts, ownership, status or escrow
