@@ -239,7 +239,7 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 VALUES
   ('afrixa-product-media', 'afrixa-product-media', true, NULL,
    ARRAY['image/jpeg','image/png','image/webp','image/avif']),
-  ('afrixa-digital-private', 'afrixa-digital-private', false, NULL, NULL)
+  ('afrixa-digital-private', 'afrixa-digital-private', false, 104857600, NULL)
 ON CONFLICT (id) DO NOTHING;
 
 DROP POLICY IF EXISTS "Public reads Afrixa product media" ON storage.objects;
