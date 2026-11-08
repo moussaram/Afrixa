@@ -81,7 +81,7 @@ const Profile = () => {
       const extraIds = Array.from(new Set([...likedIds, ...savedIds])).filter(id => !ownRows.some(row => row.id === id));
       const { data: extraRows, error: extraError } = extraIds.length
         ? await supabase.from('videos')
-            .select('id,user_id,hls_url,thumbnail_url,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
+            .select('id,user_id,thumbnail_url,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
             .in('id', extraIds)
         : { data: [], error: null };
       if (extraError) throw extraError;
