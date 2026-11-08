@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Heart, MessageCircle, Eye, UserPlus, Clock, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatNumber } from '@/lib/formatters';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/useAuth';
 
@@ -21,6 +20,7 @@ const tabs = [
 export const ActivityCenter = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<ActivityTab>('watch');
+  const userId = user?.id;
   const [likes, setLikes] = useState<Array<LikeRow & { video: ActivityVideo }>>([]);
   const [comments, setComments] = useState<Array<CommentRow & { video: ActivityVideo }>>([]);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
@@ -28,7 +28,7 @@ export const ActivityCenter = () => {
   const [error, setError] = useState<string | null>(null);
 
   const loadActivity = useCallback(async () => {
-    if (!user?.id) {
+    if (!userId) {
       setLikes([]);
       setComments([]);
       setNotifications([]);
@@ -38,9 +38,9 @@ export const ActivityCenter = () => {
     setError(null);
     try {
       const [likeResult, commentResult, notificationResult] = await Promise.all([
-        supabase.from('video_likes').select('video_id,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50),
-        supabase.from('video_comments').select('id,video_id,content,created_at').eq('user_id', user.id).eq('is_deleted', false).order('created_at', { ascending: false }).limit(50),
-        supabase.from('notifications').select('id,title,message,type,is_read,created_at,order_id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50),
+        supabase.from('video_likes').select('video_id,created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
+        supabase.from('video_comments').select('id,video_id,content,created_at').eq('user_id', userId).eq('is_deleted', false).order('created_at', { ascending: false }).limit(50),
+        supabase.from('notifications').select('id,title,message,type,is_read,created_at,order_id').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
       ]);
       if (likeResult.error) throw likeResult.error;
       if (commentResult.error) throw commentResult.error;
@@ -63,7 +63,7 @@ export const ActivityCenter = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [userId]);
 
   useEffect(() => { void loadActivity(); }, [loadActivity]);
 
