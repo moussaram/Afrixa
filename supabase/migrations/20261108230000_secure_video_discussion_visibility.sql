@@ -4,6 +4,59 @@
 
 BEGIN;
 
+-- Apply the creator's who_can_comment setting, video privacy, account privacy
+-- and block relationships to every new or edited comment.
+CREATE OR REPLACE FUNCTION public.can_comment_on_video(target_video_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.videos AS video
+    JOIN public.profiles AS profile ON profile.user_id = video.user_id
+    WHERE video.id = target_video_id
+      AND NOT public.are_users_blocked(auth.uid(), video.user_id)
+      AND (
+        auth.uid() = video.user_id
+        OR auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
+        OR COALESCE((auth.jwt() -> 'app_metadata' -> 'roles') ? 'admin', false)
+        OR (
+          auth.uid() IS NOT NULL
+          AND video.is_published = true
+          AND video.moderation_status = 'approved'
+          AND (
+            (video.privacy = 'public' AND NOT COALESCE(profile.is_private, false))
+            OR (
+              (video.privacy = 'followers' OR COALESCE(profile.is_private, false))
+              AND EXISTS (
+                SELECT 1 FROM public.follows AS follow_relation
+                WHERE follow_relation.follower_id = auth.uid()
+                  AND follow_relation.following_id = video.user_id
+              )
+            )
+          )
+          AND (
+            COALESCE(profile.who_can_comment, 'everyone') = 'everyone'
+            OR (
+              COALESCE(profile.who_can_comment, 'everyone') = 'followers'
+              AND EXISTS (
+                SELECT 1 FROM public.follows AS follow_relation
+                WHERE follow_relation.follower_id = auth.uid()
+                  AND follow_relation.following_id = video.user_id
+              )
+            )
+          )
+        )
+      )
+  );
+$function$;
+
+REVOKE ALL ON FUNCTION public.can_comment_on_video(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.can_comment_on_video(uuid) TO authenticated;
+
 DROP POLICY IF EXISTS "comments_public_select" ON public.comments;
 DROP POLICY IF EXISTS "comments_visible_when_video_visible" ON public.comments;
 CREATE POLICY "comments_visible_when_video_visible"
@@ -24,11 +77,7 @@ CREATE POLICY "comments_owner_insert"
   FOR INSERT
   WITH CHECK (
     auth.uid() = user_id
-    AND EXISTS (
-      SELECT 1
-      FROM public.videos AS visible_video
-      WHERE visible_video.id = comments.video_id
-    )
+    AND public.can_comment_on_video(video_id)
   );
 
 
@@ -39,11 +88,7 @@ CREATE POLICY "comments_owner_update"
   USING (auth.uid() = user_id)
   WITH CHECK (
     auth.uid() = user_id
-    AND EXISTS (
-      SELECT 1
-      FROM public.videos AS visible_video
-      WHERE visible_video.id = comments.video_id
-    )
+    AND (is_deleted = true OR public.can_comment_on_video(video_id))
   );
 
 DROP POLICY IF EXISTS "Commentaires visibles par tous" ON public.video_comments;
@@ -66,11 +111,7 @@ CREATE POLICY "Utilisateur peut commenter"
   FOR INSERT
   WITH CHECK (
     auth.uid() = user_id
-    AND EXISTS (
-      SELECT 1
-      FROM public.videos AS visible_video
-      WHERE visible_video.id = video_comments.video_id
-    )
+    AND public.can_comment_on_video(video_id)
   );
 
 
@@ -81,11 +122,7 @@ CREATE POLICY "Utilisateur peut modifier son commentaire"
   USING (auth.uid() = user_id)
   WITH CHECK (
     auth.uid() = user_id
-    AND EXISTS (
-      SELECT 1
-      FROM public.videos AS visible_video
-      WHERE visible_video.id = video_comments.video_id
-    )
+    AND (is_deleted = true OR public.can_comment_on_video(video_id))
   );
 
 -- Mention records must not reveal users or comment activity for inaccessible videos.
