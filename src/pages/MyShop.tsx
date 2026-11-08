@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Plus, Package, TrendingUp, Clock, DollarSign, Edit, Trash2, Flame, Loader2, BookOpen } from 'lucide-react';
+import { ArrowLeft, Plus, Package, TrendingUp, Clock, DollarSign, Edit, Trash2, Flame, Loader2, BookOpen, Truck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
@@ -40,6 +40,9 @@ const MyShop = () => {
   const [editingProduct, setEditingProduct] = useState<ShopProduct | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [digitalFile, setDigitalFile] = useState<File | null>(null);
+  const [showDeliverySettings, setShowDeliverySettings] = useState(false);
+  const [savingDeliverySettings, setSavingDeliverySettings] = useState(false);
+  const [deliveryForm, setDeliveryForm] = useState({ label: 'Point de retrait vendeur', contactName: '', contactPhone: '', address: '', city: '', countryCode: 'BJ', fee: '', etaMin: '60', etaMax: '1440', preparationMinutes: '60' });
 
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -102,9 +105,132 @@ const MyShop = () => {
   };
 
 
+  const loadDeliverySettings = async () => {
+    if (!user) return;
+    const [{ data: settings }, { data: pickup }] = await Promise.all([
+      supabase.from('seller_delivery_settings').select('enabled,pickup_location_id,preparation_minutes,policy_text').eq('seller_id', user.id).maybeSingle(),
+      supabase.from('pickup_locations').select('id,label,contact_name,contact_phone,address,city,country_code,is_default').eq('seller_id', user.id).eq('is_default', true).maybeSingle(),
+    ]);
+    if (!pickup) return;
+    setDeliveryForm(current => ({
+      ...current,
+      label: pickup.label,
+      contactName: pickup.contact_name || '',
+      contactPhone: pickup.contact_phone || '',
+      address: pickup.address,
+      city: pickup.city,
+      countryCode: pickup.country_code,
+      preparationMinutes: String(settings?.preparation_minutes ?? 60),
+    }));
+    const { data: zone } = await supabase.from('seller_delivery_zones')
+      .select('id').eq('seller_id', user.id).eq('country_code', pickup.country_code).ilike('city', pickup.city).maybeSingle();
+    if (zone) {
+      const { data: rate } = await supabase.from('seller_delivery_rates')
+        .select('amount_minor,eta_min_minutes,eta_max_minutes')
+        .eq('seller_id', user.id).eq('zone_id', zone.id).maybeSingle();
+      if (rate) setDeliveryForm(current => ({
+        ...current,
+        fee: String(rate.amount_minor),
+        etaMin: String(rate.eta_min_minutes),
+        etaMax: String(rate.eta_max_minutes),
+      }));
+    }
+    if (settings?.enabled) setDeliveryForm(current => ({ ...current }));
+  };
+
+  const saveDeliverySettings = async () => {
+    if (!user) return;
+    const fee = Number(deliveryForm.fee);
+    const etaMin = Number(deliveryForm.etaMin);
+    const etaMax = Number(deliveryForm.etaMax);
+    const prep = Number(deliveryForm.preparationMinutes);
+    const countryCode = deliveryForm.countryCode.trim().toUpperCase();
+    if (!deliveryForm.address.trim() || deliveryForm.city.trim().length < 2
+      || !/^[A-Z]{2}$/.test(countryCode) || !Number.isSafeInteger(fee) || fee < 0
+      || !Number.isSafeInteger(etaMin) || etaMin < 0 || !Number.isSafeInteger(etaMax) || etaMax < etaMin
+      || !Number.isSafeInteger(prep) || prep < 0) {
+      toast.error('Vérifiez l’adresse, la ville, le pays, les frais et les délais.');
+      return;
+    }
+    setSavingDeliverySettings(true);
+    try {
+      const { data: existingPickup, error: pickupReadError } = await supabase.from('pickup_locations')
+        .select('id').eq('seller_id', user.id).eq('is_default', true).maybeSingle();
+      if (pickupReadError) throw pickupReadError;
+      const pickupPayload = {
+        seller_id: user.id,
+        label: deliveryForm.label.trim() || 'Point de retrait vendeur',
+        contact_name: deliveryForm.contactName.trim() || null,
+        contact_phone: deliveryForm.contactPhone.trim() || null,
+        address: deliveryForm.address.trim(),
+        city: deliveryForm.city.trim(),
+        country_code: countryCode,
+        is_default: true,
+        is_active: true,
+      };
+      let pickupId: string;
+      if (existingPickup) {
+        const { data, error } = await supabase.from('pickup_locations')
+          .update(pickupPayload).eq('id', existingPickup.id).eq('seller_id', user.id).select('id').single();
+        if (error) throw error;
+        pickupId = data.id;
+      } else {
+        const { data, error } = await supabase.from('pickup_locations')
+          .insert(pickupPayload).select('id').single();
+        if (error) throw error;
+        pickupId = data.id;
+      }
+
+      const { error: settingsError } = await supabase.from('seller_delivery_settings').upsert({
+        seller_id: user.id,
+        enabled: true,
+        pickup_location_id: pickupId,
+        preparation_minutes: prep,
+      }, { onConflict: 'seller_id' });
+      if (settingsError) throw settingsError;
+
+      const { data: existingZone, error: zoneReadError } = await supabase.from('seller_delivery_zones')
+        .select('id').eq('seller_id', user.id).eq('country_code', countryCode).ilike('city', deliveryForm.city.trim()).maybeSingle();
+      if (zoneReadError) throw zoneReadError;
+      let zoneId: string;
+      if (existingZone) {
+        const { data, error } = await supabase.from('seller_delivery_zones')
+          .update({ enabled: true, city: deliveryForm.city.trim() }).eq('id', existingZone.id).eq('seller_id', user.id).select('id').single();
+        if (error) throw error;
+        zoneId = data.id;
+      } else {
+        const { data, error } = await supabase.from('seller_delivery_zones')
+          .insert({ seller_id: user.id, country_code: countryCode, city: deliveryForm.city.trim(), enabled: true })
+          .select('id').single();
+        if (error) throw error;
+        zoneId = data.id;
+      }
+
+      const { data: existingRate, error: rateReadError } = await supabase.from('seller_delivery_rates')
+        .select('id').eq('seller_id', user.id).eq('zone_id', zoneId).maybeSingle();
+      if (rateReadError) throw rateReadError;
+      const ratePayload = {
+        seller_id: user.id, zone_id: zoneId, amount_minor: fee, currency: 'XOF',
+        eta_min_minutes: etaMin, eta_max_minutes: etaMax, minimum_order_minor: 0, enabled: true,
+      };
+      const rateResult = existingRate
+        ? await supabase.from('seller_delivery_rates').update(ratePayload).eq('id', existingRate.id).eq('seller_id', user.id)
+        : await supabase.from('seller_delivery_rates').insert(ratePayload);
+      if (rateResult.error) throw rateResult.error;
+      toast.success('Livraison par vendeur configurée pour cette zone.');
+      setShowDeliverySettings(false);
+    } catch (error) {
+      console.error('Seller delivery settings save failed', error);
+      toast.error(error instanceof Error ? error.message : 'Impossible d’enregistrer la livraison.');
+    } finally {
+      setSavingDeliverySettings(false);
+    }
+  };
+
   useEffect(() => {
     loadProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    void loadDeliverySettings();
   }, [user?.id]);
 
   const now = new Date();
@@ -283,6 +409,7 @@ const MyShop = () => {
             <ArrowLeft className="w-6 h-6 text-foreground" />
           </button>
           <h1 className="flex-1 text-lg font-bold text-foreground">🏪 Ma Boutique</h1>
+          <button onClick={() => setShowDeliverySettings(true)} className="p-2 rounded-xl bg-muted/40" title="Configurer la livraison vendeur" aria-label="Configurer la livraison vendeur"><Truck className="w-5 h-5 text-foreground" /></button>
           <button onClick={() => navigate("/digital-library")} className="p-2 rounded-xl bg-muted/40" title="Mes achats numériques" aria-label="Mes achats numériques"><BookOpen className="w-5 h-5 text-foreground" /></button>
           <button
             onClick={() => setShowAddForm(true)}
@@ -460,6 +587,45 @@ const MyShop = () => {
                   {submitting ? 'Enregistrement...' : editingProduct ? 'Enregistrer les modifications' : 'Publier le produit'}
                 </button>
               </div>
+            </div>
+          </div>
+        </>
+      )}
+
+
+      {showDeliverySettings && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onClick={() => setShowDeliverySettings(false)} />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-background rounded-t-3xl border-t border-border/30 max-h-[88vh] overflow-y-auto">
+            <div className="w-12 h-1.5 bg-muted rounded-full mx-auto mt-3" />
+            <div className="px-4 py-5 space-y-3">
+              <h2 className="text-lg font-bold text-foreground">Livraison organisée par le vendeur</h2>
+              <p className="text-xs text-muted-foreground">Définissez votre point de départ et une zone tarifée. Les acheteurs de cette ville pourront obtenir un devis avant le paiement.</p>
+              <input value={deliveryForm.label} onChange={e => setDeliveryForm(p => ({ ...p, label: e.target.value }))} placeholder="Nom du point de retrait" className="w-full px-4 py-3 rounded-xl bg-card/30 border border-border/20 text-foreground text-sm" />
+              <input value={deliveryForm.contactName} onChange={e => setDeliveryForm(p => ({ ...p, contactName: e.target.value }))} placeholder="Nom du contact (optionnel)" className="w-full px-4 py-3 rounded-xl bg-card/30 border border-border/20 text-foreground text-sm" />
+              <input value={deliveryForm.contactPhone} onChange={e => setDeliveryForm(p => ({ ...p, contactPhone: e.target.value }))} placeholder="Téléphone du contact (optionnel)" className="w-full px-4 py-3 rounded-xl bg-card/30 border border-border/20 text-foreground text-sm" />
+              <input value={deliveryForm.address} onChange={e => setDeliveryForm(p => ({ ...p, address: e.target.value }))} placeholder="Adresse du point de retrait" className="w-full px-4 py-3 rounded-xl bg-card/30 border border-border/20 text-foreground text-sm" />
+              <div className="grid grid-cols-2 gap-2">
+                <input value={deliveryForm.city} onChange={e => setDeliveryForm(p => ({ ...p, city: e.target.value }))} placeholder="Ville couverte" className="w-full px-4 py-3 rounded-xl bg-card/30 border border-border/20 text-foreground text-sm" />
+                <input value={deliveryForm.countryCode} maxLength={2} onChange={e => setDeliveryForm(p => ({ ...p, countryCode: e.target.value.toUpperCase() }))} placeholder="Code pays (BJ)" className="w-full px-4 py-3 rounded-xl bg-card/30 border border-border/20 text-foreground text-sm" />
+              </div>
+              <label className="block text-xs text-muted-foreground">Frais de livraison (XOF)
+                <input type="number" min="0" step="1" value={deliveryForm.fee} onChange={e => setDeliveryForm(p => ({ ...p, fee: e.target.value }))} placeholder="Ex. 1000" className="mt-1 w-full px-4 py-3 rounded-xl bg-card/30 border border-border/20 text-foreground text-sm" />
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <label className="text-xs text-muted-foreground">Délai min. (min)
+                  <input type="number" min="0" value={deliveryForm.etaMin} onChange={e => setDeliveryForm(p => ({ ...p, etaMin: e.target.value }))} className="mt-1 w-full px-3 py-3 rounded-xl bg-card/30 border border-border/20 text-foreground text-sm" />
+                </label>
+                <label className="text-xs text-muted-foreground">Délai max. (min)
+                  <input type="number" min="0" value={deliveryForm.etaMax} onChange={e => setDeliveryForm(p => ({ ...p, etaMax: e.target.value }))} className="mt-1 w-full px-3 py-3 rounded-xl bg-card/30 border border-border/20 text-foreground text-sm" />
+                </label>
+                <label className="text-xs text-muted-foreground">Préparation (min)
+                  <input type="number" min="0" value={deliveryForm.preparationMinutes} onChange={e => setDeliveryForm(p => ({ ...p, preparationMinutes: e.target.value }))} className="mt-1 w-full px-3 py-3 rounded-xl bg-card/30 border border-border/20 text-foreground text-sm" />
+                </label>
+              </div>
+              <button onClick={() => void saveDeliverySettings()} disabled={savingDeliverySettings} className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm disabled:opacity-50">
+                {savingDeliverySettings ? 'Enregistrement…' : 'Enregistrer la zone de livraison'}
+              </button>
             </div>
           </div>
         </>
