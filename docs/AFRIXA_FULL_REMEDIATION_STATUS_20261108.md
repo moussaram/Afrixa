@@ -157,3 +157,23 @@ Ces points sont des dépendances d'accès, d'exploitation et de validation. Ils 
 - Les secrets Cloudflare existants doivent être configurés côté Edge Functions (CF_STREAM_ACCOUNT_ID, CF_STREAM_API_TOKEN, CF_STREAM_CUSTOMER_CODE) ; le jeton API doit autoriser l'édition Stream et la création de tokens.
 - L'API Cloudflare /token convient aux faibles volumes ; le passage à une clé de signature sera nécessaire avant une montée en charge importante.
 - La Phase 1 reste ouverte jusqu'à la validation des migrations et des scénarios RLS/Cloudflare sur un environnement de staging.
+
+## Phase 2 — interactions sociales et notifications
+
+Branche : `fix/afrixa-full-remediation-20261108`  
+Migration : `supabase/migrations/20261108300000_phase2_social_interactions_integrity.sql`
+
+### Corrections préparées dans le code
+
+- Synchronisation des compteurs de likes et de favoris vidéo à partir des tables canoniques `video_likes` et `video_saves`, avec recalcul initial des compteurs.
+- Création de `video_shares` pour enregistrer les partages authentifiés par canal (copie, partage natif, WhatsApp, Facebook, Messenger, X et Telegram) ; le compteur de partages est maintenu côté base.
+- Correction de la génération de notifications de commentaires : l'interface écrit dans `comments`, alors que l'ancien déclencheur surveillait uniquement `video_comments`.
+- Notifications pour les réponses, les likes de commentaires et les mentions, sans notifier l'auteur de sa propre action.
+- Respect des préférences `likes_enabled`, `comments_enabled` et `follows_enabled`.
+- Vérification serveur du paramètre de désactivation des commentaires et de l'appartenance du commentaire parent au même fil.
+- Le hook des notifications n'affiche plus de fausses notifications de démonstration quand le compte n'en possède aucune ; les actions « lu » sont limitées à l'utilisateur authentifié et ne sont confirmées dans l'interface qu'après succès serveur.
+- Le compteur de likes/favoris est réhydraté depuis les agrégats de la base.
+
+### À valider avant clôture
+
+La migration est versionnée dans GitHub mais n'est pas appliquée à Supabase. Les compteurs, déclencheurs, RLS, Realtime, notifications et parcours de partage doivent être testés sur staging avec plusieurs comptes. Le partage externe ne prouve pas que le destinataire a ouvert le lien : Afrixa enregistre une action de partage initiée, pas une livraison ou une lecture du contenu.
