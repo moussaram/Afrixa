@@ -74,6 +74,7 @@ const MyShop = () => {
         supabase.from('products')
           .select('id, name, description, category, price, stock, images, sales_count, city, country, product_type, currency, moderation_status, publication_status')
           .eq('seller_id', userId)
+          .is('deleted_at', null)
           .order('created_at', { ascending: false }),
         supabase.from('orders')
           .select('id, total_price, seller_amount, status, created_at')
@@ -387,7 +388,7 @@ const MyShop = () => {
     {
       const { error } = await supabase
         .from('products')
-        .update({ is_active: false })
+        .update({ deleted_at: new Date().toISOString() })
         .eq('id', product.id)
         .eq('seller_id', user.id);
       if (error) {
