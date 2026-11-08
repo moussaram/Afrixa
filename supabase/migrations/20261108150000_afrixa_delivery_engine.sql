@@ -437,6 +437,8 @@ DECLARE
   pickup_row public.pickup_locations%ROWTYPE;
   pickup_found boolean := false;
 BEGIN
+  INSERT INTO public.order_timeline(order_id, status, message)
+  VALUES (NEW.id, 'en_attente', 'Commande créée, en attente de confirmation du paiement.');
   IF NEW.product_type <> 'physical' OR NEW.delivery_method = 'pickup' THEN RETURN NEW; END IF;
   SELECT * INTO pickup_row FROM public.pickup_locations
   WHERE seller_id = NEW.seller_id AND is_default = true AND is_active = true
@@ -459,8 +461,6 @@ BEGIN
   INSERT INTO public.delivery_events(delivery_id, source, event_type, normalized_status)
   SELECT id, 'system', 'delivery.created', 'awaiting_payment'
   FROM public.deliveries WHERE order_id = NEW.id;
-  INSERT INTO public.order_timeline(order_id, status, message)
-  VALUES (NEW.id, 'en_attente', 'Commande créée, en attente de confirmation du paiement.');
   RETURN NEW;
 END;
 $$;
