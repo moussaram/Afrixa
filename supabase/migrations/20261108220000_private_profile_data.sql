@@ -79,7 +79,7 @@ AS $function$
 $function$;
 
 REVOKE ALL ON FUNCTION public.is_publicly_followable(uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.is_publicly_followable(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_publicly_followable(uuid) TO anon, authenticated;
 
 DROP POLICY IF EXISTS "Utilisateur peut suivre" ON public.follows;
 CREATE POLICY "Utilisateur peut suivre"
