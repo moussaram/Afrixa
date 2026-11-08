@@ -42,6 +42,7 @@ const normalizeCategory = (value: string) => value
 
 const MarketplaceContent = () => {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [shoppableVideos, setShoppableVideos] = useState<ShoppableVideo[]>([]);
@@ -76,6 +77,12 @@ const MarketplaceContent = () => {
         if (sellerError) throw sellerError;
 
         const sellerMap = new Map((sellerData || []).map(profile => [profile.user_id, profile as SellerProfile]));
+        const { data: followRows, error: followError } = sellerIds.length
+          ? await supabase.from('follows').select('following_id').in('following_id', sellerIds)
+          : { data: [], error: null };
+        if (followError) throw followError;
+        const followerCounts = new Map<string, number>();
+        for (const follow of followRows || []) followerCounts.set(follow.following_id, (followerCounts.get(follow.following_id) || 0) + 1);
         const mappedProducts: Product[] = rows.map(row => {
           const seller = sellerMap.get(row.seller_id);
           const sellerName = [seller?.prenom, seller?.nom].filter(Boolean).join(' ')
@@ -97,7 +104,7 @@ const MarketplaceContent = () => {
             country: row.country || '',
             views: row.views_count || 0,
             sales: row.sales_count || 0,
-            rating: 0,
+            rating: null,
             createdAt: row.created_at,
             productType: row.product_type,
             promoPrice: row.promo_price,
@@ -116,7 +123,7 @@ const MarketplaceContent = () => {
               description: seller?.bio || '',
               verified: false,
               productCount: 0,
-              followers: 0,
+              followers: followerCounts.get(row.seller_id) || 0,
               rating: 0,
               city: row.city || '',
               country: row.country || '',
@@ -179,9 +186,10 @@ const MarketplaceContent = () => {
     return () => { active = false; };
   }, []);
 
-  const filteredProducts = useMemo(() => activeCategory
-    ? products.filter(product => normalizeCategory(product.category) === activeCategory)
-    : products, [activeCategory, products]);
+  const filteredProducts = useMemo(() => products.filter(product =>
+    (!activeCategory || normalizeCategory(product.category) === activeCategory)
+    && (!selectedSellerId || product.sellerId === selectedSellerId)
+  ), [activeCategory, products, selectedSellerId]);
 
   return (
     <div className="animate-fade-in">
@@ -219,7 +227,8 @@ const MarketplaceContent = () => {
           <section className="px-4 py-4 border-b border-border/20">
             <div className="flex items-center gap-2 mb-3">
               <TrendingUp className="w-5 h-5 text-primary" />
-              <h2 className="text-base font-semibold text-foreground">Produits disponibles</h2>
+              <h2 className="text-base font-semibold text-foreground">{selectedSellerId ? 'Produits de cette boutique' : 'Produits disponibles'}</h2>
+            {selectedSellerId && <button onClick={() => setSelectedSellerId(null)} className="ml-auto text-xs text-primary">Effacer le filtre</button>}
             </div>
             {filteredProducts.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">Aucun produit publié dans cette catégorie.</p>
@@ -239,7 +248,7 @@ const MarketplaceContent = () => {
                 <h2 className="text-base font-semibold text-foreground">Vidéos shoppables</h2>
               </div>
               <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-1">
-                {shoppableVideos.map(video => <ShoppableVideoCard key={video.id} video={video} />)}
+                {shoppableVideos.map(video => <ShoppableVideoCard key={video.id} video={video} onView={() => { const product = products.find(item => item.id === video.productId); if (product) setSelectedProduct(product); }} />)}
               </div>
             </section>
           )}
@@ -251,7 +260,7 @@ const MarketplaceContent = () => {
             </div>
             {shops.length ? (
               <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-2">
-                {shops.map(shop => <ShopCard key={shop.id} shop={shop} />)}
+                {shops.map(shop => <ShopCard key={shop.id} shop={shop} onView={item => { setSelectedSellerId(item.id); setActiveCategory(null); }} />)}
               </div>
             ) : <p className="text-sm text-muted-foreground">Aucune boutique publiée pour le moment.</p>}
           </section>
