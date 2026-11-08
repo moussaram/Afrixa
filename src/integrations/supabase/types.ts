@@ -529,28 +529,20 @@ export type Database = {
         Row: {
           auto_confirm_date: string | null
           buyer_id: string
-          currency?: string
-          delivery_fee?: number
-          delivery_method?: string | null
-          delivery_provider?: string | null
-          delivery_quote_id?: string | null
-          digital_asset_id?: string | null
-          product_type?: string
-          currency: string
-          delivery_fee: number
-          delivery_method: string | null
-          delivery_provider: string | null
-          delivery_quote_id: string | null
-          digital_asset_id: string | null
-          product_type: string
           buyer_note: string | null
           buyer_phone: string | null
           commission_amount: number
           commission_rate: number
           created_at: string
+          currency: string
           delivery_address: string | null
+          delivery_fee: number
           delivery_lat: number | null
           delivery_lng: number | null
+          delivery_method: string | null
+          delivery_provider: string | null
+          delivery_quote_id: string | null
+          digital_asset_id: string | null
           dispute_reason: string | null
           escrow_released: boolean
           id: string
@@ -559,6 +551,7 @@ export type Database = {
           product_id: string | null
           product_image: string | null
           product_name: string
+          product_type: string
           quantity: number
           seller_amount: number
           seller_id: string
@@ -575,9 +568,15 @@ export type Database = {
           commission_amount?: number
           commission_rate?: number
           created_at?: string
+          currency?: string
           delivery_address?: string | null
+          delivery_fee?: number
           delivery_lat?: number | null
           delivery_lng?: number | null
+          delivery_method?: string | null
+          delivery_provider?: string | null
+          delivery_quote_id?: string | null
+          digital_asset_id?: string | null
           dispute_reason?: string | null
           escrow_released?: boolean
           id?: string
@@ -586,6 +585,7 @@ export type Database = {
           product_id?: string | null
           product_image?: string | null
           product_name: string
+          product_type?: string
           quantity?: number
           seller_amount?: number
           seller_id: string
@@ -597,21 +597,20 @@ export type Database = {
         Update: {
           auto_confirm_date?: string | null
           buyer_id?: string
-          currency?: string
-          delivery_fee?: number
-          delivery_method?: string | null
-          delivery_provider?: string | null
-          delivery_quote_id?: string | null
-          digital_asset_id?: string | null
-          product_type?: string
           buyer_note?: string | null
           buyer_phone?: string | null
           commission_amount?: number
           commission_rate?: number
           created_at?: string
+          currency?: string
           delivery_address?: string | null
+          delivery_fee?: number
           delivery_lat?: number | null
           delivery_lng?: number | null
+          delivery_method?: string | null
+          delivery_provider?: string | null
+          delivery_quote_id?: string | null
+          digital_asset_id?: string | null
           dispute_reason?: string | null
           escrow_released?: boolean
           id?: string
@@ -620,6 +619,7 @@ export type Database = {
           product_id?: string | null
           product_image?: string | null
           product_name?: string
+          product_type?: string
           quantity?: number
           seller_amount?: number
           seller_id?: string
@@ -690,26 +690,15 @@ export type Database = {
       products: {
         Row: {
           category: string
-          currency?: string
-          deleted_at?: string | null
-          dimensions_mm?: Json | null
-          product_type?: string
-          publication_status?: string
-          sku?: string | null
-          weight_grams?: number | null
-          currency: string
-          deleted_at: string | null
-          dimensions_mm: Json | null
-          product_type: string
-          publication_status: string
-          sku: string | null
-          weight_grams: number | null
           city: string | null
           country: string | null
           created_at: string
+          currency: string
+          deleted_at: string | null
           delivery_delay: string | null
           delivery_fee: number | null
           description: string | null
+          dimensions_mm: Json | null
           group_duration: string | null
           group_price_10: number | null
           group_price_5: number | null
@@ -720,22 +709,29 @@ export type Database = {
           is_group_buy: boolean | null
           name: string
           price: number
+          product_type: string
           promo_price: number | null
+          publication_status: string
           sales_count: number | null
           seller_id: string
+          sku: string | null
           stock: number | null
           unlimited_stock: boolean | null
           updated_at: string
           views_count: number | null
+          weight_grams: number | null
         }
         Insert: {
           category: string
           city?: string | null
           country?: string | null
           created_at?: string
+          currency?: string
+          deleted_at?: string | null
           delivery_delay?: string | null
           delivery_fee?: number | null
           description?: string | null
+          dimensions_mm?: Json | null
           group_duration?: string | null
           group_price_10?: number | null
           group_price_5?: number | null
@@ -746,29 +742,29 @@ export type Database = {
           is_group_buy?: boolean | null
           name: string
           price: number
+          product_type?: string
           promo_price?: number | null
+          publication_status?: string
           sales_count?: number | null
           seller_id: string
+          sku?: string | null
           stock?: number | null
           unlimited_stock?: boolean | null
           updated_at?: string
           views_count?: number | null
+          weight_grams?: number | null
         }
         Update: {
           category?: string
-          currency?: string
-          deleted_at?: string | null
-          dimensions_mm?: Json | null
-          product_type?: string
-          publication_status?: string
-          sku?: string | null
-          weight_grams?: number | null
           city?: string | null
           country?: string | null
           created_at?: string
+          currency?: string
+          deleted_at?: string | null
           delivery_delay?: string | null
           delivery_fee?: number | null
           description?: string | null
+          dimensions_mm?: Json | null
           group_duration?: string | null
           group_price_10?: number | null
           group_price_5?: number | null
@@ -779,13 +775,17 @@ export type Database = {
           is_group_buy?: boolean | null
           name?: string
           price?: number
+          product_type?: string
           promo_price?: number | null
+          publication_status?: string
           sales_count?: number | null
           seller_id?: string
+          sku?: string | null
           stock?: number | null
           unlimited_stock?: boolean | null
           updated_at?: string
           views_count?: number | null
+          weight_grams?: number | null
         }
         Relationships: []
       }
