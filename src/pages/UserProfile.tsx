@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, MoreHorizontal, Grid3X3, Heart, MessageCircle, Link as LinkIcon, Globe, Briefcase } from 'lucide-react';
+import { ArrowLeft, Share2, MoreHorizontal, Grid3X3, Heart, MessageCircle, Link as LinkIcon, Globe, Briefcase, ShoppingBag } from 'lucide-react';
 import { VideoThumbnail } from '@/components/video/VideoThumbnail';
 import { Button } from '@/components/ui/button';
 import { formatNumber } from '@/lib/formatters';
@@ -53,6 +53,7 @@ const UserProfile = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('videos');
   const [shareOpen, setShareOpen] = useState(false);
+  const [hasShop, setHasShop] = useState(false);
   const isOwnProfile = Boolean(currentUser?.id && currentUser.id === userId);
 
   const { isFollowing, isLoading: followLoading, toggle: toggleFollow } = useFollow(
@@ -112,6 +113,13 @@ const UserProfile = () => {
       setVideos(mapped);
       setFollowersCount(followersResult.count || 0);
       setFollowingCount(followingResult.count || 0);
+
+      const { count: publishedProducts, error: shopError } = await supabase.from('products')
+        .select('id', { count: 'exact', head: true }).eq('seller_id', userId)
+        .eq('is_active', true).eq('publication_status', 'published')
+        .eq('moderation_status', 'approved').is('deleted_at', null);
+      if (shopError) throw shopError;
+      setHasShop((publishedProducts || 0) > 0);
 
       if (videoRows.length) {
         const { count, error: likesError } = await supabase.from('video_likes')
@@ -200,6 +208,7 @@ const UserProfile = () => {
             <SuperNotificationButton creatorId={userId || ''} />
           </div>}
           {!isOwnProfile && <div className="mt-3 grid w-full max-w-sm grid-cols-2 gap-3"><CollabRequestButton receiverId={userId || ''} /><Button variant="glass" onClick={() => navigate('/creators/fan-club')}>Fan Club</Button></div>}
+          {hasShop && <Button variant="glass" className="mt-3 w-full max-w-sm" onClick={() => navigate('/profile/' + encodeURIComponent(username) + '/shop')}><ShoppingBag className="mr-2 h-4 w-4" />Voir la boutique</Button>}
         </div>
       </section>
 
