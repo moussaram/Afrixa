@@ -34,6 +34,7 @@ const LiveStats = lazy(() => import("./pages/LiveStats"));
 const MyInfo = lazy(() => import("./pages/MyInfo"));
 const Login = lazy(() => import("./pages/auth/Login"));
 const MyShop = lazy(() => import("./pages/MyShop"));
+const DigitalLibrary = lazy(() => import("./pages/DigitalLibrary"));
 const Orders = lazy(() => import("./pages/Orders"));
 const OrderDetail = lazy(() => import("./pages/OrderDetail"));
 const Marketplace = lazy(() => import("./pages/Marketplace"));
@@ -120,6 +121,8 @@ const AppContent = () => {
           <Route path="/my-shop" element={<MyShop />} />
           <Route path="/ma-boutique" element={<MyShop />} />
           <Route path="/orders" element={<Orders />} />
+          <Route path="/digital-library" element={<DigitalLibrary />} />
+          <Route path="/mes-achats-numeriques" element={<DigitalLibrary />} />
           <Route path="/orders/:orderId" element={<OrderDetail />} />
           <Route path="/marketplace" element={<Marketplace />} />
           <Route path="/group-buy" element={<GroupBuy />} />
