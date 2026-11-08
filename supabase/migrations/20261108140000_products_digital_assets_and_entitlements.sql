@@ -71,7 +71,7 @@ CREATE OR REPLACE FUNCTION public.enforce_product_type_rules()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = public
-AS $
+AS $$
 BEGIN
   IF auth.role() = 'service_role' OR current_user IN ('postgres', 'supabase_admin') THEN
     RETURN NEW;
@@ -87,7 +87,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS enforce_product_type_rules ON public.products;
 CREATE TRIGGER enforce_product_type_rules
