@@ -17,6 +17,9 @@ export interface Product {
   sales: number;
   rating: number;
   createdAt: string;
+  productType?: 'physical' | 'digital';
+  promoPrice?: number | null;
+  unlimitedStock?: boolean;
 }
 
 export interface Shop {
