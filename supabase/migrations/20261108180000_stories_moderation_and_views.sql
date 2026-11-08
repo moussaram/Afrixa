@@ -69,7 +69,7 @@ CREATE POLICY "Approved active stories visible to public"
 DROP POLICY IF EXISTS "Admins review pending stories" ON public.stories;
 CREATE POLICY "Admins review pending stories"
   ON public.stories FOR SELECT
-  USING (auth.jwt() -> 'app_metadata' ->> 'role' = 'admin');
+  USING ((auth.jwt() -> 'app_metadata' ->> 'role' = 'admin' OR COALESCE((auth.jwt() -> 'app_metadata' -> 'roles') ? 'admin', false)));
 
 DROP POLICY IF EXISTS "story_views_owner_all" ON public.story_views;
 CREATE POLICY "Users read own story views"
