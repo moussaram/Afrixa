@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/useAuth';
 
 interface CloudflarePlaybackAssets {
   playbackUrl: string;
@@ -10,11 +11,11 @@ interface CloudflarePlaybackAssets {
 const playbackCache = new Map<string, CloudflarePlaybackAssets>();
 const playbackRequests = new Map<string, Promise<CloudflarePlaybackAssets>>();
 
-const getPlaybackAssets = async (videoId: string): Promise<CloudflarePlaybackAssets> => {
-  const cached = playbackCache.get(videoId);
+const getPlaybackAssets = async (videoId: string, cacheKey: string): Promise<CloudflarePlaybackAssets> => {
+  const cached = playbackCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached;
 
-  const pending = playbackRequests.get(videoId);
+  const pending = playbackRequests.get(cacheKey);
   if (pending) return pending;
 
   const request = supabase.functions.invoke('get-cloudflare-playback-token', {
@@ -28,17 +29,19 @@ const getPlaybackAssets = async (videoId: string): Promise<CloudflarePlaybackAss
       throw new Error('Cloudflare playback response is invalid');
     }
     const assets = { playbackUrl, thumbnailUrl, expiresAt };
-    playbackCache.set(videoId, assets);
+    playbackCache.set(cacheKey, assets);
     return assets;
   }).finally(() => {
-    playbackRequests.delete(videoId);
+    playbackRequests.delete(cacheKey);
   });
 
-  playbackRequests.set(videoId, request);
+  playbackRequests.set(cacheKey, request);
   return request;
 };
 
 export const useCloudflarePlaybackAssets = (videoId: string, enabled = true) => {
+  const { user } = useAuth();
+  const cacheKey = `${user?.id ?? 'anonymous'}:${videoId}`;
   const [assets, setAssets] = useState<CloudflarePlaybackAssets | null>(null);
   const [error, setError] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -59,13 +62,13 @@ export const useCloudflarePlaybackAssets = (videoId: string, enabled = true) => 
       setError(false);
       const refreshDelay = Math.max(1_000, nextAssets.expiresAt - Date.now() - 60_000);
       refreshTimer = window.setTimeout(() => {
-        playbackCache.delete(videoId);
+        playbackCache.delete(cacheKey);
         setRefreshKey(value => value + 1);
       }, refreshDelay);
     };
 
     setError(false);
-    void getPlaybackAssets(videoId)
+    void getPlaybackAssets(videoId, cacheKey)
       .then(applyAssets)
       .catch(() => {
         if (active) {
@@ -78,7 +81,7 @@ export const useCloudflarePlaybackAssets = (videoId: string, enabled = true) => 
       active = false;
       if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
     };
-  }, [videoId, enabled, refreshKey]);
+  }, [videoId, enabled, refreshKey, cacheKey]);
 
   return {
     playbackUrl: assets?.playbackUrl ?? null,
