@@ -435,11 +435,13 @@ SET search_path = public
 AS $$
 DECLARE
   pickup_row public.pickup_locations%ROWTYPE;
+  pickup_found boolean := false;
 BEGIN
   IF NEW.product_type <> 'physical' OR NEW.delivery_method = 'pickup' THEN RETURN NEW; END IF;
   SELECT * INTO pickup_row FROM public.pickup_locations
   WHERE seller_id = NEW.seller_id AND is_default = true AND is_active = true
   ORDER BY created_at DESC LIMIT 1;
+  pickup_found := FOUND;
   INSERT INTO public.deliveries(
     order_id, buyer_id, seller_id, provider_code, quote_id, status, idempotency_key,
     shipping_amount_minor, currency, pickup_snapshot, recipient_snapshot, parcel_snapshot
@@ -448,7 +450,7 @@ BEGIN
     NEW.delivery_quote_id, 'awaiting_payment',
     'AFR-DELIVERY-' || replace(NEW.id::text, '-', ''),
     COALESCE(NEW.delivery_fee, 0), NEW.currency,
-    CASE WHEN FOUND THEN jsonb_build_object('label', pickup_row.label, 'address', pickup_row.address,
+    CASE WHEN pickup_found THEN jsonb_build_object('label', pickup_row.label, 'address', pickup_row.address,
       'city', pickup_row.city, 'country_code', pickup_row.country_code,
       'latitude', pickup_row.latitude, 'longitude', pickup_row.longitude) ELSE '{}'::jsonb END,
     jsonb_build_object('address', NEW.delivery_address, 'latitude', NEW.delivery_lat, 'longitude', NEW.delivery_lng),
@@ -457,6 +459,8 @@ BEGIN
   INSERT INTO public.delivery_events(delivery_id, source, event_type, normalized_status)
   SELECT id, 'system', 'delivery.created', 'awaiting_payment'
   FROM public.deliveries WHERE order_id = NEW.id;
+  INSERT INTO public.order_timeline(order_id, status, message)
+  VALUES (NEW.id, 'en_attente', 'Commande créée, en attente de confirmation du paiement.');
   RETURN NEW;
 END;
 $$;
@@ -540,6 +544,12 @@ BEGIN
 
   INSERT INTO public.delivery_events(delivery_id, source, event_type, normalized_status)
   VALUES (delivery_row.id, 'seller', event_name, next_delivery_status);
+  INSERT INTO public.order_timeline(order_id, status, message)
+  VALUES (p_order_id, next_order_status, CASE p_action
+    WHEN 'start_preparation' THEN 'Le vendeur a commencé la préparation.'
+    WHEN 'mark_in_transit' THEN 'La commande a été remise au transporteur / mise en route.'
+    WHEN 'report_delivered' THEN 'Le vendeur a signalé la livraison. Confirmation de l’acheteur attendue.'
+  END);
 
   RETURN jsonb_build_object('success', true, 'order_status', next_order_status,
     'delivery_status', next_delivery_status);
@@ -588,6 +598,8 @@ BEGIN
     VALUES (delivery_row.id, 'buyer', 'buyer.delivery_confirmed', 'delivered');
   END IF;
 
+  INSERT INTO public.order_timeline(order_id, status, message)
+  VALUES (p_order_id, 'livree', 'L’acheteur a confirmé la réception de la commande.');
   UPDATE public.orders
   SET buyer_confirmed_at = now(), delivery_confirmed_by = p_actor_id, updated_at = now()
   WHERE id = p_order_id AND buyer_confirmed_at IS NULL;
@@ -648,6 +660,11 @@ BEGIN
 
     UPDATE public.orders SET status = 'livree', updated_at = now()
     WHERE id = NEW.order_id AND product_type = 'digital' AND status = 'en_attente';
+    INSERT INTO public.order_timeline(order_id, status, message)
+    SELECT id, 'livree', 'Paiement confirmé : accès au produit numérique activé.'
+    FROM public.orders WHERE id = NEW.order_id AND product_type = 'digital'
+      AND status = 'livree'
+      AND NOT EXISTS (SELECT 1 FROM public.order_timeline t WHERE t.order_id = NEW.order_id AND t.status = 'livree');
   END IF;
   RETURN NEW;
 END;
