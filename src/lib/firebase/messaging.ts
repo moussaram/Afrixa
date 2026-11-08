@@ -10,11 +10,6 @@ const ensureMessaging = async () => {
   return getMessaging(getFirebaseApp());
 };
 
-type TokenTable = {
-  from: (name: "user_fcm_tokens") => any;
-};
-const tokenTable = () => (supabase as unknown as TokenTable).from("user_fcm_tokens");
-
 export async function enableWebPush(userId: string): Promise<void> {
   if (!window.isSecureContext) throw new Error("Les notifications push nécessitent HTTPS.");
   if (!("Notification" in window) || !("serviceWorker" in navigator)) {
@@ -52,7 +47,7 @@ export async function enableWebPush(userId: string): Promise<void> {
     throw error;
   }
   const id = await installationId;
-  const { error } = await tokenTable().upsert({
+  const { error } = await supabase.from("user_fcm_tokens").upsert({
     user_id: userId,
     token: id,
     platform: "web_fid",
@@ -68,6 +63,6 @@ export async function disableWebPush(userId: string): Promise<void> {
     const { unregister } = await import("firebase/messaging");
     await unregister(messaging);
   }
-  const { error } = await tokenTable().delete().eq("user_id", userId).eq("platform", "web_fid");
+  const { error } = await supabase.from("user_fcm_tokens").delete().eq("user_id", userId).eq("platform", "web_fid");
   if (error) throw error;
 }
