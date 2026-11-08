@@ -51,7 +51,7 @@ export const useConversations = () => {
 
       let profiles: OtherProfile[] = [];
       if (otherIds.length > 0) {
-        const { data: profs } = await (supabase as any)
+        const { data: profs } = await supabase
           .from('public_profiles')
           .select('user_id, username, prenom, nom, avatar_url')
           .in('user_id', otherIds);
