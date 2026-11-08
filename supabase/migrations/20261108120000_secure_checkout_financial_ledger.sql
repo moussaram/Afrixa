@@ -143,6 +143,7 @@ BEGIN
 END;
 $;
 
+DROP TRIGGER IF EXISTS record_status_change ON public.orders;
 DROP TRIGGER IF EXISTS append_order_timeline_event ON public.orders;
 DROP TRIGGER IF EXISTS append_order_timeline_on_insert ON public.orders;
 DROP TRIGGER IF EXISTS append_order_timeline_on_status_update ON public.orders;
