@@ -107,6 +107,7 @@ const Index = () => {
         .from('videos')
         .select('id,user_id,hls_url,thumbnail_url,title,description,duration,views_count,likes_count,comments_count,shares_count,saves_count,created_at,sound_id')
         .eq('is_published', true)
+        .eq('moderation_status', 'approved')
         .order('created_at', { ascending: false })
         .range(nextPage * PAGE_SIZE, (nextPage + 1) * PAGE_SIZE - 1);
 
