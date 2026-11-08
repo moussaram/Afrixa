@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS public.seller_delivery_rates (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS seller_delivery_rates_zone_unique ON public.seller_delivery_rates(zone_id);
 ALTER TABLE public.seller_delivery_rates ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Seller manages own delivery rates"
   ON public.seller_delivery_rates FOR ALL
