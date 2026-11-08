@@ -363,7 +363,7 @@ const MyShop = () => {
           body: { asset_id: uploadSession.asset_id },
         });
         if (validationError || !validation?.ready) {
-          throw validationError ?? new Error('Le fichier numérique n’a pas passé la validation.');
+          throw validationError ?? new Error(validation?.pending_scan ? 'Fichier téléversé et vérifié. Publication suspendue jusqu’à la configuration et au résultat de l’analyse antivirus.' : 'Le fichier numérique n’a pas passé la validation.');
         }
       }
 
