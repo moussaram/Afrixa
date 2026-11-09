@@ -113,38 +113,89 @@ export function useSocialInteractions(video: Video) {
   return { isLiked, isSaved, likeCount, saveCount, isLikeLoading, isSaveLoading, toggleLike, toggleSave };
 }
 
-/** Persist follow/unfollow operations and prevent self-following. */
-export function useFollow(initialFollowing: boolean, targetUserId: string, currentUserId: string) {
+/** Persist follow/unfollow and private-account follow requests in Supabase. */
+export function useFollow(
+  initialFollowing: boolean,
+  targetUserId: string,
+  currentUserId: string,
+  isPrivate = false,
+  initialRequestPending = false,
+) {
   const [isFollowing, setIsFollowing] = useState(initialFollowing);
+  const [isRequestPending, setIsRequestPending] = useState(initialRequestPending);
   const [isLoading, setIsLoading] = useState(false);
-  useEffect(() => { setIsFollowing(initialFollowing); }, [initialFollowing, targetUserId]);
+
+  useEffect(() => {
+    setIsFollowing(initialFollowing);
+    setIsRequestPending(initialRequestPending);
+  }, [initialFollowing, initialRequestPending, targetUserId]);
+
   const toggle = useCallback(async () => {
     if (targetUserId === currentUserId || isLoading) return;
     if (!currentUserId) {
       toast.error('Connectez-vous pour suivre ce compte.');
       return;
     }
-    const nextFollowing = !isFollowing;
-    setIsFollowing(nextFollowing);
+
     setIsLoading(true);
     try {
-      if (nextFollowing) {
+      if (isPrivate && !isFollowing) {
+        if (isRequestPending) {
+          const { error } = await supabase.from('follow_requests')
+            .delete()
+            .eq('requester_id', currentUserId)
+            .eq('target_id', targetUserId)
+            .eq('status', 'pending');
+          if (error) throw error;
+          setIsRequestPending(false);
+          toast.success('Demande d’abonnement annulée.');
+        } else {
+          const { error } = await supabase.from('follow_requests').insert({
+            requester_id: currentUserId,
+            target_id: targetUserId,
+            status: 'pending',
+          });
+          if (error && error.code !== '23505') throw error;
+          setIsRequestPending(true);
+          toast.success('Demande d’abonnement envoyée.');
+        }
+        return;
+      }
+
+      if (isRequestPending) {
+        const { error: requestError } = await supabase.from('follow_requests')
+          .delete()
+          .eq('requester_id', currentUserId)
+          .eq('target_id', targetUserId)
+          .eq('status', 'pending');
+        if (requestError) throw requestError;
+        setIsRequestPending(false);
+      }
+
+      if (isFollowing) {
+        const { error } = await supabase.from('follows')
+          .delete()
+          .eq('follower_id', currentUserId)
+          .eq('following_id', targetUserId);
+        if (error) throw error;
+        setIsFollowing(false);
+        toast.success('Vous ne suivez plus ce compte.');
+      } else {
         const { error } = await supabase.from('follows').upsert(
           { follower_id: currentUserId, following_id: targetUserId },
           { onConflict: 'follower_id,following_id', ignoreDuplicates: true },
         );
         if (error) throw error;
-      } else {
-        const { error } = await supabase.from('follows')
-          .delete().eq('follower_id', currentUserId).eq('following_id', targetUserId);
-        if (error) throw error;
+        setIsFollowing(true);
+        toast.success('Vous suivez maintenant ce compte.');
       }
-    } catch {
-      setIsFollowing(!nextFollowing);
+    } catch (error) {
+      console.error('Follow action failed', error);
       toast.error("Impossible de mettre à jour l'abonnement. Réessayez.");
     } finally {
       setIsLoading(false);
     }
-  }, [currentUserId, isFollowing, isLoading, targetUserId]);
-  return { isFollowing, isLoading, toggle };
+  }, [currentUserId, isFollowing, isLoading, isPrivate, isRequestPending, targetUserId]);
+
+  return { isFollowing, isRequestPending, isLoading, toggle };
 }

@@ -20,6 +20,7 @@ const Discover = lazy(() => import("./pages/Discover"));
 const Create = lazy(() => import("./pages/Create"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const Profile = lazy(() => import("./pages/Profile"));
+const FollowRequests = lazy(() => import("./pages/FollowRequests"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Messages = lazy(() => import("./pages/Messages"));
 const Chat = lazy(() => import("./pages/Chat"));
@@ -75,7 +76,7 @@ const AppContent = () => {
   }, [location.pathname]);
   const { user, loading } = useAuth();
 
-  const hideNavPaths = ['/create', '/settings', '/messages', '/chat', '/live', '/auth', '/onboarding'];
+  const hideNavPaths = ['/create', '/settings', '/messages', '/chat', '/live', '/auth', '/onboarding', '/follow-requests'];
   const hideNav = hideNavPaths.some(path => location.pathname.startsWith(path));
 
   // Redirect to login if not authenticated (sauf pages auth)
@@ -113,6 +114,7 @@ const AppContent = () => {
           <Route path="/create" element={<Create />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/follow-requests" element={<FollowRequests />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/my-info" element={<MyInfo />} />
           <Route path="/messages" element={<Messages />} />

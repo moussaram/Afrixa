@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Settings, Share2, MoreHorizontal, Grid3X3, Heart, Bookmark, MessageCircle, Zap, Briefcase, Globe } from 'lucide-react';
+import { Settings, Share2, MoreHorizontal, Grid3X3, Heart, Bookmark, MessageCircle, Zap, Briefcase, Globe, UserPlus } from 'lucide-react';
 import { VideoThumbnail } from '@/components/video/VideoThumbnail';
 import { Button } from '@/components/ui/button';
 import { formatNumber } from '@/lib/formatters';
@@ -60,7 +60,7 @@ const Profile = () => {
     try {
       const [videoResult, followingResult, followersResult, unreadResult, likeResult, saveResult] = await Promise.all([
         supabase.from('videos')
-          .select('id,user_id,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
+          .select('id,user_id,thumbnail_url,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
           .eq('user_id', userId).order('created_at', { ascending: false }).limit(100),
         supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', userId),
         supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', userId),
@@ -101,7 +101,7 @@ const Profile = () => {
           id: row.id,
           user: { id: row.user_id, username: author?.username || 'utilisateur', displayName: name, avatar: author?.avatar_url || '/placeholder.svg', followers: 0, following: 0, likes: 0 },
           videoUrl: '',
-          thumbnailUrl: '/placeholder.svg',
+          thumbnailUrl: row.thumbnail_url || '/placeholder.svg',
           description: row.description || '',
           hashtags: [],
           music: { title: '', artist: '', coverUrl: '' },
@@ -147,6 +147,7 @@ const Profile = () => {
           <Button variant="ghost" size="icon" onClick={() => setMenuOpen(true)}><MoreHorizontal className="w-6 h-6" /></Button>
           <h1 className="text-lg font-bold text-foreground">@{username}</h1>
           <div className="flex items-center gap-1">
+            <Link to="/follow-requests"><Button variant="ghost" size="icon" aria-label="Demandes d’abonnement"><UserPlus className="w-6 h-6" /></Button></Link>
             <Link to="/messages" className="relative"><Button variant="ghost" size="icon"><MessageCircle className="w-6 h-6" /></Button>
               {unreadCount > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 flex items-center justify-center text-xs font-bold bg-destructive text-destructive-foreground rounded-full px-1">{unreadCount > 99 ? '99+' : unreadCount}</span>}
             </Link>
