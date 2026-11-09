@@ -28,6 +28,7 @@ CREATE OR REPLACE VIEW public.public_profiles
 WITH (security_barrier = true)
 AS
 SELECT user_id, username, prenom, nom, avatar_url, bio, is_private, created_at
-FROM public.profiles;
+FROM public.profiles
+WHERE COALESCE(is_private, false) = false OR user_id = auth.uid();
 
 GRANT SELECT ON public.public_profiles TO anon, authenticated;
