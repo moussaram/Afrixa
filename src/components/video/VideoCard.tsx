@@ -8,7 +8,7 @@ import { SharePanel } from './SharePanel';
 import { ProductBottomSheet } from '@/components/marketplace/ProductBottomSheet';
 import { useSocialInteractions, useFollow } from '@/hooks/useSocialInteractions';
 import { useNavigate } from 'react-router-dom';
-import { currentUser } from '@/data/mockData';
+import { useAuth } from '@/contexts/useAuth';
 import { CreatorBadge } from '@/components/creators/CreatorBadge';
 import { CreatorTipButton } from '@/components/creators/CreatorTipButton';
 import { AdvancedVideoControls } from '@/components/video/AdvancedVideoControls';
@@ -38,6 +38,7 @@ export const VideoCard = ({
   onSave,
 }: VideoCardProps) => {
   const navigate = useNavigate();
+  const { user: authUser } = useAuth();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -110,7 +111,7 @@ export const VideoCard = ({
   const { isFollowing, toggle: toggleFollow } = useFollow(
     video.user.isFollowing ?? false,
     video.user.id,
-    currentUser.id
+    authUser?.id || ''
   );
 
   // Play/pause when becoming active
