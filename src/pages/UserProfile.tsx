@@ -158,6 +158,7 @@ const UserProfile = () => {
 
   const username = profile?.username || 'utilisateur';
   const displayName = [profile?.prenom, profile?.nom].filter(Boolean).join(' ') || username;
+  const canViewPrivateStats = !profile?.is_private || isOwnProfile || isFollowing;
   const creatorLevel = followersCount >= 500000 ? 'elite' : followersCount >= 50000 ? 'verified' : followersCount >= 5000 ? 'rising' : 'starter';
 
   const handleFollow = async () => {
@@ -204,9 +205,9 @@ const UserProfile = () => {
           <p className="text-foreground font-medium">{displayName}</p>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2"><CreatorBadge level={creatorLevel} />{profile.is_private && <span className="rounded-full border border-border/50 px-3 py-1 text-xs text-muted-foreground">Compte privé</span>}</div>
           <div className="flex items-center gap-8 mt-4">
-            <div className="text-center"><p className="text-xl font-bold text-foreground">{formatNumber(followingCount)}</p><p className="text-sm text-muted-foreground">Abonnements</p></div>
-            <div className="text-center"><p className="text-xl font-bold text-foreground">{formatNumber(followersCount)}</p><p className="text-sm text-muted-foreground">Abonnés</p></div>
-            <div className="text-center"><p className="text-xl font-bold text-foreground">{formatNumber(likesCount)}</p><p className="text-sm text-muted-foreground">J'aime</p></div>
+            <div className="text-center"><p className="text-xl font-bold text-foreground">{canViewPrivateStats ? formatNumber(followingCount) : '—'}</p><p className="text-sm text-muted-foreground">Abonnements</p></div>
+            <div className="text-center"><p className="text-xl font-bold text-foreground">{canViewPrivateStats ? formatNumber(followersCount) : '—'}</p><p className="text-sm text-muted-foreground">Abonnés</p></div>
+            <div className="text-center"><p className="text-xl font-bold text-foreground">{canViewPrivateStats ? formatNumber(likesCount) : '—'}</p><p className="text-sm text-muted-foreground">J'aime</p></div>
           </div>
           {profile.bio && <p className="text-foreground text-center mt-4 max-w-sm">{profile.bio}</p>}
           {!isOwnProfile && <div className="flex items-center gap-3 mt-5 w-full max-w-sm">
