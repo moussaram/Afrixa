@@ -39,6 +39,7 @@ const VerifyOTP = () => {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const verificationInFlight = useRef(false);
 
   useEffect(() => {
     if (!phone) navigate('/auth/login');
@@ -82,6 +83,8 @@ const VerifyOTP = () => {
   };
 
   const verifyCode = async (code: string) => {
+    if (!/^\d{6}$/.test(code) || verificationInFlight.current) return;
+    verificationInFlight.current = true;
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.verifyOtp({
@@ -91,37 +94,84 @@ const VerifyOTP = () => {
       });
 
       if (error) {
-        toast.error('Code incorrect ou expiré');
+        toast.error('Code incorrect ou expiré. Vérifiez le code reçu ou demandez-en un nouveau.');
         setOtp(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
         return;
       }
 
-      // Si inscription : mettre à jour le profil
-      if (mode === 'register' && formData && data.user) {
-        const username = `${formData.prenom?.toLowerCase().replace(/\s/g, '_')}_${Math.floor(Math.random() * 9999)}`;
-        const { error: profileError } = await supabase.from('profiles').update({
-          nom: formData.nom,
-          prenom: formData.prenom,
-          deuxieme_prenom: formData.deuxieme_prenom || null,
-          date_naissance: formData.date_naissance || null,
-          lieu_naissance: formData.lieu_naissance || null,
-          profession: formData.profession || null,
-          numero_mobile: phone,
-          nationalite: formData.nationalite?.name || null,
-          nationalite_flag: formData.nationalite?.flag || null,
-          username,
-          inscription_complete: true,
-        }).eq('user_id', data.user.id);
+      if (!data.user) {
+        toast.error('La vérification a échoué. Veuillez réessayer.');
+        return;
+      }
+
+      // Supabase conserve les métadonnées d'inscription dans auth.users.
+      // Elles servent de secours si le state de navigation est absent.
+      const metadata = data.user?.user_metadata ?? {};
+      const registrationData: RegisterOtpFormData | null =
+        formData ??
+        (metadata.nom && metadata.prenom
+          ? {
+              nom: String(metadata.nom),
+              prenom: String(metadata.prenom),
+              deuxieme_prenom: metadata.deuxieme_prenom ? String(metadata.deuxieme_prenom) : undefined,
+              date_naissance: metadata.date_naissance ? String(metadata.date_naissance) : undefined,
+              lieu_naissance: metadata.lieu_naissance ? String(metadata.lieu_naissance) : undefined,
+              profession: metadata.profession ? String(metadata.profession) : undefined,
+              nationalite:
+                metadata.nationalite || metadata.nationalite_flag
+                  ? {
+                      name: metadata.nationalite ? String(metadata.nationalite) : undefined,
+                      flag: metadata.nationalite_flag ? String(metadata.nationalite_flag) : undefined,
+                    }
+                  : null,
+            }
+          : null);
+
+      // A newly registered account must have a profile row, but it is only
+      // complete when all required identity fields are present.
+      if (mode === 'register') {
+        const firstName = registrationData?.prenom?.trim() || '';
+        const lastName = registrationData?.nom?.trim() || '';
+        const dateOfBirth = registrationData?.date_naissance || '';
+        const birthPlace = registrationData?.lieu_naissance?.trim() || '';
+        const profession = registrationData?.profession?.trim() || '';
+        const isProfileComplete = Boolean(firstName && lastName && dateOfBirth && birthPlace && profession);
+        const username = firstName
+          ? `${firstName.toLowerCase().replace(/\s+/g, '_')}_${data.user.id.slice(0, 6)}`
+          : null;
+
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            user_id: data.user.id,
+            nom: lastName || null,
+            prenom: firstName || null,
+            deuxieme_prenom: registrationData?.deuxieme_prenom || null,
+            date_naissance: dateOfBirth || null,
+            lieu_naissance: birthPlace || null,
+            profession: profession || null,
+            numero_mobile: phone,
+            nationalite: registrationData?.nationalite?.name || null,
+            nationalite_flag: registrationData?.nationalite?.flag || null,
+            username,
+            inscription_complete: isProfileComplete,
+          }, { onConflict: 'user_id' });
 
         if (profileError) {
-          console.error('Profile completion after phone verification failed', profileError);
-          toast.error('Numéro vérifié. Complétez votre profil dans les paramètres.');
-          navigate('/settings');
+          console.error('Profile initialization after phone verification failed', profileError);
+          toast.error('Votre numéro est vérifié, mais votre profil doit encore être enregistré.');
+          navigate('/auth/complete-profile');
           return;
         }
 
-        toast.success(`Bienvenue sur Afrixa, ${formData.prenom} ! 🎉`);
+        if (!isProfileComplete) {
+          toast.success('Numéro vérifié. Terminez les informations de votre profil.');
+          navigate('/auth/complete-profile');
+          return;
+        }
+
+        toast.success('Bienvenue sur Afrixa, ' + firstName + ' ! 🎉');
       } else if (mode === 'forgot') {
         navigate('/auth/reset-password', { state: { phoneRecovery: true, phone } });
         return;
@@ -130,28 +180,40 @@ const VerifyOTP = () => {
       }
 
       navigate('/');
+    } catch (verificationError) {
+      console.error('SMS verification failed', verificationError);
+      toast.error('Impossible de vérifier le code pour le moment. Réessayez.');
     } finally {
+      verificationInFlight.current = false;
       setLoading(false);
     }
   };
 
   const handleVerify = () => {
     const code = otp.join('');
-    if (code.length < 6) { toast.error('Entrez le code à 6 chiffres'); return; }
+    if (!/^\d{6}$/.test(code)) { toast.error('Entrez le code à 6 chiffres'); return; }
     verifyCode(code);
   };
 
   const handleResend = async () => {
+    if (!phone || timer > 0 || resending || loading) return;
     setResending(true);
     try {
       const { error } = mode === 'register'
         ? await supabase.auth.resend({ type: 'sms', phone })
         : await supabase.auth.signInWithOtp({ phone, options: { shouldCreateUser: false } });
-      if (error) { toast.error('Erreur de renvoi'); return; }
+      if (error) {
+        console.error('SMS resend failed', error);
+        toast.error(error.message || 'Impossible de renvoyer le code. Réessayez plus tard.');
+        return;
+      }
       setTimer(RESEND_COOLDOWN);
       setOtp(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
       toast.success('Nouveau code envoyé !');
+    } catch (resendError) {
+      console.error('SMS resend failed', resendError);
+      toast.error('Impossible de renvoyer le code pour le moment.');
     } finally {
       setResending(false);
     }
@@ -190,6 +252,8 @@ const VerifyOTP = () => {
               ref={el => { inputRefs.current[i] = el; }}
               type="text"
               inputMode="numeric"
+              autoComplete="one-time-code"
+              disabled={loading}
               maxLength={1}
               value={digit}
               onChange={e => handleInput(i, e.target.value)}
@@ -231,7 +295,7 @@ const VerifyOTP = () => {
         {/* Resend */}
         <button
           onClick={handleResend}
-          disabled={timer > 0 || resending}
+          disabled={timer > 0 || resending || loading}
           className={cn(
             'flex items-center gap-2 text-sm font-medium transition-all',
             timer === 0 ? 'text-primary' : 'text-muted-foreground cursor-not-allowed'

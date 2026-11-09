@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Search, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 
 const CompleteProfile = () => {
   const navigate = useNavigate();
-  const { user, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
 
@@ -24,6 +24,22 @@ const CompleteProfile = () => {
     nationalite: null as AfricanCountry | null,
   });
 
+  // Pre-fill fields already collected during registration or saved previously.
+  useEffect(() => {
+    if (!profile) return;
+    const country = africanCountries.find(item => item.name === profile.nationalite) ?? null;
+    setForm(current => ({
+      ...current,
+      nom: current.nom || profile.nom || '',
+      prenom: current.prenom || profile.prenom || '',
+      deuxieme_prenom: current.deuxieme_prenom || profile.deuxieme_prenom || '',
+      date_naissance: current.date_naissance || profile.date_naissance || '',
+      lieu_naissance: current.lieu_naissance || profile.lieu_naissance || '',
+      profession: current.profession || profile.profession || '',
+      nationalite: current.nationalite || country,
+    }));
+  }, [profile]);
+
   const setField = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm(f => ({ ...f, [k]: v }));
 
@@ -32,32 +48,48 @@ const CompleteProfile = () => {
   );
 
   const handleComplete = async () => {
-    if (!form.nom.trim() || !form.prenom.trim() || !form.date_naissance || !form.lieu_naissance.trim() || !form.profession.trim()) {
+    const nom = form.nom.trim();
+    const prenom = form.prenom.trim();
+    const lieuNaissance = form.lieu_naissance.trim();
+    const profession = form.profession.trim();
+
+    if (!nom || !prenom || !form.date_naissance || !lieuNaissance || !profession) {
       toast.error('Remplissez tous les champs obligatoires');
       return;
     }
-    if (!user) return;
+    if (!user) {
+      toast.error('Votre session a expiré. Reconnectez-vous.');
+      navigate('/auth/login');
+      return;
+    }
 
     setLoading(true);
     try {
-      const username = `${form.prenom.toLowerCase().replace(/\s/g, '_')}_${Math.floor(Math.random() * 9999)}`;
-      const { error } = await supabase.from('profiles').update({
-        nom: form.nom,
-        prenom: form.prenom,
-        deuxieme_prenom: form.deuxieme_prenom || null,
+      const username = profile?.username ||
+        `${prenom.toLowerCase().replace(/\s+/g, '_')}_${user.id.slice(0, 6)}`;
+      const { error } = await supabase.from('profiles').upsert({
+        user_id: user.id,
+        nom,
+        prenom,
+        deuxieme_prenom: form.deuxieme_prenom.trim() || null,
         date_naissance: form.date_naissance,
-        lieu_naissance: form.lieu_naissance,
-        profession: form.profession,
+        lieu_naissance: lieuNaissance,
+        profession,
+        numero_mobile: user.phone || profile?.numero_mobile || null,
         nationalite: form.nationalite?.name || null,
         nationalite_flag: form.nationalite?.flag || null,
         username,
         inscription_complete: true,
-      }).eq('user_id', user.id);
+      }, { onConflict: 'user_id' });
 
-      if (error) { toast.error('Erreur de mise à jour'); return; }
+      if (error) throw error;
+
       await refreshProfile();
-      toast.success(`Bienvenue sur Afrixa, ${form.prenom} ! 🎉`);
+      toast.success(`Bienvenue sur Afrixa, ${prenom} ! 🎉`);
       navigate('/');
+    } catch (error) {
+      console.error('Profile completion failed', error);
+      toast.error('Impossible d’enregistrer votre profil. Vérifiez votre connexion puis réessayez.');
     } finally {
       setLoading(false);
     }
