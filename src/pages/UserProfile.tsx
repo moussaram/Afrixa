@@ -73,7 +73,7 @@ const UserProfile = () => {
           .select('user_id,username,prenom,nom,avatar_url,bio,is_private')
           .eq('user_id', userId).maybeSingle(),
         supabase.from('videos')
-          .select('id,user_id,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
+          .select('id,user_id,thumbnail_url,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
           .eq('user_id', userId).eq('is_published', true).eq('moderation_status', 'approved')
           .order('created_at', { ascending: false }).limit(100),
         supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', userId),
@@ -99,7 +99,7 @@ const UserProfile = () => {
           likes: 0,
         },
         videoUrl: '',
-        thumbnailUrl: '/placeholder.svg',
+        thumbnailUrl: row.thumbnail_url || '/placeholder.svg',
         description: row.description || '',
         hashtags: [],
         music: { title: '', artist: '', coverUrl: '' },
