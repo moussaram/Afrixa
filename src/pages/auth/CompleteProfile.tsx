@@ -66,7 +66,7 @@ const CompleteProfile = () => {
     setLoading(true);
     try {
       const username = profile?.username ||
-        `${prenom.toLowerCase().replace(/\\s+/g, '_')}_${user.id.slice(0, 6)}`;
+        `${prenom.toLowerCase().replace(/\s+/g, '_')}_${user.id.slice(0, 6)}`;
       const { error } = await supabase.from('profiles').upsert({
         user_id: user.id,
         nom,
