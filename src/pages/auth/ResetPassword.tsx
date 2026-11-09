@@ -17,27 +17,74 @@ const ResetPassword = () => {
   const [isRecovery, setIsRecovery] = useState(false);
 
   useEffect(() => {
-    // Recovery par email (lien) ou par téléphone après validation OTP.
-    const hash = window.location.hash;
-    if (hash.includes('type=recovery') || (location.state as { phoneRecovery?: boolean } | null)?.phoneRecovery) {
-      setIsRecovery(true);
+    let active = true;
+    const phoneRecovery = (location.state as { phoneRecovery?: boolean } | null)?.phoneRecovery === true;
+    const emailRecovery =
+      window.location.hash.includes('type=recovery') ||
+      new URLSearchParams(window.location.search).get('type') === 'recovery';
+
+    const enableRecoveryIfSessionExists = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (!active) return;
+        // A normal signed-in session is not proof that a password-reset flow was started.
+        setIsRecovery(!error && Boolean(data.session) && (phoneRecovery || emailRecovery));
+      } catch (error) {
+        console.error('Unable to validate password recovery session', error);
+        if (active) setIsRecovery(false);
+      }
+    };
+
+    if (phoneRecovery || emailRecovery) {
+      void enableRecoveryIfSessionExists();
     }
-    // Écouter l'event PASSWORD_RECOVERY
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') setIsRecovery(true);
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      if (event === 'PASSWORD_RECOVERY' && session) setIsRecovery(true);
+      if (event === 'SIGNED_OUT') setIsRecovery(false);
     });
-    return () => subscription.unsubscribe();
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [location.state]);
 
   const handleReset = async () => {
-    if (password.length < 8) { toast.error('Minimum 8 caractères'); return; }
-    if (password !== confirm) { toast.error('Les mots de passe ne correspondent pas'); return; }
+    if (!isRecovery) {
+      toast.error('Ouvrez le lien ou validez le code de récupération avant de continuer.');
+      return;
+    }
+    if (password.length < 8) {
+      toast.error('Le mot de passe doit contenir au moins 8 caractères.');
+      return;
+    }
+    if (password !== confirm) {
+      toast.error('Les mots de passe ne correspondent pas.');
+      return;
+    }
+
     setLoading(true);
     try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        setIsRecovery(false);
+        toast.error('Votre session de récupération a expiré. Demandez un nouveau lien ou code.');
+        return;
+      }
+
       const { error } = await supabase.auth.updateUser({ password });
-      if (error) { toast.error('Erreur de mise à jour'); return; }
+      if (error) {
+        console.error('Password update failed', error);
+        toast.error('Impossible de modifier le mot de passe. Réessayez.');
+        return;
+      }
       toast.success('Mot de passe mis à jour avec succès !');
       navigate('/');
+    } catch (error) {
+      console.error('Password reset failed', error);
+      toast.error('Le service de réinitialisation est momentanément indisponible.');
     } finally {
       setLoading(false);
     }
