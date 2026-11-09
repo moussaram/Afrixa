@@ -156,6 +156,9 @@ const UserProfile = () => {
       return;
     }
     await toggleFollow();
+    const { count, error: countError } = await (supabase as any).from('follows')
+      .select('follower_id', { count: 'exact', head: true }).eq('following_id', userId);
+    if (!countError) setFollowers(count || 0);
     toast({ title: isFollowing ? 'Abonnement supprimé' : 'Abonnement ajouté' });
   };
 
