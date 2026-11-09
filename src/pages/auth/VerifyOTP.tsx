@@ -241,6 +241,7 @@ const VerifyOTP = () => {
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
+              disabled={loading}
               maxLength={1}
               value={digit}
               onChange={e => handleInput(i, e.target.value)}
@@ -282,7 +283,7 @@ const VerifyOTP = () => {
         {/* Resend */}
         <button
           onClick={handleResend}
-          disabled={timer > 0 || resending}
+          disabled={timer > 0 || resending || loading}
           className={cn(
             'flex items-center gap-2 text-sm font-medium transition-all',
             timer === 0 ? 'text-primary' : 'text-muted-foreground cursor-not-allowed'
