@@ -49,16 +49,61 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(DEV_MODE ? false : true);
 
   const fetchProfile = async (authUser: User) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', authUser.id)
-      .single();
-    setProfile(data ? {
-      ...(data as Profile),
-      mobile_verifie: !!authUser.phone_confirmed_at,
-      email_verifie: !!authUser.email_confirmed_at,
-    } : null);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', authUser.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      // A profile can be absent if the database trigger was not installed.
+      // Create a minimal row from trusted Auth metadata, without marking it complete.
+      if (!data) {
+        const metadata = authUser.user_metadata ?? {};
+        const firstName = typeof metadata.prenom === 'string' ? metadata.prenom : null;
+        const lastName = typeof metadata.nom === 'string' ? metadata.nom : null;
+        const username = firstName
+          ? `${firstName.toLowerCase().trim().replace(/\\s+/g, '_')}_${authUser.id.slice(0, 6)}`
+          : null;
+
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .upsert({
+            user_id: authUser.id,
+            nom: lastName,
+            prenom: firstName,
+            deuxieme_prenom: typeof metadata.deuxieme_prenom === 'string' ? metadata.deuxieme_prenom : null,
+            date_naissance: typeof metadata.date_naissance === 'string' ? metadata.date_naissance : null,
+            lieu_naissance: typeof metadata.lieu_naissance === 'string' ? metadata.lieu_naissance : null,
+            profession: typeof metadata.profession === 'string' ? metadata.profession : null,
+            numero_mobile: authUser.phone ?? null,
+            nationalite: typeof metadata.nationalite === 'string' ? metadata.nationalite : null,
+            nationalite_flag: typeof metadata.nationalite_flag === 'string' ? metadata.nationalite_flag : null,
+            username,
+            inscription_complete: false,
+          }, { onConflict: 'user_id', ignoreDuplicates: true });
+
+        if (insertError) throw insertError;
+      }
+
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', authUser.id)
+        .single();
+
+      if (profileError) throw profileError;
+      setProfile({
+        ...(profileData as Profile),
+        mobile_verifie: !!authUser.phone_confirmed_at,
+        email_verifie: !!authUser.email_confirmed_at,
+      });
+    } catch (error) {
+      console.error('Unable to load or initialize the authenticated user profile', error);
+      setProfile(null);
+    }
   };
 
   const refreshProfile = async () => {
