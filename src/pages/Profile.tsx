@@ -178,7 +178,6 @@ const Profile = () => {
             <div className="flex-1"><p className="text-sm font-bold">Booster mes vidéos</p><p className="text-xs text-muted-foreground">Développe ton audience sur Afrixa</p></div>
             <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-primary">Pub</span>
           </button>
-          {profile?.bio && <p className="mt-4 max-w-sm text-center">{profile.bio}</p>}
           <button onClick={() => { void navigator.clipboard.writeText(`${window.location.origin}/user/${user?.id || ''}`); }} className="mt-3 flex items-center gap-2 text-primary hover:underline"><LinkIcon className="h-4 w-4" /><span className="text-sm font-medium">Partager mon profil Afrixa</span></button>
         </div>
       </section>
