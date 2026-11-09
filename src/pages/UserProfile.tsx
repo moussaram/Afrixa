@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, MoreHorizontal, Grid3X3, Heart, MessageCircle, Link as LinkIcon, Globe, Briefcase, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Share2, MoreHorizontal, Grid3X3, Heart, MessageCircle, Link as LinkIcon, ShoppingBag } from 'lucide-react';
 import { VideoThumbnail } from '@/components/video/VideoThumbnail';
 import { Button } from '@/components/ui/button';
 import { formatNumber } from '@/lib/formatters';
@@ -29,9 +29,6 @@ type PublicProfile = {
   nom: string | null;
   avatar_url: string | null;
   bio: string | null;
-  profession: string | null;
-  nationalite: string | null;
-  nationalite_flag: string | null;
 };
 type VideoRow = {
   id: string; user_id: string;  thumbnail_url: string | null;
@@ -69,7 +66,7 @@ const UserProfile = () => {
     try {
       const [profileResult, videoResult, followersResult, followingResult] = await Promise.all([
         supabase.from('public_profiles')
-          .select('user_id,username,prenom,nom,avatar_url,bio,profession,nationalite,nationalite_flag')
+          .select('user_id,username,prenom,nom,avatar_url,bio')
           .eq('user_id', userId).maybeSingle(),
         supabase.from('videos')
           .select('id,user_id,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
@@ -192,10 +189,6 @@ const UserProfile = () => {
           <h2 className="text-xl font-bold text-foreground mb-1">@{username}</h2>
           <p className="text-foreground font-medium">{displayName}</p>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2"><CreatorBadge level={creatorLevel} /></div>
-          <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
-            {profile.nationalite && <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/40 text-sm text-foreground">{profile.nationalite_flag && <span>{profile.nationalite_flag}</span>}<Globe className="w-3.5 h-3.5 text-muted-foreground" />{profile.nationalite}</span>}
-            {profile.profession && <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/40 text-sm text-foreground"><Briefcase className="w-3.5 h-3.5 text-muted-foreground" />{profile.profession}</span>}
-          </div>
           <div className="flex items-center gap-8 mt-4">
             <div className="text-center"><p className="text-xl font-bold text-foreground">{formatNumber(followingCount)}</p><p className="text-sm text-muted-foreground">Abonnements</p></div>
             <div className="text-center"><p className="text-xl font-bold text-foreground">{formatNumber(followersCount)}</p><p className="text-sm text-muted-foreground">Abonnés</p></div>
