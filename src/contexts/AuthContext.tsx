@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const firstName = typeof metadata.prenom === 'string' ? metadata.prenom : null;
         const lastName = typeof metadata.nom === 'string' ? metadata.nom : null;
         const username = firstName
-          ? `${firstName.toLowerCase().trim().replace(/\\s+/g, '_')}_${authUser.id.slice(0, 6)}`
+          ? `${firstName.toLowerCase().trim().replace(/\s+/g, '_')}_${authUser.id.slice(0, 6)}`
           : null;
 
         const { error: insertError } = await supabase
