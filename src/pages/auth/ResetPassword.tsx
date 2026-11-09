@@ -25,7 +25,7 @@ const ResetPassword = () => {
       try {
         const { data, error } = await supabase.auth.getSession();
         if (!active) return;
-        setIsRecovery(!error && Boolean(data.session) && (phoneRecovery || emailRecovery));
+        setIsRecovery(!error && Boolean(data.session) && (phoneRecovery || emailRecovery || Boolean(data.session.user)));
       } catch (error) {
         console.error('Unable to validate password recovery session', error);
         if (active) setIsRecovery(false);
