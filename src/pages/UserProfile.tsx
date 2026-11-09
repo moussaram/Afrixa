@@ -29,6 +29,7 @@ type PublicProfile = {
   nom: string | null;
   avatar_url: string | null;
   bio: string | null;
+  is_private: boolean;
 };
 type VideoRow = {
   id: string; user_id: string;  thumbnail_url: string | null;
@@ -46,6 +47,7 @@ const UserProfile = () => {
   const [followingCount, setFollowingCount] = useState(0);
   const [likesCount, setLikesCount] = useState(0);
   const [initialFollowing, setInitialFollowing] = useState(false);
+  const [initialRequestPending, setInitialRequestPending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('videos');
@@ -57,6 +59,8 @@ const UserProfile = () => {
     initialFollowing,
     userId || '',
     currentUser?.id || '',
+    Boolean(profile?.is_private),
+    initialRequestPending,
   );
 
   const loadProfile = useCallback(async () => {
@@ -66,7 +70,7 @@ const UserProfile = () => {
     try {
       const [profileResult, videoResult, followersResult, followingResult] = await Promise.all([
         supabase.from('public_profiles')
-          .select('user_id,username,prenom,nom,avatar_url,bio')
+          .select('user_id,username,prenom,nom,avatar_url,bio,is_private')
           .eq('user_id', userId).maybeSingle(),
         supabase.from('videos')
           .select('id,user_id,description,views_count,likes_count,comments_count,shares_count,saves_count,created_at')
@@ -130,7 +134,18 @@ const UserProfile = () => {
           .select('follower_id').eq('follower_id', currentUser.id).eq('following_id', userId).maybeSingle();
         if (followError) throw followError;
         setInitialFollowing(Boolean(followRow));
-      } else setInitialFollowing(false);
+        const { data: requestRow, error: requestError } = await supabase.from('follow_requests')
+          .select('id')
+          .eq('requester_id', currentUser.id)
+          .eq('target_id', userId)
+          .eq('status', 'pending')
+          .maybeSingle();
+        if (requestError) throw requestError;
+        setInitialRequestPending(Boolean(requestRow));
+      } else {
+        setInitialFollowing(false);
+        setInitialRequestPending(false);
+      }
     } catch (loadError) {
       console.error('Public profile load failed', loadError);
       setError('Impossible de charger ce profil.');
@@ -147,7 +162,6 @@ const UserProfile = () => {
 
   const handleFollow = async () => {
     await toggleFollow();
-    toast.success(isFollowing ? `Vous ne suivez plus @${username}.` : `Vous suivez maintenant @${username}.`);
   };
   const handleMessage = () => {
     if (!currentUser) { toast.error('Connectez-vous pour envoyer un message.'); return; }
@@ -188,7 +202,7 @@ const UserProfile = () => {
           <img src={profile.avatar_url || '/placeholder.svg'} alt={username} className="w-24 h-24 rounded-full object-cover border-4 border-primary mb-4" />
           <h2 className="text-xl font-bold text-foreground mb-1">@{username}</h2>
           <p className="text-foreground font-medium">{displayName}</p>
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2"><CreatorBadge level={creatorLevel} /></div>
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2"><CreatorBadge level={creatorLevel} />{profile.is_private && <span className="rounded-full border border-border/50 px-3 py-1 text-xs text-muted-foreground">Compte privé</span>}</div>
           <div className="flex items-center gap-8 mt-4">
             <div className="text-center"><p className="text-xl font-bold text-foreground">{formatNumber(followingCount)}</p><p className="text-sm text-muted-foreground">Abonnements</p></div>
             <div className="text-center"><p className="text-xl font-bold text-foreground">{formatNumber(followersCount)}</p><p className="text-sm text-muted-foreground">Abonnés</p></div>
@@ -196,7 +210,7 @@ const UserProfile = () => {
           </div>
           {profile.bio && <p className="text-foreground text-center mt-4 max-w-sm">{profile.bio}</p>}
           {!isOwnProfile && <div className="flex items-center gap-3 mt-5 w-full max-w-sm">
-            <Button variant={isFollowing ? 'outline' : 'gradient'} className="flex-1" onClick={() => void handleFollow()} disabled={followLoading}>{isFollowing ? 'Abonné ✓' : 'Suivre'}</Button>
+            <Button variant={isFollowing || isRequestPending ? 'outline' : 'gradient'} className="flex-1" onClick={() => void handleFollow()} disabled={followLoading}>{isFollowing ? 'Abonné ✓' : isRequestPending ? 'Annuler la demande' : profile.is_private ? 'Demander à suivre' : 'Suivre'}</Button>
             <Button variant="glass" className="flex-1" onClick={handleMessage}><MessageCircle className="w-4 h-4 mr-2" />Message</Button>
             <SuperNotificationButton creatorId={userId || ''} />
           </div>}
@@ -210,7 +224,7 @@ const UserProfile = () => {
         {tabs.map(tab => { const Icon = tab.icon; return <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn('flex-1 flex items-center justify-center py-3 transition-all duration-200', activeTab === tab.id ? 'text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground')}><Icon className="w-5 h-5" /></button>; })}
       </div>
       <div className="px-1 py-2">
-        {activeTab === 'videos' && (videos.length ? <div className="grid grid-cols-3 gap-0.5">{videos.map(video => <VideoThumbnail key={video.id} video={video} className="aspect-[9/16]" />)}</div> : <div className="py-16 text-center"><Grid3X3 className="w-10 h-10 mx-auto text-muted-foreground mb-3" /><p className="text-sm text-muted-foreground">Aucune vidéo publiée pour le moment.</p></div>)}
+        {activeTab === 'videos' && (profile.is_private && !isOwnProfile && !isFollowing ? <div className="py-16 px-6 text-center"><Grid3X3 className="w-10 h-10 mx-auto text-muted-foreground mb-3" /><p className="text-sm font-medium text-foreground">Compte privé</p><p className="mt-1 text-sm text-muted-foreground">Demandez à suivre ce compte pour voir ses vidéos.</p></div> : videos.length ? <div className="grid grid-cols-3 gap-0.5">{videos.map(video => <VideoThumbnail key={video.id} video={video} className="aspect-[9/16]" />)}</div> : <div className="py-16 text-center"><Grid3X3 className="w-10 h-10 mx-auto text-muted-foreground mb-3" /><p className="text-sm text-muted-foreground">Aucune vidéo publiée pour le moment.</p></div>)}
         {activeTab === 'likes' && <div className="py-16 text-center"><Heart className="w-10 h-10 mx-auto text-muted-foreground mb-3" /><p className="text-sm text-muted-foreground">Les vidéos aimées par ce compte restent privées.</p></div>}
       </div>
       <ProfileShareSheet open={shareOpen} onClose={() => setShareOpen(false)} username={username} displayName={displayName} avatarUrl={profile.avatar_url || undefined} />
