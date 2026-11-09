@@ -25,6 +25,7 @@ export interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
+  profileError: string | null;
   loading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -34,6 +35,7 @@ export const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
   profile: null,
+  profileError: null,
   loading: true,
   signOut: async () => {},
   refreshProfile: async () => {},
