@@ -128,38 +128,50 @@ const VerifyOTP = () => {
             }
           : null);
 
-      // Après validation du SMS, garantir l'existence du profil même si le trigger
-      // de création de profil n'a pas inséré de ligne.
-      if ((mode === 'register' || registrationData) && registrationData && data.user) {
-        const username = (registrationData.prenom || 'afrixa').toLowerCase().replace(/\s/g, '_') +
-          '_' + Math.floor(Math.random() * 9999);
-        const profilePayload = {
-          user_id: data.user.id,
-          nom: registrationData.nom || null,
-          prenom: registrationData.prenom || null,
-          deuxieme_prenom: registrationData.deuxieme_prenom || null,
-          date_naissance: registrationData.date_naissance || null,
-          lieu_naissance: registrationData.lieu_naissance || null,
-          profession: registrationData.profession || null,
-          numero_mobile: phone,
-          nationalite: registrationData.nationalite?.name || null,
-          nationalite_flag: registrationData.nationalite?.flag || null,
-          username,
-          inscription_complete: true,
-        };
+      // A newly registered account must have a profile row, but it is only
+      // complete when all required identity fields are present.
+      if (mode === 'register') {
+        const firstName = registrationData?.prenom?.trim() || '';
+        const lastName = registrationData?.nom?.trim() || '';
+        const dateOfBirth = registrationData?.date_naissance || '';
+        const birthPlace = registrationData?.lieu_naissance?.trim() || '';
+        const profession = registrationData?.profession?.trim() || '';
+        const isProfileComplete = Boolean(firstName && lastName && dateOfBirth && birthPlace && profession);
+        const username = firstName
+          ? `${firstName.toLowerCase().replace(/\\s+/g, '_')}_${data.user.id.slice(0, 6)}`
+          : null;
 
         const { error: profileError } = await supabase
           .from('profiles')
-          .upsert(profilePayload, { onConflict: 'user_id' });
+          .upsert({
+            user_id: data.user.id,
+            nom: lastName || null,
+            prenom: firstName || null,
+            deuxieme_prenom: registrationData?.deuxieme_prenom || null,
+            date_naissance: dateOfBirth || null,
+            lieu_naissance: birthPlace || null,
+            profession: profession || null,
+            numero_mobile: phone,
+            nationalite: registrationData?.nationalite?.name || null,
+            nationalite_flag: registrationData?.nationalite?.flag || null,
+            username,
+            inscription_complete: isProfileComplete,
+          }, { onConflict: 'user_id' });
 
         if (profileError) {
-          console.error('Profile completion after phone verification failed', profileError);
-          toast.error('Numéro vérifié. Complétez votre profil dans les paramètres.');
-          navigate('/settings');
+          console.error('Profile initialization after phone verification failed', profileError);
+          toast.error('Votre numéro est vérifié, mais votre profil doit encore être enregistré.');
+          navigate('/complete-profile');
           return;
         }
 
-        toast.success('Bienvenue sur Afrixa, ' + registrationData.prenom + ' ! 🎉');
+        if (!isProfileComplete) {
+          toast.success('Numéro vérifié. Terminez les informations de votre profil.');
+          navigate('/complete-profile');
+          return;
+        }
+
+        toast.success('Bienvenue sur Afrixa, ' + firstName + ' ! 🎉');
       } else if (mode === 'forgot') {
         navigate('/auth/reset-password', { state: { phoneRecovery: true, phone } });
         return;
