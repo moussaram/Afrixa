@@ -29,7 +29,7 @@ const Login = () => {
 
     setLoading(true);
     try {
-      let result;
+      let result: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>;
       if (isPhone) {
         const phone = normalizeInternationalPhone(loginIdentifier);
         if (!phone) {
