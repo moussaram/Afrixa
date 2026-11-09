@@ -97,22 +97,52 @@ const VerifyOTP = () => {
         return;
       }
 
-      // Si inscription : mettre à jour le profil
-      if (mode === 'register' && formData && data.user) {
-        const username = `${formData.prenom?.toLowerCase().replace(/\s/g, '_')}_${Math.floor(Math.random() * 9999)}`;
-        const { error: profileError } = await supabase.from('profiles').update({
-          nom: formData.nom,
-          prenom: formData.prenom,
-          deuxieme_prenom: formData.deuxieme_prenom || null,
-          date_naissance: formData.date_naissance || null,
-          lieu_naissance: formData.lieu_naissance || null,
-          profession: formData.profession || null,
+      // Supabase conserve les métadonnées d'inscription dans auth.users.
+      // Elles servent de secours si le state de navigation est absent.
+      const metadata = data.user?.user_metadata ?? {};
+      const registrationData: RegisterOtpFormData | null =
+        formData ??
+        (metadata.nom && metadata.prenom
+          ? {
+              nom: String(metadata.nom),
+              prenom: String(metadata.prenom),
+              deuxieme_prenom: metadata.deuxieme_prenom ? String(metadata.deuxieme_prenom) : undefined,
+              date_naissance: metadata.date_naissance ? String(metadata.date_naissance) : undefined,
+              lieu_naissance: metadata.lieu_naissance ? String(metadata.lieu_naissance) : undefined,
+              profession: metadata.profession ? String(metadata.profession) : undefined,
+              nationalite:
+                metadata.nationalite || metadata.nationalite_flag
+                  ? {
+                      name: metadata.nationalite ? String(metadata.nationalite) : undefined,
+                      flag: metadata.nationalite_flag ? String(metadata.nationalite_flag) : undefined,
+                    }
+                  : null,
+            }
+          : null);
+
+      // Après validation du SMS, garantir l'existence du profil même si le trigger
+      // de création de profil n'a pas inséré de ligne.
+      if ((mode === 'register' || registrationData) && registrationData && data.user) {
+        const username = (registrationData.prenom || 'afrixa').toLowerCase().replace(/\s/g, '_') +
+          '_' + Math.floor(Math.random() * 9999);
+        const profilePayload = {
+          user_id: data.user.id,
+          nom: registrationData.nom || null,
+          prenom: registrationData.prenom || null,
+          deuxieme_prenom: registrationData.deuxieme_prenom || null,
+          date_naissance: registrationData.date_naissance || null,
+          lieu_naissance: registrationData.lieu_naissance || null,
+          profession: registrationData.profession || null,
           numero_mobile: phone,
-          nationalite: formData.nationalite?.name || null,
-          nationalite_flag: formData.nationalite?.flag || null,
+          nationalite: registrationData.nationalite?.name || null,
+          nationalite_flag: registrationData.nationalite?.flag || null,
           username,
           inscription_complete: true,
-        }).eq('user_id', data.user.id);
+        };
+
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert(profilePayload, { onConflict: 'user_id' });
 
         if (profileError) {
           console.error('Profile completion after phone verification failed', profileError);
@@ -121,7 +151,7 @@ const VerifyOTP = () => {
           return;
         }
 
-        toast.success(`Bienvenue sur Afrixa, ${formData.prenom} ! 🎉`);
+        toast.success('Bienvenue sur Afrixa, ' + registrationData.prenom + ' ! 🎉');
       } else if (mode === 'forgot') {
         navigate('/auth/reset-password', { state: { phoneRecovery: true, phone } });
         return;
