@@ -85,7 +85,7 @@ const Onboarding = () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const client = supabase as any;
       const { data, error } = await client
-        .from('profiles')
+        .from('public_profiles')
         .select('user_id,username,prenom,nom,avatar_url,bio')
         .neq('user_id', user.id)
         .not('username', 'is', null)
