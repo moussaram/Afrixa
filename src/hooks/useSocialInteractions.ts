@@ -148,6 +148,7 @@ export function useFollow(
             .eq('status', 'pending');
           if (error) throw error;
           setIsRequestPending(false);
+          toast.success('Demande d’abonnement annulée.');
         } else {
           const { error } = await supabase.from('follow_requests').insert({
             requester_id: currentUserId,
@@ -156,6 +157,7 @@ export function useFollow(
           });
           if (error && error.code !== '23505') throw error;
           setIsRequestPending(true);
+          toast.success('Demande d’abonnement envoyée.');
         }
         return;
       }
@@ -177,6 +179,7 @@ export function useFollow(
           .eq('following_id', targetUserId);
         if (error) throw error;
         setIsFollowing(false);
+        toast.success('Vous ne suivez plus ce compte.');
       } else {
         const { error } = await supabase.from('follows').upsert(
           { follower_id: currentUserId, following_id: targetUserId },
@@ -184,6 +187,7 @@ export function useFollow(
         );
         if (error) throw error;
         setIsFollowing(true);
+        toast.success('Vous suivez maintenant ce compte.');
       }
     } catch (error) {
       console.error('Follow action failed', error);
