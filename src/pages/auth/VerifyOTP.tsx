@@ -161,13 +161,13 @@ const VerifyOTP = () => {
         if (profileError) {
           console.error('Profile initialization after phone verification failed', profileError);
           toast.error('Votre numéro est vérifié, mais votre profil doit encore être enregistré.');
-          navigate('/complete-profile');
+          navigate('/auth/complete-profile');
           return;
         }
 
         if (!isProfileComplete) {
           toast.success('Numéro vérifié. Terminez les informations de votre profil.');
-          navigate('/complete-profile');
+          navigate('/auth/complete-profile');
           return;
         }
 
