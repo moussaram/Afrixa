@@ -1,13 +1,12 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Video } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/useAuth';
 
-/**
- * Centralized hook for all social interactions on a video.
- * - Optimistic updates (instant UI feedback)
- * - Debounce to prevent spam / double-click bugs
- * - Stable state that doesn't disappear on re-render
- */
+const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
 export function useSocialInteractions(video: Video) {
+  const { user } = useAuth();
   const [isLiked, setIsLiked] = useState(video.isLiked ?? false);
   const [isSaved, setIsSaved] = useState(video.isSaved ?? false);
   const [likeCount, setLikeCount] = useState(video.likes);
@@ -15,82 +14,107 @@ export function useSocialInteractions(video: Video) {
   const [isLikeLoading, setIsLikeLoading] = useState(false);
   const [isSaveLoading, setIsSaveLoading] = useState(false);
 
-  // Debounce refs to prevent double-click spam
-  const likeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!user?.id || !isUuid(video.id)) return;
+    let active = true;
+    const load = async () => {
+      const client = supabase as any;
+      const [{ data: like }, { data: save }] = await Promise.all([
+        client.from('video_likes').select('video_id').eq('video_id', video.id).eq('user_id', user.id).maybeSingle(),
+        client.from('video_saves').select('video_id').eq('video_id', video.id).eq('user_id', user.id).maybeSingle(),
+      ]);
+      if (active) {
+        setIsLiked(!!like);
+        setIsSaved(!!save);
+      }
+    };
+    void load();
+    return () => { active = false; };
+  }, [user?.id, video.id]);
 
-  const toggleLike = useCallback(() => {
-    if (isLikeLoading) return;
-
-    // Clear any pending debounce
-    if (likeTimeout.current) clearTimeout(likeTimeout.current);
-
-    // Optimistic update immediately
-    const newLiked = !isLiked;
-    setIsLiked(newLiked);
-    setLikeCount(prev => newLiked ? prev + 1 : prev - 1);
+  const toggleLike = useCallback(async () => {
+    if (!user?.id || !isUuid(video.id) || isLikeLoading) return;
     setIsLikeLoading(true);
-
-    // Simulate API call (replace with real fetch when backend ready)
-    likeTimeout.current = setTimeout(() => {
-      // In production: POST /video/{id}/like or DELETE /video/{id}/like
-      // On error: rollback optimistic update
+    const previous = isLiked;
+    setIsLiked(!previous);
+    setLikeCount(count => Math.max(0, count + (previous ? -1 : 1)));
+    try {
+      const client = supabase as any;
+      const result = previous
+        ? await client.from('video_likes').delete().eq('video_id', video.id).eq('user_id', user.id)
+        : await client.from('video_likes').insert({ video_id: video.id, user_id: user.id });
+      if (result.error) throw result.error;
+    } catch (error) {
+      setIsLiked(previous);
+      setLikeCount(count => Math.max(0, count + (previous ? 1 : -1)));
+      console.error('Unable to update video like', error);
+    } finally {
       setIsLikeLoading(false);
-    }, 300);
-  }, [isLiked, isLikeLoading]);
+    }
+  }, [user?.id, video.id, isLiked, isLikeLoading]);
 
-  const toggleSave = useCallback(() => {
-    if (isSaveLoading) return;
-
-    if (saveTimeout.current) clearTimeout(saveTimeout.current);
-
-    const newSaved = !isSaved;
-    setIsSaved(newSaved);
-    setSaveCount(prev => newSaved ? prev + 1 : prev - 1);
+  const toggleSave = useCallback(async () => {
+    if (!user?.id || !isUuid(video.id) || isSaveLoading) return;
     setIsSaveLoading(true);
-
-    saveTimeout.current = setTimeout(() => {
-      // In production: POST /video/{id}/favorite or DELETE /video/{id}/favorite
+    const previous = isSaved;
+    setIsSaved(!previous);
+    setSaveCount(count => Math.max(0, count + (previous ? -1 : 1)));
+    try {
+      const client = supabase as any;
+      const result = previous
+        ? await client.from('video_saves').delete().eq('video_id', video.id).eq('user_id', user.id)
+        : await client.from('video_saves').insert({ video_id: video.id, user_id: user.id });
+      if (result.error) throw result.error;
+    } catch (error) {
+      setIsSaved(previous);
+      setSaveCount(count => Math.max(0, count + (previous ? 1 : -1)));
+      console.error('Unable to update video save', error);
+    } finally {
       setIsSaveLoading(false);
-    }, 300);
-  }, [isSaved, isSaveLoading]);
+    }
+  }, [user?.id, video.id, isSaved, isSaveLoading]);
 
-  return {
-    isLiked,
-    isSaved,
-    likeCount,
-    saveCount,
-    isLikeLoading,
-    isSaveLoading,
-    toggleLike,
-    toggleSave,
-  };
+  return { isLiked, isSaved, likeCount, saveCount, isLikeLoading, isSaveLoading, toggleLike, toggleSave };
 }
 
-/**
- * Follow/unfollow hook with anti-self-follow guard
- */
 export function useFollow(initialFollowing: boolean, targetUserId: string, currentUserId: string) {
+  const { user } = useAuth();
   const [isFollowing, setIsFollowing] = useState(initialFollowing);
   const [isLoading, setIsLoading] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const toggle = useCallback(() => {
-    // Prevent following yourself
-    if (targetUserId === currentUserId) return;
-    if (isLoading) return;
+  useEffect(() => {
+    if (!user?.id || !isUuid(targetUserId) || targetUserId === user.id) {
+      setIsFollowing(false);
+      return;
+    }
+    let active = true;
+    (supabase as any).from('follows').select('follower_id')
+      .eq('follower_id', user.id).eq('following_id', targetUserId).maybeSingle()
+      .then(({ data, error }: { data: unknown; error: unknown }) => {
+        if (!error && active) setIsFollowing(!!data);
+      });
+    return () => { active = false; };
+  }, [user?.id, targetUserId]);
 
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    const newVal = !isFollowing;
-    setIsFollowing(newVal);
+  const toggle = useCallback(async () => {
+    const actorId = user?.id || currentUserId;
+    if (!user?.id || !isUuid(actorId) || !isUuid(targetUserId) || targetUserId === actorId || isLoading) return;
     setIsLoading(true);
-
-    debounceRef.current = setTimeout(() => {
-      // In production: POST /user/{id}/follow or DELETE /user/{id}/follow
+    const previous = isFollowing;
+    setIsFollowing(!previous);
+    try {
+      const client = supabase as any;
+      const result = previous
+        ? await client.from('follows').delete().eq('follower_id', actorId).eq('following_id', targetUserId)
+        : await client.from('follows').insert({ follower_id: actorId, following_id: targetUserId });
+      if (result.error) throw result.error;
+    } catch (error) {
+      setIsFollowing(previous);
+      console.error('Unable to update follow relationship', error);
+    } finally {
       setIsLoading(false);
-    }, 300);
-  }, [isFollowing, isLoading, targetUserId, currentUserId]);
+    }
+  }, [user?.id, currentUserId, targetUserId, isFollowing, isLoading]);
 
   return { isFollowing, isLoading, toggle };
 }
