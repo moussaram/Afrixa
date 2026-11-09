@@ -35,7 +35,6 @@ const Notifications = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('all');
   const { notifications, unreadCount, markRead, markAllRead, loading, reload } = useNotifications();
-  const [followingMap, setFollowingMap] = useState<Record<string, boolean>>({});
 
   const filteredNotifications = activeTab === 'all'
     ? notifications
@@ -48,11 +47,6 @@ const Notifications = () => {
           default: return true;
         }
       });
-
-  const handleFollow = (userId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setFollowingMap(prev => ({ ...prev, [userId]: !prev[userId] }));
-  };
 
 
   return (
@@ -111,7 +105,6 @@ const Notifications = () => {
         ) : (
 
           filteredNotifications.map((notification) => {
-            const isFollowing = followingMap[notification.user.id] ?? notification.user.isFollowing;
             return (
               <div
                 key={notification.id}
@@ -149,16 +142,7 @@ const Notifications = () => {
                 </div>
 
                 {/* Right side: video thumbnail or follow button */}
-                {notification.type === 'follow' ? (
-                  <Button
-                    size="sm"
-                    variant={isFollowing ? 'outline' : 'gradient'}
-                    className="flex-shrink-0 text-xs h-8 px-3"
-                    onClick={(e) => handleFollow(notification.user.id, e)}
-                  >
-                    {isFollowing ? 'Abonné' : 'Suivre'}
-                  </Button>
-                ) : notification.video ? (
+                {notification.video ? (
                   <div className="flex-shrink-0">
                     <img
                       src={notification.video.thumbnailUrl}
@@ -178,35 +162,6 @@ const Notifications = () => {
         )}
       </div>
 
-      {/* Activity section */}
-      <section className="mt-6 px-4">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Activité récente</h2>
-        <div className="space-y-4">
-          <div className="p-4 glass rounded-xl">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full gradient-primary flex items-center justify-center">
-                <Heart className="w-6 h-6 text-primary-foreground" />
-              </div>
-              <div>
-                <p className="font-medium text-foreground">Cette semaine</p>
-                <p className="text-sm text-muted-foreground">+1,234 j'aime sur vos vidéos</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-4 glass rounded-xl">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center">
-                <UserPlus className="w-6 h-6 text-secondary-foreground" />
-              </div>
-              <div>
-                <p className="font-medium text-foreground">Nouveaux abonnés</p>
-                <p className="text-sm text-muted-foreground">+56 cette semaine</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   );
 };
