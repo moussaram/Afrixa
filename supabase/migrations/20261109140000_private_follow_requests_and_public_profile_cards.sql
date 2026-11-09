@@ -36,6 +36,18 @@ COMMENT ON VIEW public.public_profiles IS
 
 ALTER TABLE public.follow_requests ENABLE ROW LEVEL SECURITY;
 
+-- Keep history of accepted/declined requests while preventing duplicate pending requests.
+ALTER TABLE public.follow_requests
+  DROP CONSTRAINT IF EXISTS follow_requests_requester_id_target_id_key;
+
+CREATE UNIQUE INDEX IF NOT EXISTS follow_requests_one_pending_idx
+  ON public.follow_requests (requester_id, target_id)
+  WHERE status = 'pending';
+
+CREATE INDEX IF NOT EXISTS follow_requests_target_pending_idx
+  ON public.follow_requests (target_id, created_at DESC)
+  WHERE status = 'pending';
+
 DROP POLICY IF EXISTS "follow_requests_participants_select" ON public.follow_requests;
 DROP POLICY IF EXISTS "follow_requests_requester_insert" ON public.follow_requests;
 DROP POLICY IF EXISTS "follow_requests_target_update" ON public.follow_requests;
