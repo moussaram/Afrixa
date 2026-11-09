@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Settings, Share2, MoreHorizontal, Grid3X3, Heart, Bookmark, MessageCircle, Zap, Briefcase, Globe } from 'lucide-react';
+import { Settings, Share2, MoreHorizontal, Grid3X3, Heart, Bookmark, MessageCircle, Zap, Briefcase, Globe, UserPlus } from 'lucide-react';
 import { VideoThumbnail } from '@/components/video/VideoThumbnail';
 import { Button } from '@/components/ui/button';
 import { formatNumber } from '@/lib/formatters';
@@ -147,6 +147,7 @@ const Profile = () => {
           <Button variant="ghost" size="icon" onClick={() => setMenuOpen(true)}><MoreHorizontal className="w-6 h-6" /></Button>
           <h1 className="text-lg font-bold text-foreground">@{username}</h1>
           <div className="flex items-center gap-1">
+            <Link to="/follow-requests"><Button variant="ghost" size="icon" aria-label="Demandes d’abonnement"><UserPlus className="w-6 h-6" /></Button></Link>
             <Link to="/messages" className="relative"><Button variant="ghost" size="icon"><MessageCircle className="w-6 h-6" /></Button>
               {unreadCount > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 flex items-center justify-center text-xs font-bold bg-destructive text-destructive-foreground rounded-full px-1">{unreadCount > 99 ? '99+' : unreadCount}</span>}
             </Link>
