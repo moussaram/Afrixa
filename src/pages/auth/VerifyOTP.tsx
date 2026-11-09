@@ -83,7 +83,7 @@ const VerifyOTP = () => {
   };
 
   const verifyCode = async (code: string) => {
-    if (!/^\\d{6}$/.test(code) || verificationInFlight.current) return;
+    if (!/^\d{6}$/.test(code) || verificationInFlight.current) return;
     verificationInFlight.current = true;
     setLoading(true);
     try {
@@ -179,7 +179,7 @@ const VerifyOTP = () => {
 
   const handleVerify = () => {
     const code = otp.join('');
-    if (!/^\\d{6}$/.test(code)) { toast.error('Entrez le code à 6 chiffres'); return; }
+    if (!/^\d{6}$/.test(code)) { toast.error('Entrez le code à 6 chiffres'); return; }
     verifyCode(code);
   };
 
