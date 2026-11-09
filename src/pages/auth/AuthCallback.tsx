@@ -7,19 +7,53 @@ const AuthCallback = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const handleCallback = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error || !session) {
-        toast.error('Erreur d\'authentification');
-        navigate('/auth/login');
-        return;
-      }
+    let active = true;
 
-      // Google users go directly to home — they can complete profile in Settings
-      navigate('/');
+    const handleCallback = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (!active) return;
+        if (error || !session?.user) {
+          console.error('OAuth callback did not produce a valid session', error);
+          toast.error('La connexion Google n’a pas abouti. Réessayez.');
+          navigate('/auth/login', { replace: true });
+          return;
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('inscription_complete')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (!active) return;
+        if (profileError) {
+          console.error('Unable to check Google account profile completion', profileError);
+          toast.error('Connexion réussie, mais impossible de vérifier votre profil.');
+          navigate('/auth/complete-profile', { replace: true });
+          return;
+        }
+
+        if (!profile?.inscription_complete) {
+          navigate('/auth/complete-profile', { replace: true });
+          return;
+        }
+
+        toast.success('Connexion Google réussie !');
+        navigate('/', { replace: true });
+      } catch (error) {
+        console.error('OAuth callback failed', error);
+        if (active) {
+          toast.error('Impossible de finaliser la connexion Google.');
+          navigate('/auth/login', { replace: true });
+        }
+      }
     };
 
-    handleCallback();
+    void handleCallback();
+    return () => {
+      active = false;
+    };
   }, [navigate]);
 
   return (
