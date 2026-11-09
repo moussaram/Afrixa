@@ -75,7 +75,6 @@ const CompleteProfile = () => {
         date_naissance: form.date_naissance,
         lieu_naissance: lieuNaissance,
         profession,
-        numero_mobile: user.phone || profile?.numero_mobile || null,
         nationalite: form.nationalite?.name || null,
         nationalite_flag: form.nationalite?.flag || null,
         username,

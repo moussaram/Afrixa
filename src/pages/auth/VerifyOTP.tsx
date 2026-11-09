@@ -151,7 +151,6 @@ const VerifyOTP = () => {
             date_naissance: dateOfBirth || null,
             lieu_naissance: birthPlace || null,
             profession: profession || null,
-            numero_mobile: phone,
             nationalite: registrationData?.nationalite?.name || null,
             nationalite_flag: registrationData?.nationalite?.flag || null,
             username,

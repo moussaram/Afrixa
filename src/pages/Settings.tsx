@@ -155,7 +155,11 @@ const Settings = () => {
         bio: identityForm.bio || null,
         nationalite: identityForm.nationalite?.name || null,
         nationalite_flag: identityForm.nationalite?.flag || null,
-        inscription_complete: !!(identityForm.nom && identityForm.prenom),
+        inscription_complete: Boolean(
+          identityForm.nom.trim() && identityForm.prenom.trim() &&
+          identityForm.date_naissance && identityForm.lieu_naissance.trim() &&
+          identityForm.profession.trim()
+        ),
       }).eq('user_id', user.id);
 
       if (error) { toast.error('Erreur de sauvegarde'); return; }
