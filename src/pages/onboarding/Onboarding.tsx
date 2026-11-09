@@ -85,8 +85,9 @@ const Onboarding = () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const client = supabase as any;
       const { data, error } = await client
-        .from('profiles')
-        .select('user_id,username,prenom,nom,avatar_url,bio')
+        .from('public_profiles')
+        .select('user_id,username,prenom,nom,avatar_url,bio,is_private')
+        .eq('is_private', false)
         .neq('user_id', user.id)
         .not('username', 'is', null)
         .order('created_at', { ascending: false })
@@ -104,6 +105,7 @@ const Onboarding = () => {
           nom: string | null;
           avatar_url: string | null;
           bio: string | null;
+          is_private: boolean;
         }) => ({
           id: creator.user_id,
           username: creator.username,
