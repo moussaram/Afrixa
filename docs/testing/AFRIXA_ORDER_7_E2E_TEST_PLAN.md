@@ -66,7 +66,7 @@ Valider le parcours d'un nouvel utilisateur depuis la création de compte jusqu'
 
 - [x] Revue des principaux fichiers Auth, profil, onboarding et politiques RLS.
 - [x] Correction du point de récupération des créateurs qui contredisait RLS.
-- [ ] Lint/build de cette branche (CI).
+- [x] Lint/build CI : réussite sur le commit `b329eb3e3a98d899561e747bd99db056de1603d9` (install, lint, build production).
 - [ ] Parcours Auth SMS réel avec comptes de staging.
 - [ ] Tests de confidentialité multi-comptes sur la base.
 - [ ] Parcours OAuth, récupération, session et fonctionnalités sociales sur staging.
