@@ -13,25 +13,53 @@ const ForgotPassword = () => {
   const [method, setMethod] = useState<'phone' | 'email'>('phone');
   const [value, setValue] = useState('');
   const [loading, setLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const handleSend = async () => {
-    if (!value.trim()) { toast.error('Remplissez le champ'); return; }
+    const recoveryValue = value.trim();
+    if (!recoveryValue) {
+      toast.error(method === 'phone' ? 'Saisissez votre numéro mobile.' : 'Saisissez votre adresse email.');
+      return;
+    }
+
     setLoading(true);
     try {
       if (method === 'phone') {
-        const phone = normalizeInternationalPhone(value);
-        if (!phone) { toast.error('Saisissez un numéro international valide, par exemple +2250700000000.'); return; }
-        const { error } = await supabase.auth.signInWithOtp({ phone, options: { shouldCreateUser: false } });
-        if (error) { toast.error('Erreur d\'envoi'); return; }
+        const phone = normalizeInternationalPhone(recoveryValue);
+        if (!phone) {
+          toast.error('Saisissez un numéro international valide, par exemple +2290100000000.');
+          return;
+        }
+        const { error } = await supabase.auth.signInWithOtp({
+          phone,
+          options: { shouldCreateUser: false },
+        });
+        if (error) {
+          console.error('Phone recovery request failed', error);
+          toast.error('Impossible d’envoyer le code SMS. Vérifiez le numéro et réessayez.');
+          return;
+        }
         navigate('/auth/verify-otp', { state: { phone, mode: 'forgot' } });
       } else {
-        const { error } = await supabase.auth.resetPasswordForEmail(value, {
-          redirectTo: `${window.location.origin}/auth/reset-password`,
+        const email = recoveryValue.toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          toast.error('Saisissez une adresse email valide.');
+          return;
+        }
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: \`\${window.location.origin}/auth/reset-password\`,
         });
-        if (error) { toast.error('Erreur d\'envoi email'); return; }
-        toast.success('Email de récupération envoyé !');
-        navigate('/auth/login');
+        if (error) {
+          console.error('Email recovery request failed', error);
+          toast.error('Impossible d’envoyer le lien. Réessayez dans quelques instants.');
+          return;
+        }
+        setEmailSent(true);
+        toast.success('Si un compte correspond à cette adresse, un lien de récupération vient d’être envoyé.');
       }
+    } catch (error) {
+      console.error('Password recovery request failed', error);
+      toast.error('Le service de récupération est momentanément indisponible.');
     } finally {
       setLoading(false);
     }
@@ -57,7 +85,7 @@ const ForgotPassword = () => {
           {(['phone', 'email'] as const).map(m => (
             <button
               key={m}
-              onClick={() => { setMethod(m); setValue(''); }}
+              onClick={() => { setMethod(m); setValue(''); setEmailSent(false); }}
               className={cn(
                 'flex-1 flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all',
                 method === m ? 'border-primary bg-primary/10' : 'border-border/30 bg-muted/20'
@@ -84,6 +112,11 @@ const ForgotPassword = () => {
             onChange={e => setValue(e.target.value)}
             className="h-13 rounded-2xl bg-muted/30 border-border/30 text-base"
           />
+          {emailSent && method === 'email' && (
+            <p className="text-sm text-primary mt-3" role="status">
+              Vérifiez votre boîte de réception et vos courriers indésirables. Ouvrez le lien sur cet appareil pour choisir un nouveau mot de passe.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground mt-2">
             {method === 'phone'
               ? 'Un code OTP sera envoyé par SMS pour réinitialiser votre mot de passe'
@@ -95,9 +128,9 @@ const ForgotPassword = () => {
           variant="gradient"
           className="w-full h-14 text-base font-bold rounded-2xl"
           onClick={handleSend}
-          disabled={loading}
+          disabled={loading || (emailSent && method === 'email')}
         >
-          {loading ? 'Envoi...' : `Envoyer ${method === 'phone' ? 'le code SMS' : "l'email"}`}
+          {loading ? 'Envoi...'  : `Envoyer ${method === 'phone' ? 'le code SMS' : "l'email"}`}
         </Button>
 
         <Link to="/auth/login" className="text-center text-sm text-primary underline">
