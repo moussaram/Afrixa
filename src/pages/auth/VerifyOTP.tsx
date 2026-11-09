@@ -138,7 +138,7 @@ const VerifyOTP = () => {
         const profession = registrationData?.profession?.trim() || '';
         const isProfileComplete = Boolean(firstName && lastName && dateOfBirth && birthPlace && profession);
         const username = firstName
-          ? `${firstName.toLowerCase().replace(/\\s+/g, '_')}_${data.user.id.slice(0, 6)}`
+          ? `${firstName.toLowerCase().replace(/\s+/g, '_')}_${data.user.id.slice(0, 6)}`
           : null;
 
         const { error: profileError } = await supabase
