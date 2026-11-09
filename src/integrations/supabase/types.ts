@@ -155,6 +155,12 @@ export type Database = {
         Update: { created_at?: string; follower_id?: string; following_id?: string }
         Relationships: []
       }
+      follow_requests: {
+        Row: { created_at: string; id: string; requester_id: string; status: 'pending' | 'accepted' | 'declined'; target_id: string }
+        Insert: { created_at?: string; id?: string; requester_id: string; status?: 'pending' | 'accepted' | 'declined'; target_id: string }
+        Update: { created_at?: string; id?: string; requester_id?: string; status?: 'pending' | 'accepted' | 'declined'; target_id?: string }
+        Relationships: []
+      }
       video_comments: {
         Row: { content: string; created_at: string; id: string; is_deleted: boolean; parent_id: string | null; updated_at: string; user_id: string; video_id: string }
         Insert: { content: string; created_at?: string; id?: string; is_deleted?: boolean; parent_id?: string | null; updated_at?: string; user_id: string; video_id: string }
@@ -1071,6 +1077,7 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           created_at: string | null
+          is_private: boolean
           nom: string | null
           prenom: string | null
           user_id: string
