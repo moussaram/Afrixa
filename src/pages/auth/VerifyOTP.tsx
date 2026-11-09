@@ -39,6 +39,7 @@ const VerifyOTP = () => {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const verificationInFlight = useRef(false);
 
   useEffect(() => {
     if (!phone) navigate('/auth/login');
@@ -82,6 +83,8 @@ const VerifyOTP = () => {
   };
 
   const verifyCode = async (code: string) => {
+    if (!/^\\d{6}$/.test(code) || verificationInFlight.current) return;
+    verificationInFlight.current = true;
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.verifyOtp({
@@ -91,9 +94,14 @@ const VerifyOTP = () => {
       });
 
       if (error) {
-        toast.error('Code incorrect ou expiré');
+        toast.error('Code incorrect ou expiré. Vérifiez le code reçu ou demandez-en un nouveau.');
         setOtp(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
+        return;
+      }
+
+      if (!data.user) {
+        toast.error('La vérification a échoué. Veuillez réessayer.');
         return;
       }
 
@@ -160,28 +168,40 @@ const VerifyOTP = () => {
       }
 
       navigate('/');
+    } catch (verificationError) {
+      console.error('SMS verification failed', verificationError);
+      toast.error('Impossible de vérifier le code pour le moment. Réessayez.');
     } finally {
+      verificationInFlight.current = false;
       setLoading(false);
     }
   };
 
   const handleVerify = () => {
     const code = otp.join('');
-    if (code.length < 6) { toast.error('Entrez le code à 6 chiffres'); return; }
+    if (!/^\\d{6}$/.test(code)) { toast.error('Entrez le code à 6 chiffres'); return; }
     verifyCode(code);
   };
 
   const handleResend = async () => {
+    if (!phone || timer > 0 || resending || loading) return;
     setResending(true);
     try {
       const { error } = mode === 'register'
         ? await supabase.auth.resend({ type: 'sms', phone })
         : await supabase.auth.signInWithOtp({ phone, options: { shouldCreateUser: false } });
-      if (error) { toast.error('Erreur de renvoi'); return; }
+      if (error) {
+        console.error('SMS resend failed', error);
+        toast.error(error.message || 'Impossible de renvoyer le code. Réessayez plus tard.');
+        return;
+      }
       setTimer(RESEND_COOLDOWN);
       setOtp(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
       toast.success('Nouveau code envoyé !');
+    } catch (resendError) {
+      console.error('SMS resend failed', resendError);
+      toast.error('Impossible de renvoyer le code pour le moment.');
     } finally {
       setResending(false);
     }
@@ -220,6 +240,7 @@ const VerifyOTP = () => {
               ref={el => { inputRefs.current[i] = el; }}
               type="text"
               inputMode="numeric"
+              autoComplete="one-time-code"
               maxLength={1}
               value={digit}
               onChange={e => handleInput(i, e.target.value)}
