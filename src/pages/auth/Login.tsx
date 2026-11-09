@@ -17,7 +17,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  const isPhone = /^[+\d]/.test(identifier) && identifier.replace(/\D/g, '').length >= 8;
+  const isPhone = /^[+\d]/.test(identifier.trim()) && identifier.replace(/\D/g, '').length >= 8;
   const isEmail = identifier.includes('@');
 
   const handleLogin = async () => {
