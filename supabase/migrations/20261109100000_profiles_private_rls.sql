@@ -32,3 +32,26 @@ FROM public.profiles
 WHERE COALESCE(is_private, false) = false OR user_id = auth.uid();
 
 GRANT SELECT ON public.public_profiles TO anon, authenticated;
+
+-- Subscription status is server-managed and must never be self-assigned by a client.
+CREATE OR REPLACE FUNCTION public.protect_profile_entitlements()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  IF auth.role() <> 'service_role' AND (
+    NEW.is_premium IS DISTINCT FROM OLD.is_premium
+    OR NEW.premium_expires_at IS DISTINCT FROM OLD.premium_expires_at
+  ) THEN
+    RAISE EXCEPTION 'Profile subscription fields are server-managed';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS profiles_protect_entitlements ON public.profiles;
+CREATE TRIGGER profiles_protect_entitlements
+BEFORE UPDATE ON public.profiles
+FOR EACH ROW
+EXECUTE FUNCTION public.protect_profile_entitlements();
