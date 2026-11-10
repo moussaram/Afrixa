@@ -10,7 +10,8 @@
     "android:sync": "npm run build && cap sync android",
     "android:debug": "npm run android:sync && cd android && gradlew.bat assembleDebug",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node server.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.4",
