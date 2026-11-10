@@ -88,8 +88,6 @@ npm run preview
 
 ## Règles de projet
 
-- TypeScript pour le code applicatif.
-- Les appels API externes sensibles passent par les Edge Functions Supabase.
-- Les clés secrètes ne sont jamais exposées dans le client.
-- Les tables Supabase utilisent RLS.
-- L'interface reste en français et les prix locaux sont affichés en FCFA.
+Les règles générales applicables à toutes les parties d'Afrixa sont documentées dans [PARTIE I — Règles générales du projet](docs/AFRIXA_PROJECT_RULES_PART_I.md). Les procédures de contribution sont décrites dans [CONTRIBUTING.md](CONTRIBUTING.md), et les critères de clôture dans [la définition de terminé](docs/AFRIXA_DEFINITION_OF_DONE.md).
+
+Principes essentiels : le serveur reste la source de vérité pour les droits et les opérations métier ; les secrets ne sont jamais exposés au client ; les tables exposées utilisent RLS ; les migrations sont validées en staging avant production ; une fonctionnalité n'est déclarée validée qu'avec des preuves de test.
