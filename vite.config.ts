@@ -9,6 +9,13 @@ export default defineConfig(() => ({
     host: "::",
     port: 8080,
   },
+  // Railway routes requests through its internal "app" host and the public service domain.
+  // Keep this allowlist explicit; do not disable Vite host validation globally.
+  preview: {
+    host: "0.0.0.0",
+    strictPort: true,
+    allowedHosts: ["app", "afrixa-production-7546.up.railway.app"],
+  },
   plugins: [
     react(),
     VitePWA({

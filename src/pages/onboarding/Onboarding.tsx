@@ -82,11 +82,10 @@ const Onboarding = () => {
     if (!user?.id || user.id.startsWith('mock-')) return;
     let active = true;
     const loadCreators = async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const client = supabase as any;
-      const { data, error } = await client
-        .from('profiles')
-        .select('user_id,username,prenom,nom,avatar_url,bio')
+      const { data, error } = await supabase
+        .from('public_profiles')
+        .select('user_id,username,prenom,nom,avatar_url,bio,is_private')
+        .eq('is_private', false)
         .neq('user_id', user.id)
         .not('username', 'is', null)
         .order('created_at', { ascending: false })
@@ -104,6 +103,7 @@ const Onboarding = () => {
           nom: string | null;
           avatar_url: string | null;
           bio: string | null;
+          is_private: boolean;
         }) => ({
           id: creator.user_id,
           username: creator.username,
@@ -113,7 +113,7 @@ const Onboarding = () => {
         })));
       }
 
-      const { data: existingFollows, error: followsError } = await client
+      const { data: existingFollows, error: followsError } = await supabase
         .from('follows')
         .select('following_id')
         .eq('follower_id', user.id);
@@ -142,9 +142,7 @@ const Onboarding = () => {
 
     try {
       if (step === 3 && user && !user.id.startsWith('mock-') && followedCreators.length) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const client = supabase as any;
-        const { error } = await client.from('follows').upsert(
+        const { error } = await supabase.from('follows').upsert(
           followedCreators.map(followingId => ({ follower_id: user.id, following_id: followingId })),
           { onConflict: 'follower_id,following_id', ignoreDuplicates: true }
         );
