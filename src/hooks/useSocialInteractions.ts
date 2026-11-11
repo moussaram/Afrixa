@@ -141,6 +141,11 @@ export function useFollow(initialFollowing: boolean, targetUserId: string, curre
   const client = supabase as any;
   const [isFollowing, setIsFollowing] = useState(initialFollowing);
   const [isLoading, setIsLoading] = useState(false);
+
+  // L'état initial arrive après le chargement du profil.
+  useEffect(() => {
+    setIsFollowing(initialFollowing);
+  }, [initialFollowing]);
   const [error, setError] = useState<string | null>(null);
   const canPersist = uuidPattern.test(targetUserId) && uuidPattern.test(currentUserId);
 

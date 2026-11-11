@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Settings, Share2, MoreHorizontal, Grid3X3, Heart, Bookmark, Link as LinkIcon, MessageCircle, Zap, MapPin, Briefcase, Globe, Copy, Check, X, Send } from 'lucide-react';
-import { mockVideos } from '@/data/mockData';
 import { mockConversations } from '@/data/mockChatData';
 import { VideoThumbnail } from '@/components/video/VideoThumbnail';
 import { Button } from '@/components/ui/button';
@@ -13,6 +12,9 @@ import { ProfileShareSheet } from '@/components/profile/ProfileShareSheet';
 import { CreatorBadge } from '@/components/creators/CreatorBadge';
 import { ProfileCompletionBanner } from '@/components/onboarding/ProfileCompletionBanner';
 import { useProfileVideoCollections } from '@/hooks/useProfileVideoCollections';
+import { useProfileVideos } from '@/hooks/useProfileVideos';
+import { useProfileStats } from '@/hooks/useProfileStats';
+import { toast } from 'sonner';
 
 const tabs = [
   { id: 'videos', icon: Grid3X3, label: 'Vidéos' },
@@ -34,6 +36,8 @@ const Profile = () => {
     loading: collectionsLoading,
     error: collectionsError,
   } = useProfileVideoCollections(user?.id);
+  const { videos: ownVideos, loading: ownVideosLoading, error: ownVideosError } = useProfileVideos(user?.id);
+  const { stats } = useProfileStats(user?.id);
   const unreadCount = mockConversations.reduce((sum, c) => sum + c.unreadCount, 0);
 
   const displayName = profile
@@ -82,7 +86,11 @@ const Profile = () => {
               alt={username}
               className="w-24 h-24 rounded-full object-cover border-4 border-primary"
             />
-            <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xl border-4 border-background">
+            <button
+              onClick={() => navigate('/settings/my-info')}
+              aria-label="Modifier la photo de profil"
+              className="absolute bottom-0 right-0 w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xl border-4 border-background"
+            >
               +
             </button>
           </div>
@@ -122,22 +130,22 @@ const Profile = () => {
           {/* Stats */}
           <div className="flex items-center gap-8 mt-4">
             <div className="text-center">
-              <p className="text-xl font-bold text-foreground">0</p>
+              <p className="text-xl font-bold text-foreground">{formatNumber(stats.followingCount)}</p>
               <p className="text-sm text-muted-foreground">Abonnements</p>
             </div>
             <div className="text-center">
-              <p className="text-xl font-bold text-foreground">0</p>
+              <p className="text-xl font-bold text-foreground">{formatNumber(stats.followersCount)}</p>
               <p className="text-sm text-muted-foreground">Abonnés</p>
             </div>
             <div className="text-center">
-              <p className="text-xl font-bold text-foreground">0</p>
+              <p className="text-xl font-bold text-foreground">{formatNumber(stats.likesCount)}</p>
               <p className="text-sm text-muted-foreground">J'aime</p>
             </div>
           </div>
 
           {/* Action buttons */}
           <div className="flex items-center gap-3 mt-6 w-full max-w-sm">
-            <Button variant="gradient" className="flex-1">
+            <Button variant="gradient" className="flex-1" onClick={() => navigate('/settings/my-info')}>
               Modifier le profil
             </Button>
             <Button variant="glass" size="icon" onClick={() => setShareOpen(true)}>
@@ -170,7 +178,13 @@ const Profile = () => {
           )}
 
           {/* Link */}
-          <button className="flex items-center gap-2 mt-3 text-primary hover:underline">
+          <button
+            onClick={async () => {
+              await navigator.clipboard.writeText(`https://afrixa.app/user/${user?.id ?? ''}`);
+              toast.success('Lien du profil copié');
+            }}
+            className="flex items-center gap-2 mt-3 text-primary hover:underline"
+          >
             <LinkIcon className="w-4 h-4" />
             <span className="text-sm font-medium">afrixa.app/@{username}</span>
           </button>
@@ -207,15 +221,25 @@ const Profile = () => {
           </p>
         )}
         {activeTab === 'videos' && (
-          <div className="grid grid-cols-3 gap-0.5">
-            {mockVideos.map((video) => (
-              <VideoThumbnail
-                key={video.id}
-                video={video}
-                className="aspect-[9/16]"
-              />
-            ))}
-          </div>
+          ownVideosLoading ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">Chargement…</p>
+          ) : ownVideosError ? (
+            <p className="py-10 text-center text-sm text-destructive">Impossible de charger tes vidéos.</p>
+          ) : ownVideos.length === 0 ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              Aucune vidéo publiée pour le moment.
+            </p>
+          ) : (
+            <div className="grid grid-cols-3 gap-0.5">
+              {ownVideos.map((video) => (
+                <VideoThumbnail
+                  key={video.id}
+                  video={video}
+                  className="aspect-[9/16]"
+                />
+              ))}
+            </div>
+          )
         )}
 
         {activeTab === 'likes' && (

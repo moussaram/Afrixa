@@ -25,6 +25,11 @@ const AfrixaStudioPage = () => {
       if (!user?.id) return;
       try {
         setLoading(true);
+        // Recalcule les compteurs du jour à partir des vraies videos et abonnes.
+        const refresh = await (supabase as any).rpc('refresh_my_creator_analytics');
+        if (refresh.error) {
+          console.warn('Unable to refresh creator analytics', refresh.error);
+        }
         const [profileResult, videoResult, earningsResult] = await Promise.all([
           (supabase as any).from('profile_analytics').select('*').eq('user_id', user.id).order('recorded_date', { ascending: false }).limit(90),
           (supabase as any).from('video_analytics').select('*').eq('user_id', user.id).order('recorded_date', { ascending: false }).limit(50),
@@ -78,7 +83,7 @@ const AfrixaStudioPage = () => {
         </div>
       ) : (
         <>
-          <StatsCards totalViews={latest.total_views} followers={latest.followers_count} totalLikes={latest.total_likes} monthlyRevenue={monthlyRevenue} />
+          <StatsCards totalViews={latest.total_views || 0} followers={latest.followers_count || 0} totalLikes={latest.total_likes || 0} monthlyRevenue={monthlyRevenue} />
           <div className="grid gap-5 lg:grid-cols-2">
             <GrowthChart data={growthData} />
             <EarningsChart data={revenueData.length ? revenueData : [{ type: 'Vues', amount: 0 }, { type: 'Cadeaux', amount: 0 }, { type: 'Tips', amount: 0 }]} />
