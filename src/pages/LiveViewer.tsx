@@ -1,40 +1,57 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, Heart, Share2, Users, UserPlus, Flag, MoreVertical,
+  ArrowLeft, Heart, Share2, Users, Flag, MessageCircle,
 } from 'lucide-react';
-import { LiveChat, LiveMessage, COLORS } from '@/components/live/LiveChat';
+import { LiveChat } from '@/components/live/LiveChat';
 import { LiveReactions } from '@/components/live/LiveReactions';
 import { useReactions } from '@/components/live/useReactions';
-import { GiftAnimation } from '@/components/live/GiftAnimation';
-import { type GiftItem, GIFTS } from '@/components/live/gifts';
+import { GIFTS } from '@/components/live/gifts';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/useAuth';
 import { useAgoraLive } from '@/hooks/useAgoraLive';
+import { useLiveChat } from '@/hooks/useLiveChat';
+import { useLivePresence } from '@/hooks/useLivePresence';
+import { useProfileStats } from '@/hooks/useProfileStats';
+import { useFollow } from '@/hooks/useSocialInteractions';
 
 interface LiveViewerState {
   title?: string;
 }
 
+const client = supabase as any;
+
 export default function LiveViewer() {
   const navigate = useNavigate();
   const location = useLocation();
   const { creatorId } = useParams<{ creatorId: string }>();
+  const { user } = useAuth();
   const routeState = (location.state as LiveViewerState | null) ?? {};
   const [sessionId, setSessionId] = useState<string>();
+  const [hostId, setHostId] = useState<string>(creatorId ?? '');
   const [title, setTitle] = useState(routeState.title ?? 'Live en cours');
   const [creatorName, setCreatorName] = useState('Créateur en direct');
-  const agora = useAgoraLive(sessionId, 'audience');
-
-  const [messages, setMessages] = useState<LiveMessage[]>([]);
-  const { viewerCount } = agora;
-  const [likeCount, setLikeCount] = useState(0);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [hasLiked, setHasLiked] = useState(false);
-  const [activeGift, setActiveGift] = useState<GiftItem | null>(null);
+  const [commentsEnabled, setCommentsEnabled] = useState(true);
   const [showGiftPanel, setShowGiftPanel] = useState(false);
   const [chatVisible, setChatVisible] = useState(true);
+
+  const presence = useLivePresence(sessionId, user?.id, 'viewer');
+  const { counters, isCoHost } = presence;
+  const agora = useAgoraLive(sessionId, isCoHost ? 'publisher' : 'audience');
+  const chat = useLiveChat(sessionId, {
+    userId: user?.id,
+    hostId,
+    canModerate: isCoHost,
+  });
+  const { stats: hostStats } = useProfileStats(hostId);
+  const { isFollowing, isLoading: followLoading, toggle: toggleFollow } = useFollow(
+    hostStats.isFollowing,
+    hostId,
+    user?.id ?? '',
+  );
 
   const { reactions, addReaction } = useReactions();
 
@@ -42,9 +59,14 @@ export default function LiveViewer() {
     if (!creatorId) return;
     let active = true;
     void (async () => {
-      const { data: session, error } = await supabase.from('live_sessions')
-        .select('id, host_id, title, status').eq('host_id', creatorId).eq('status', 'live')
-        .order('started_at', { ascending: false }).limit(1).maybeSingle();
+      const { data: session, error } = await client
+        .from('live_sessions')
+        .select('id, host_id, title, status, comments_enabled')
+        .eq('host_id', creatorId)
+        .eq('status', 'live')
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
       if (!active) return;
       if (error || !session) {
         toast.error('Ce live n’est plus disponible');
@@ -52,67 +74,121 @@ export default function LiveViewer() {
         return;
       }
       setSessionId(session.id);
+      setHostId(session.host_id);
       setTitle(session.title);
-      const { data: profile } = await supabase.from('profiles')
-        .select('username, prenom, nom').eq('user_id', session.host_id).maybeSingle();
-      if (active && profile) setCreatorName(profile.username || [profile.prenom, profile.nom].filter(Boolean).join(' ') || 'Créateur en direct');
+      setCommentsEnabled(session.comments_enabled !== false);
+
+      const { data: profile } = await client
+        .from('profiles')
+        .select('username, prenom, nom')
+        .eq('user_id', session.host_id)
+        .maybeSingle();
+      if (active && profile) {
+        setCreatorName(
+          profile.username || [profile.prenom, profile.nom].filter(Boolean).join(' ') || 'Créateur en direct',
+        );
+      }
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [creatorId, navigate]);
 
   const handleSend = useCallback((text: string) => {
-    setMessages(prev => [...prev.slice(-49), {
-      id: Math.random().toString(36).slice(2),
-      userId: 'me',
-      username: 'Moi',
-      avatar: 'https://i.pravatar.cc/40?img=12',
-      text,
-      color: COLORS[4],
-      timestamp: Date.now(),
-    }]);
-  }, []);
+    void chat.sendMessage(text).catch((sendError) => {
+      console.error('Unable to send live message', sendError);
+      toast.error('Impossible d’envoyer le message.');
+    });
+  }, [chat]);
+
+  const handleDelete = useCallback((id: string) => {
+    const action = isCoHost ? chat.hideMessage(id) : chat.deleteMessage(id);
+    void action.catch((deleteError) => {
+      console.error('Unable to moderate live message', deleteError);
+      toast.error('Impossible de modérer ce message.');
+    });
+  }, [chat, isCoHost]);
 
   const handleLike = () => {
-    if (hasLiked) return;
-    setHasLiked(true);
-    setLikeCount(l => l + 1);
+    if (!sessionId || !user?.id) {
+      toast.error('Connecte-toi pour réagir.');
+      return;
+    }
     addReaction('❤️');
-    setTimeout(() => setHasLiked(false), 3000);
+    void client
+      .from('live_reactions')
+      .insert({ session_id: sessionId, user_id: user.id })
+      .then(({ error }: { error: { message: string } | null }) => {
+        if (error && !/Trop de reactions/i.test(error.message)) {
+          console.warn('Unable to save live reaction', error);
+        }
+      });
   };
 
-  const handleSendGift = (g: typeof GIFTS[0]) => {
-    const giftItem: GiftItem = { ...g, id: Math.random().toString(36).slice(2), fromUser: 'Moi' };
-    setActiveGift(giftItem);
+  const handleFollow = async () => {
+    if (!user?.id) {
+      toast.error('Connecte-toi pour suivre ce créateur.');
+      return;
+    }
+    const next = !isFollowing;
+    await toggleFollow();
+    toast.success(next ? `Vous suivez ${creatorName}` : 'Abonnement annulé');
+  };
+
+  const handleReport = async () => {
+    if (!user?.id || !sessionId) {
+      toast.error('Connecte-toi pour signaler ce live.');
+      return;
+    }
+    if (!window.confirm('Signaler ce live à la modération ?')) return;
+    const { error } = await client.from('content_reports').insert({
+      reporter_id: user.id,
+      content_type: 'user',
+      content_id: hostId,
+      reason: 'Signalement de live',
+    });
+    if (error) {
+      console.error('Unable to report live', error);
+      toast.error('Impossible d’enregistrer le signalement.');
+      return;
+    }
+    toast.success('Signalement envoyé à la modération.');
+  };
+
+  const handleGift = (gift: typeof GIFTS[number]) => {
     setShowGiftPanel(false);
-    addReaction('🎁');
-    toast.success(`${g.emoji} ${g.name} envoyé !`);
-    setTimeout(() => setActiveGift(null), 3500);
-  };
-
-  const handleFollow = () => {
-    setIsFollowing(v => !v);
-    toast.success(isFollowing ? 'Abonnement annulé' : `Vous suivez ${creatorName}`);
+    toast.info(`${gift.emoji} ${gift.name} : les cadeaux seront activés avec les Coins.`);
   };
 
   const handleShare = () => {
+    const url = `${window.location.origin}/live/view/${creatorId ?? ''}`;
     if (navigator.share) {
-      navigator.share({ title, url: `https://afrixa.app/live/view/${creatorId}` });
+      void navigator.share({ title, url });
     } else {
-      navigator.clipboard.writeText(`${window.location.origin}/live/view/${creatorId}`);
-      toast.success('Lien copié !');
+      void navigator.clipboard.writeText(url).then(() => toast.success('Lien copié !'));
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col overflow-hidden">
-      <div ref={agora.videoElementRef} data-agora-video="audience" className="absolute inset-0 h-full w-full bg-gradient-to-br from-primary/30 via-secondary/20 to-background" />
-      {agora.error && <div className="absolute top-20 left-4 right-4 z-20 rounded-xl bg-destructive/90 p-3 text-sm text-white">{agora.error}</div>}
-      {!agora.connected && !agora.error && <div className="absolute top-20 left-4 right-4 z-20 rounded-xl bg-black/60 p-3 text-sm text-white">Connexion au live…</div>}
+      <div
+        ref={agora.videoElementRef}
+        data-agora-video="audience"
+        className="absolute inset-0 h-full w-full bg-gradient-to-br from-primary/30 via-secondary/20 to-background"
+      />
+      {agora.error && (
+        <div className="absolute top-20 left-4 right-4 z-20 rounded-xl bg-destructive/90 p-3 text-sm text-white">
+          {agora.error}
+        </div>
+      )}
+      {!agora.connected && !agora.error && (
+        <div className="absolute top-20 left-4 right-4 z-20 rounded-xl bg-black/60 p-3 text-sm text-white">
+          Connexion au live…
+        </div>
+      )}
 
-      {/* Overlays */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/80 pointer-events-none" />
 
-      {/* ── TOP ── */}
       <div className="absolute top-0 left-0 right-0 z-10 p-4">
         <div className="flex items-center gap-3">
           <button
@@ -122,29 +198,33 @@ export default function LiveViewer() {
             <ArrowLeft className="w-5 h-5 text-white" />
           </button>
 
-          {/* Creator info */}
           <div className="flex items-center gap-2 flex-1">
-            <div className="w-9 h-9 rounded-full border-2 border-white/50 bg-primary/70 flex items-center justify-center text-white font-bold">{creatorName.slice(0, 1).toUpperCase()}</div>
+            <div className="w-9 h-9 rounded-full border-2 border-white/50 bg-primary/70 flex items-center justify-center text-white font-bold">
+              {creatorName.slice(0, 1).toUpperCase()}
+            </div>
             <div>
               <p className="text-white text-sm font-bold leading-tight">{creatorName}</p>
+              {isCoHost && <p className="text-[10px] text-primary">Co-animateur</p>}
             </div>
-            <button
-              onClick={handleFollow}
-              className={cn(
-                "ml-1 px-3 py-1 rounded-full text-xs font-semibold transition-all",
-                isFollowing
-                  ? "bg-white/20 text-white border border-white/30"
-                  : "gradient-primary text-primary-foreground"
-              )}
-            >
-              {isFollowing ? 'Abonné ✓' : '+ Suivre'}
-            </button>
+            {!isCoHost && (
+              <button
+                onClick={handleFollow}
+                disabled={followLoading}
+                className={cn(
+                  'ml-1 px-3 py-1 rounded-full text-xs font-semibold transition-all disabled:opacity-60',
+                  isFollowing
+                    ? 'bg-white/20 text-white border border-white/30'
+                    : 'gradient-primary text-primary-foreground',
+                )}
+              >
+                {isFollowing ? 'Abonné ✓' : '+ Suivre'}
+              </button>
+            )}
           </div>
 
-          {/* Stats */}
           <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-sm px-2.5 py-1 rounded-full">
             <Users className="w-3 h-3 text-white" />
-            <span className="text-white text-xs font-semibold">{viewerCount}</span>
+            <span className="text-white text-xs font-semibold">{counters.viewersCount}</span>
           </div>
           <div className="flex items-center gap-1 bg-destructive px-2.5 py-1 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
@@ -152,31 +232,19 @@ export default function LiveViewer() {
           </div>
         </div>
 
-        {/* Title */}
         <div className="mt-2 ml-12">
           <p className="text-white/80 text-sm">{title}</p>
         </div>
       </div>
 
-      {/* ── REACTIONS ── */}
       <LiveReactions reactions={reactions} />
 
-      {/* ── GIFT ANIMATION ── */}
-      <GiftAnimation gift={activeGift} />
-
-      {/* ── RIGHT CONTROLS ── */}
       <div className="absolute right-4 bottom-48 z-10 flex flex-col gap-3">
-        <button
-          onClick={handleLike}
-          className="flex flex-col items-center gap-1 group"
-        >
-          <div className={cn(
-            "p-3 rounded-full transition-all",
-            hasLiked ? "bg-destructive scale-110" : "bg-black/40 group-hover:bg-black/60"
-          )}>
-            <Heart className={cn("w-5 h-5 transition-all", hasLiked ? "text-white fill-white" : "text-white")} />
+        <button onClick={handleLike} className="flex flex-col items-center gap-1 group">
+          <div className="p-3 rounded-full bg-black/40 group-hover:bg-black/60 transition-all">
+            <Heart className="w-5 h-5 text-white" />
           </div>
-          <span className="text-white text-xs font-semibold">{likeCount}</span>
+          <span className="text-white text-xs font-semibold">{counters.likesCount}</span>
         </button>
         <button onClick={handleShare} className="flex flex-col items-center gap-1">
           <div className="p-3 bg-black/40 backdrop-blur-sm rounded-full hover:bg-black/60 transition-colors">
@@ -184,33 +252,41 @@ export default function LiveViewer() {
           </div>
           <span className="text-white text-xs">Partager</span>
         </button>
-        <button onClick={() => toast.info('Signalement envoyé')} className="flex flex-col items-center gap-1">
+        <button onClick={handleReport} className="flex flex-col items-center gap-1">
           <div className="p-3 bg-black/40 backdrop-blur-sm rounded-full hover:bg-black/60 transition-colors">
             <Flag className="w-5 h-5 text-white" />
           </div>
           <span className="text-white text-xs">Signaler</span>
         </button>
+        <button
+          onClick={() => setChatVisible((value) => !value)}
+          className="flex flex-col items-center gap-1"
+        >
+          <div className="p-3 bg-black/40 backdrop-blur-sm rounded-full hover:bg-black/60 transition-colors">
+            <MessageCircle className="w-5 h-5 text-white" />
+          </div>
+          <span className="text-white text-xs">Chat</span>
+        </button>
       </div>
 
-      {/* ── BOTTOM ── */}
       <div className="absolute bottom-0 left-0 right-0 z-10">
         {chatVisible && (
           <div className="h-52 mx-2 mb-2 bg-black/20 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/10">
             <LiveChat
-              messages={messages}
+              messages={chat.messages}
               onSend={handleSend}
-              isCreator={false}
-              commentsEnabled={true}
-              currentUserId="me"
+              onDelete={handleDelete}
+              isCreator={isCoHost}
+              commentsEnabled={commentsEnabled}
+              currentUserId={user?.id ?? ''}
             />
           </div>
         )}
 
-        {/* Action bar */}
         <div className="flex items-center justify-between px-4 pb-8 pt-3">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setShowGiftPanel(v => !v)}
+              onClick={() => setShowGiftPanel((value) => !value)}
               className="flex flex-col items-center gap-1"
             >
               <span className="text-2xl">🎁</span>
@@ -226,20 +302,19 @@ export default function LiveViewer() {
         </div>
       </div>
 
-      {/* ── GIFT PANEL ── */}
       {showGiftPanel && (
         <div className="absolute bottom-28 left-4 z-20 bg-card/95 backdrop-blur-sm border border-border/30 rounded-2xl p-4 w-72 shadow-2xl">
           <p className="text-sm font-semibold text-foreground mb-3">🎁 Envoyer un cadeau</p>
           <div className="grid grid-cols-3 gap-3">
-            {GIFTS.map(g => (
+            {GIFTS.map((gift) => (
               <button
-                key={g.name}
-                onClick={() => handleSendGift(g)}
+                key={gift.name}
+                onClick={() => handleGift(gift)}
                 className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-primary/10 border border-transparent hover:border-primary/30 transition-all active:scale-95"
               >
-                <span className="text-2xl">{g.emoji}</span>
-                <span className="text-xs text-foreground">{g.name}</span>
-                <span className="text-xs font-semibold text-primary">{g.value} 🪙</span>
+                <span className="text-2xl">{gift.emoji}</span>
+                <span className="text-xs text-foreground">{gift.name}</span>
+                <span className="text-xs font-semibold text-primary">{gift.value} 🪙</span>
               </button>
             ))}
           </div>

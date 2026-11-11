@@ -65,6 +65,7 @@ export default function LiveSetup() {
         agora_channel: channel,
         title: title.trim(),
         privacy,
+        comments_enabled: commentsEnabled,
         status: 'live',
       }).select('id, agora_channel').single();
       if (error) throw error;

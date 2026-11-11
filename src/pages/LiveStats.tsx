@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Share2, RotateCcw, Users, Heart, MessageCircle, Clock, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useLiveStats } from '@/hooks/useLiveStats';
 
 interface StatCardProps {
   icon: React.ElementType;
@@ -30,34 +31,28 @@ function formatDuration(s: number) {
 
 interface LiveStatsState {
   title?: string;
-  duration?: number;
-  viewerCount?: number;
-  likeCount?: number;
-  commentCount?: number;
+  sessionId?: string;
 }
 
 export default function LiveStats() {
   const navigate = useNavigate();
   const location = useLocation();
-  const {
-    title = 'Mon Live',
-    duration = 0,
-    viewerCount = 0,
-    likeCount = 0,
-    commentCount = 0,
-  } = (location.state as LiveStatsState | null) ?? {};
+  const { title = 'Mon Live', sessionId } = (location.state as LiveStatsState | null) ?? {};
+  const { stats, loading, error } = useLiveStats(sessionId);
 
-  const peakViewers = Math.floor(viewerCount * 1.4);
+  const engagement =
+    stats.viewersTotal > 0
+      ? Math.min(100, Math.round(((stats.likesCount + stats.commentsCount) / stats.viewersTotal) * 100))
+      : 0;
 
   const handleShare = () => {
     if (navigator.share) {
-      navigator.share({ title: `J'ai fait un live sur Afrixa : "${title}"`, url: 'https://afrixa.app' });
+      void navigator.share({ title: `J'ai fait un live sur Afrixa : "${title}"`, url: 'https://afrixa.app' });
     }
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <div className="p-6 text-center border-b border-border/30">
         <div className="w-16 h-16 rounded-full gradient-primary flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/30">
           <TrendingUp className="w-8 h-8 text-primary-foreground" />
@@ -69,49 +64,60 @@ export default function LiveStats() {
         </div>
       </div>
 
-      {/* Stats grid */}
       <div className="p-5 flex-1">
-        <div className="grid grid-cols-2 gap-3">
-          <StatCard icon={Clock} label="Durée du live" value={formatDuration(duration)} color="bg-primary" />
-          <StatCard icon={Users} label="Spectateurs totaux" value={viewerCount.toLocaleString()} color="bg-secondary" />
-          <StatCard icon={TrendingUp} label="Pic de spectateurs" value={peakViewers.toLocaleString()} color="bg-accent" />
-          <StatCard icon={Heart} label="Likes reçus" value={likeCount.toLocaleString()} color="bg-destructive" />
-          <StatCard icon={MessageCircle} label="Commentaires" value={commentCount.toLocaleString()} color="bg-green-600" />
-          <StatCard icon={Users} label="Nouveaux abonnés" value={Math.floor(viewerCount * 0.12)} color="bg-yellow-600" />
-        </div>
+        {loading && (
+          <p className="py-10 text-center text-sm text-muted-foreground">Chargement des statistiques…</p>
+        )}
 
-        {/* Engagement bar */}
-        <div className="mt-5 bg-muted/30 border border-border/30 rounded-2xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold text-foreground">Taux d'engagement</p>
-            <span className="text-sm font-bold text-primary">
-              {viewerCount > 0 ? Math.min(100, Math.round(((likeCount + commentCount) / viewerCount) * 100)) : 0}%
-            </span>
+        {!loading && error && (
+          <div className="py-10 text-center space-y-2">
+            <p className="text-sm text-destructive">Impossible de charger les statistiques.</p>
+            <p className="text-xs text-muted-foreground">
+              Seul le créateur du live peut consulter ces chiffres.
+            </p>
           </div>
-          <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full gradient-primary rounded-full transition-all duration-1000"
-              style={{
-                width: `${viewerCount > 0 ? Math.min(100, Math.round(((likeCount + commentCount) / viewerCount) * 100)) : 0}%`
-              }}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Basé sur les likes et commentaires par rapport aux spectateurs
-          </p>
-        </div>
+        )}
 
-        {/* Pro tip */}
-        <div className="mt-3 bg-primary/10 border border-primary/20 rounded-2xl p-4">
-          <p className="text-sm font-semibold text-primary mb-1">💡 Astuce</p>
-          <p className="text-xs text-muted-foreground">
-            Les statistiques détaillées de vos lives sont disponibles dans{' '}
-            <strong className="text-foreground">Afrixa Studio</strong> sur votre profil.
-          </p>
-        </div>
+        {!loading && !error && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <StatCard icon={Clock} label="Durée du live" value={formatDuration(stats.durationSeconds)} color="bg-primary" />
+              <StatCard icon={Users} label="Spectateurs totaux" value={stats.viewersTotal.toLocaleString()} color="bg-secondary" />
+              <StatCard icon={TrendingUp} label="Pic de spectateurs" value={stats.peakViewers.toLocaleString()} color="bg-accent" />
+              <StatCard icon={Heart} label="Likes reçus" value={stats.likesCount.toLocaleString()} color="bg-destructive" />
+              <StatCard icon={MessageCircle} label="Commentaires" value={stats.commentsCount.toLocaleString()} color="bg-green-600" />
+              <StatCard
+                icon={Users}
+                label="Engagement"
+                value={`${engagement}%`}
+                color="bg-yellow-600"
+              />
+            </div>
+
+            <div className="mt-5 bg-muted/30 border border-border/30 rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-foreground">Taux d'engagement</p>
+                <span className="text-sm font-bold text-primary">{engagement}%</span>
+              </div>
+              <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                <div className="h-full gradient-primary rounded-full transition-all duration-1000" style={{ width: `${engagement}%` }} />
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Basé sur les likes et commentaires enregistrés pendant le live.
+              </p>
+            </div>
+
+            <div className="mt-3 bg-primary/10 border border-primary/20 rounded-2xl p-4">
+              <p className="text-sm font-semibold text-primary mb-1">💡 Astuce</p>
+              <p className="text-xs text-muted-foreground">
+                Les statistiques détaillées de vos lives sont disponibles dans{' '}
+                <strong className="text-foreground">Afrixa Studio</strong> sur votre profil.
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Actions */}
       <div className="p-5 space-y-3 border-t border-border/30">
         <div className="flex gap-3">
           <Button variant="outline" className="flex-1 gap-2" onClick={handleShare}>

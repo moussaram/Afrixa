@@ -132,5 +132,31 @@ export function useAgoraLive(sessionId: string | undefined, role: LiveRole) {
     setCamOn(enabled);
   }, [isCamOn]);
 
-  return { videoElementRef, connected, error, viewerCount, isMicOn, isCamOn, toggleMic, toggleCamera };
+  /** Bascule entre la caméra avant et arrière si l appareil en expose plusieurs. */
+  const switchCamera = useCallback(async () => {
+    const track = tracksRef.current.find(
+      (item): item is ICameraVideoTrack => item.trackMediaType === 'video',
+    );
+    if (!track) throw new Error('Camera indisponible');
+
+    const cameras = await AgoraRTC.getCameras();
+    if (cameras.length < 2) throw new Error('Aucune autre camera disponible');
+
+    const currentLabel = track.getTrackLabel();
+    const currentIndex = cameras.findIndex(camera => camera.label === currentLabel);
+    const next = cameras[(currentIndex + 1) % cameras.length];
+    await track.setDevice(next.deviceId);
+  }, []);
+
+  return {
+    videoElementRef,
+    connected,
+    error,
+    viewerCount,
+    isMicOn,
+    isCamOn,
+    toggleMic,
+    toggleCamera,
+    switchCamera,
+  };
 }

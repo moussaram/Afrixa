@@ -43,7 +43,18 @@ Deno.serve(async (req) => {
     if (sessionError) throw sessionError;
     if (!session) return json({ error: 'live_not_found' }, 404);
     const isHost = session.host_id === user.id;
-    if (role === 'publisher' && !isHost) return json({ error: 'publisher_forbidden' }, 403);
+    let isCohost = false;
+    if (role === 'publisher' && !isHost) {
+      const { data: cohost, error: cohostError } = await userClient.from('live_cohosts')
+        .select('id')
+        .eq('session_id', session.id)
+        .eq('user_id', user.id)
+        .eq('status', 'accepted')
+        .maybeSingle();
+      if (cohostError) throw cohostError;
+      isCohost = Boolean(cohost);
+    }
+    if (role === 'publisher' && !isHost && !isCohost) return json({ error: 'publisher_forbidden' }, 403);
     if (role === 'audience' && isHost) return json({ error: 'host_cannot_join_as_audience' }, 400);
     if (!isHost && session.privacy === 'private') return json({ error: 'live_private' }, 403);
     if (!isHost && session.privacy === 'followers') {

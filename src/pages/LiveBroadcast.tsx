@@ -1,11 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Camera, CameraOff, Mic, MicOff, FlipHorizontal, X,
-  Share2, Users, Heart, MessageCircle, MoreVertical,
+  Share2, Users, Heart, MessageCircle, UserPlus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { LiveChat, LiveMessage, COLORS } from '@/components/live/LiveChat';
+import { LiveChat } from '@/components/live/LiveChat';
 import { LiveReactions } from '@/components/live/LiveReactions';
 import { useReactions } from '@/components/live/useReactions';
 import { GiftAnimation } from '@/components/live/GiftAnimation';
@@ -13,6 +14,9 @@ import { type GiftItem, GIFTS } from '@/components/live/gifts';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useAgoraLive } from '@/hooks/useAgoraLive';
+import { useLiveChat } from '@/hooks/useLiveChat';
+import { useLivePresence } from '@/hooks/useLivePresence';
+import { useAuth } from '@/contexts/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 
 interface LiveBroadcastState {
@@ -32,16 +36,20 @@ export default function LiveBroadcast() {
   const sessionId = routeState.sessionId ?? routeParams.get('session') ?? undefined;
   const hostId = routeState.hostId ?? routeParams.get('host') ?? undefined;
   const agora = useAgoraLive(sessionId, 'publisher');
-
-  const [messages, setMessages] = useState<LiveMessage[]>([]);
-  const { viewerCount, isMicOn, isCamOn } = agora;
-  const [peakViewerCount, setPeakViewerCount] = useState(0);
-  const [likeCount, setLikeCount] = useState(0);
+  const { user } = useAuth();
+  const chat = useLiveChat(sessionId, { userId: user?.id, hostId, canModerate: true });
+  const presence = useLivePresence(sessionId, user?.id, 'host');
+  const { messages, sendMessage, hideMessage } = chat;
+  const { counters } = presence;
+  const { isMicOn, isCamOn } = agora;
   const [duration, setDuration] = useState(0);
   const [chatVisible, setChatVisible] = useState(true);
   const [activeGift, setActiveGift] = useState<GiftItem | null>(null);
   const [showGiftPanel, setShowGiftPanel] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [showCohosts, setShowCohosts] = useState(false);
+  const [cohosts, setCohosts] = useState<Array<{ user_id: string; username: string | null; avatar_url: string | null; is_cohost: boolean }>>([]);
+  const [cohostLoading, setCohostLoading] = useState(false);
 
   const { reactions, addReaction } = useReactions();
 
@@ -55,57 +63,72 @@ export default function LiveBroadcast() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    setPeakViewerCount(current => Math.max(current, viewerCount));
-  }, [viewerCount]);
-
-  useEffect(() => {
-    if (!sessionId || !agora.connected) return;
-    void supabase.from('live_sessions').update({
-      viewers_count: viewerCount,
-      peak_viewers: Math.max(peakViewerCount, viewerCount),
-    })
-      .eq('id', sessionId);
-  }, [agora.connected, peakViewerCount, sessionId, viewerCount]);
-
-  useEffect(() => {
-    if (!sessionId || !agora.error) return;
-    void supabase.from('live_sessions').update({ status: 'ended', ended_at: new Date().toISOString() })
-      .eq('id', sessionId);
-  }, [agora.error, sessionId]);
-
   const handleSend = useCallback((text: string) => {
-    const msg: LiveMessage = {
-      id: Math.random().toString(36).slice(2),
-      userId: 'me',
-      username: 'Moi',
-      avatar: 'https://i.pravatar.cc/40?img=12',
-      text,
-      color: COLORS[5],
-      timestamp: Date.now(),
-      isCreator: true,
-    };
-    setMessages(prev => [...prev.slice(-49), msg]);
-  }, []);
+    void sendMessage(text).catch((sendError) => {
+      console.error('Unable to send live message', sendError);
+      toast.error('Impossible d’envoyer le message.');
+    });
+  }, [sendMessage]);
 
   const handleDelete = useCallback((id: string) => {
-    setMessages(prev => prev.filter(m => m.id !== id));
-  }, []);
+    void hideMessage(id).catch((hideError) => {
+      console.error('Unable to hide live message', hideError);
+      toast.error('Impossible de masquer ce message.');
+    });
+  }, [hideMessage]);
 
   const handleLike = () => {
-    setLikeCount(l => l + 1);
+    if (!sessionId || !user?.id) return;
     addReaction('❤️');
+    void (supabase as any).from('live_reactions')
+      .insert({ session_id: sessionId, user_id: user.id })
+      .then(({ error }: { error: { message: string } | null }) => {
+        if (error) console.warn('Unable to save live reaction', error);
+      });
   };
 
   const handleEndLive = async () => {
     if (sessionId) {
-      const { error } = await supabase.from('live_sessions').update({ status: 'ended', ended_at: new Date().toISOString() })
-        .eq('id', sessionId);
-      if (error) toast.error('Le live n’a pas pu être clôturé côté serveur');
+      const { error } = await (supabase as any).rpc('end_live', { p_session_id: sessionId });
+      if (error) {
+        toast.error('Le live n’a pas pu être clôturé côté serveur');
+        return;
+      }
     }
-    navigate('/live/stats', {
-      state: { title, duration, viewerCount, likeCount, commentCount: messages.length },
+    navigate('/live/stats', { state: { title, sessionId } });
+  };
+
+  const loadCohosts = useCallback(async () => {
+    if (!sessionId) return;
+    setCohostLoading(true);
+    const { data, error } = await (supabase as any).rpc('list_live_viewers', { p_session_id: sessionId });
+    if (error) {
+      console.error('Unable to list live viewers', error);
+      toast.error('Impossible de charger les spectateurs.');
+    } else {
+      setCohosts(data ?? []);
+    }
+    setCohostLoading(false);
+  }, [sessionId]);
+
+  const toggleCohost = async (viewer: { user_id: string; username: string | null; is_cohost: boolean }) => {
+    if (!sessionId) return;
+    const rpc = viewer.is_cohost ? 'remove_live_cohost' : 'promote_live_cohost';
+    const { error } = await (supabase as any).rpc(rpc, {
+      p_session_id: sessionId,
+      p_user_id: viewer.user_id,
     });
+    if (error) {
+      console.error('Unable to update co-host', error);
+      toast.error('Impossible de modifier ce co-animateur.');
+      return;
+    }
+    toast.success(
+      viewer.is_cohost
+        ? `@${viewer.username ?? 'ce spectateur'} n’est plus co-animateur`
+        : `@${viewer.username ?? 'ce spectateur'} peut maintenant publier`,
+    );
+    await loadCohosts();
   };
 
   const formatDuration = (s: number) => {
@@ -147,7 +170,7 @@ export default function LiveBroadcast() {
             </div>
             <div className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-2 py-1 rounded-full">
               <Users className="w-3 h-3 text-white" />
-              <span className="text-white text-xs font-semibold">{viewerCount}</span>
+              <span className="text-white text-xs font-semibold">{counters.viewersCount}</span>
             </div>
           </div>
 
@@ -180,7 +203,8 @@ export default function LiveBroadcast() {
       {/* ── RIGHT SIDE CONTROLS ── */}
       <div className="absolute right-4 bottom-48 z-10 flex flex-col gap-3">
         <button
-          onClick={() => camera.toggleCamera()}
+          disabled={!agora.connected}
+          onClick={() => void agora.switchCamera().catch(() => toast.error('Changement de caméra indisponible'))}
           className="p-3 bg-black/40 backdrop-blur-sm rounded-full hover:bg-black/60 transition-colors"
         >
           <FlipHorizontal className="w-5 h-5 text-white" />
@@ -221,6 +245,16 @@ export default function LiveBroadcast() {
         >
           <MessageCircle className={cn("w-5 h-5", chatVisible ? "text-white" : "text-muted-foreground")} />
         </button>
+        <button
+          onClick={() => {
+            setShowCohosts(true);
+            void loadCohosts();
+          }}
+          className="p-3 bg-black/40 backdrop-blur-sm rounded-full hover:bg-black/60 transition-colors"
+          aria-label="Co-animateurs"
+        >
+          <UserPlus className="w-5 h-5 text-white" />
+        </button>
       </div>
 
       {/* ── BOTTOM AREA ── */}
@@ -234,7 +268,7 @@ export default function LiveBroadcast() {
               onDelete={handleDelete}
               isCreator={true}
               commentsEnabled={commentsEnabled}
-              currentUserId="me"
+              currentUserId={user?.id ?? ''}
             />
           </div>
         )}
@@ -244,7 +278,7 @@ export default function LiveBroadcast() {
           <div className="flex items-center gap-4">
             <button onClick={handleLike} className="flex flex-col items-center gap-1">
               <Heart className="w-7 h-7 text-destructive fill-destructive drop-shadow" />
-              <span className="text-white text-xs font-semibold">{likeCount}</span>
+              <span className="text-white text-xs font-semibold">{counters.likesCount}</span>
             </button>
             <button
               onClick={() => setShowGiftPanel(v => !v)}
@@ -262,6 +296,47 @@ export default function LiveBroadcast() {
           </button>
         </div>
       </div>
+
+      {/* ── CO-HOSTS PANEL ── */}
+      {showCohosts && (
+        <div className="absolute bottom-28 left-4 right-4 z-20 bg-card/95 backdrop-blur-sm border border-border/30 rounded-2xl p-4 max-h-72 overflow-y-auto">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-foreground">Co-animateurs</p>
+            <button onClick={() => setShowCohosts(false)} className="text-xs text-muted-foreground">
+              Fermer
+            </button>
+          </div>
+          {cohostLoading && <p className="py-4 text-center text-xs text-muted-foreground">Chargement…</p>}
+          {!cohostLoading && cohosts.length === 0 && (
+            <p className="py-4 text-center text-xs text-muted-foreground">Aucun spectateur connecté.</p>
+          )}
+          <div className="space-y-2">
+            {cohosts.map((viewer) => (
+              <div key={viewer.user_id} className="flex items-center gap-2">
+                {viewer.avatar_url ? (
+                  <img src={viewer.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-foreground">
+                    {(viewer.username ?? '?')[0]?.toUpperCase()}
+                  </div>
+                )}
+                <span className="flex-1 text-sm text-foreground truncate">@{viewer.username ?? 'spectateur'}</span>
+                <button
+                  onClick={() => void toggleCohost(viewer)}
+                  className={cn(
+                    'px-3 py-1 rounded-lg text-xs font-semibold',
+                    viewer.is_cohost
+                      ? 'bg-destructive/20 text-destructive'
+                      : 'gradient-primary text-primary-foreground',
+                  )}
+                >
+                  {viewer.is_cohost ? 'Retirer' : 'Inviter'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── GIFT PANEL ── */}
       {showGiftPanel && (
