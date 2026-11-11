@@ -1,26 +1,18 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { VideoCard } from '@/components/video/VideoCard';
 import { AdCard } from '@/components/video/AdCard';
 import { FeedTutorialOverlay } from '@/components/onboarding/FeedTutorialOverlay';
 import { StoriesRail } from '@/components/stories/StoriesRail';
-import { mockVideos } from '@/data/mockData';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useFeed, type FeedMode } from '@/hooks/useFeed';
 
 const Index = () => {
   const [activeIndex, setActiveIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState<'foryou' | 'following'>('foryou');
+  const [activeTab, setActiveTab] = useState<FeedMode>('foryou');
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const videos = useMemo(
-    () =>
-      activeTab === 'following'
-        ? mockVideos.filter((v) => v.user.isFollowing)
-        : mockVideos,
-    [activeTab]
-  );
-
-
-
+  const { videos, loading, loadingMore, error, hasMore, loadMore, reload } = useFeed(activeTab);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -29,37 +21,26 @@ const Index = () => {
     const handleScroll = () => {
       const scrollTop = container.scrollTop;
       const itemHeight = container.clientHeight;
+      if (itemHeight <= 0) return;
       const newIndex = Math.round(scrollTop / itemHeight);
       if (newIndex !== activeIndex && newIndex >= 0 && newIndex < videos.length) {
         setActiveIndex(newIndex);
+      }
+      // Chargement anticipé : on prépare la suite avant la dernière vidéo.
+      if (hasMore && !loadingMore && newIndex >= videos.length - 3) {
+        loadMore();
       }
     };
 
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [activeIndex, videos.length]);
+  }, [activeIndex, hasMore, loadMore, loadingMore, videos.length]);
 
   // Reset to first video on tab change
   useEffect(() => {
     setActiveIndex(0);
     containerRef.current?.scrollTo({ top: 0 });
   }, [activeTab]);
-
-  const handleLike = (videoId: string) => {
-    console.log('Liked video:', videoId);
-  };
-
-  const handleComment = (videoId: string) => {
-    console.log('Comment on video:', videoId);
-  };
-
-  const handleShare = (videoId: string) => {
-    console.log('Share video:', videoId);
-  };
-
-  const handleSave = (videoId: string) => {
-    console.log('Save video:', videoId);
-  };
 
   return (
     <div className="h-screen w-full bg-background overflow-hidden">
@@ -70,8 +51,8 @@ const Index = () => {
             onClick={() => setActiveTab('following')}
             className={cn(
               'text-base font-semibold transition-all duration-200',
-              activeTab === 'following' 
-                ? 'text-foreground' 
+              activeTab === 'following'
+                ? 'text-foreground'
                 : 'text-muted-foreground hover:text-foreground/80'
             )}
           >
@@ -82,8 +63,8 @@ const Index = () => {
             onClick={() => setActiveTab('foryou')}
             className={cn(
               'text-base font-semibold transition-all duration-200',
-              activeTab === 'foryou' 
-                ? 'text-foreground' 
+              activeTab === 'foryou'
+                ? 'text-foreground'
                 : 'text-muted-foreground hover:text-foreground/80'
             )}
           >
@@ -92,7 +73,7 @@ const Index = () => {
         </div>
         {/* Active indicator */}
         <div className="relative h-0.5 w-32 mx-auto -mt-0.5">
-          <div 
+          <div
             className={cn(
               "absolute h-full w-16 gradient-primary rounded-full transition-all duration-300",
               activeTab === 'foryou' ? 'right-0' : 'left-0'
@@ -107,13 +88,37 @@ const Index = () => {
         ref={containerRef}
         className="h-full w-full overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-14 pb-16"
       >
-        {videos.length === 0 && (
-          <div className="h-full w-full flex flex-col items-center justify-center text-center px-8 gap-2">
-            <p className="text-foreground font-semibold">Aucune vidéo pour le moment</p>
-            <p className="text-muted-foreground text-sm">Suis des créateurs pour voir leurs vidéos ici.</p>
+        {loading && (
+          <div className="h-full w-full flex flex-col items-center justify-center gap-3">
+            <div className="w-8 h-8 rounded-full border-2 border-muted border-t-primary animate-spin" />
+            <p className="text-sm text-muted-foreground">Chargement du fil…</p>
           </div>
         )}
-        {videos.map((video, index) => (
+
+        {!loading && error && (
+          <div className="h-full w-full flex flex-col items-center justify-center text-center px-8 gap-3">
+            <p className="text-foreground font-semibold">Impossible de charger le fil</p>
+            <p className="text-muted-foreground text-sm">Vérifie ta connexion puis réessaie.</p>
+            <Button variant="outline" size="sm" onClick={reload}>
+              Réessayer
+            </Button>
+          </div>
+        )}
+
+        {!loading && !error && videos.length === 0 && (
+          <div className="h-full w-full flex flex-col items-center justify-center text-center px-8 gap-2">
+            <p className="text-foreground font-semibold">
+              {activeTab === 'following' ? 'Aucune vidéo pour le moment' : 'Rien à te recommander pour l’instant'}
+            </p>
+            <p className="text-muted-foreground text-sm">
+              {activeTab === 'following'
+                ? 'Suis des créateurs pour voir leurs vidéos ici.'
+                : 'Les nouvelles vidéos apparaîtront ici dès leur publication.'}
+            </p>
+          </div>
+        )}
+
+        {!loading && !error && videos.map((video, index) => (
           <div
             key={video.id}
             className="h-full w-full snap-start snap-always"
@@ -121,10 +126,6 @@ const Index = () => {
             <VideoCard
               video={video}
               isActive={index === activeIndex}
-              onLike={handleLike}
-              onComment={handleComment}
-              onShare={handleShare}
-              onSave={handleSave}
             />
             {/* Inject ad every 5 videos */}
             {(index + 1) % 5 === 0 && (
@@ -134,6 +135,18 @@ const Index = () => {
             )}
           </div>
         ))}
+
+        {!loading && !error && videos.length > 0 && (
+          <div className="h-16 w-full flex items-center justify-center">
+            {loadingMore ? (
+              <div className="w-5 h-5 rounded-full border-2 border-muted border-t-primary animate-spin" />
+            ) : hasMore ? (
+              <span className="text-xs text-muted-foreground">Fais défiler pour voir la suite</span>
+            ) : (
+              <span className="text-xs text-muted-foreground">Tu es à jour ✨</span>
+            )}
+          </div>
+        )}
       </div>
       {activeTab === 'foryou' && <FeedTutorialOverlay />}
     </div>
