@@ -45,7 +45,7 @@ export interface Comment {
 
 export interface Notification {
   id: string;
-  type: 'like' | 'comment' | 'follow' | 'mention';
+  type: 'like' | 'comment' | 'reply' | 'follow' | 'mention' | 'system';
   user: User;
   video?: Video;
   message: string;

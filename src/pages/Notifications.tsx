@@ -21,6 +21,7 @@ const getNotificationIcon = (type: string) => {
     case 'like':
       return <Heart className="w-4 h-4 text-destructive" fill="currentColor" />;
     case 'comment':
+    case 'reply':
       return <MessageCircle className="w-4 h-4 text-accent" />;
     case 'follow':
       return <UserPlus className="w-4 h-4 text-primary" />;
@@ -43,7 +44,7 @@ const Notifications = () => {
         switch (activeTab) {
           case 'mentions': return n.type === 'mention';
           case 'likes': return n.type === 'like';
-          case 'comments': return n.type === 'comment';
+          case 'comments': return n.type === 'comment' || n.type === 'reply';
           case 'followers': return n.type === 'follow';
           default: return true;
         }

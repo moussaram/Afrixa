@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/useAuth';
+import { getOrCreateConversation as findOrCreateConversation } from '@/lib/conversations';
 
 export interface ConversationRow {
   id: string;
@@ -97,28 +98,14 @@ export const useConversations = () => {
   const getOrCreateConversation = useCallback(
     async (otherUserId: string): Promise<string | null> => {
       if (!user) return null;
-      const [a, b] = [user.id, otherUserId].sort();
-      // try find existing in either order
-      const { data: existing } = await supabase
-        .from('conversations')
-        .select('id')
-        .or(
-          `and(participant_1.eq.${a},participant_2.eq.${b}),and(participant_1.eq.${b},participant_2.eq.${a})`
-        )
-        .maybeSingle();
-      if (existing) return existing.id;
-
-      const { data: created, error: insErr } = await supabase
-        .from('conversations')
-        .insert({ participant_1: a, participant_2: b })
-        .select('id')
-        .single();
-      if (insErr) {
-        setError(insErr.message);
+      try {
+        const conversationId = await findOrCreateConversation(user.id, otherUserId);
+        if (conversationId) await fetchConversations();
+        return conversationId;
+      } catch (conversationError) {
+        setError(conversationError instanceof Error ? conversationError.message : 'Conversation indisponible');
         return null;
       }
-      await fetchConversations();
-      return created.id;
     },
     [user, fetchConversations]
   );

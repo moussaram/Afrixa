@@ -7,6 +7,7 @@ import { CommentsPanel } from './CommentsPanel';
 import { SharePanel } from './SharePanel';
 import { ProductBottomSheet } from '@/components/marketplace/ProductBottomSheet';
 import { useSocialInteractions, useFollow } from '@/hooks/useSocialInteractions';
+import { useAuth } from '@/contexts/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { currentUser } from '@/data/mockData';
 import { CreatorBadge } from '@/components/creators/CreatorBadge';
@@ -38,6 +39,8 @@ export const VideoCard = ({
   onSave,
 }: VideoCardProps) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const viewerId = user?.id ?? currentUser.id;
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -101,16 +104,18 @@ export const VideoCard = ({
     isSaved,
     likeCount,
     saveCount,
+    shareCount,
     isLikeLoading,
     isSaveLoading,
     toggleLike,
     toggleSave,
+    registerShare,
   } = useSocialInteractions(video);
 
   const { isFollowing, toggle: toggleFollow } = useFollow(
     video.user.isFollowing ?? false,
     video.user.id,
-    currentUser.id
+    viewerId
   );
 
   // Play/pause when becoming active
@@ -379,7 +384,7 @@ export const VideoCard = ({
           <div className="p-2 rounded-full text-foreground">
             <Share2 className="w-7 h-7" />
           </div>
-          <span className="text-xs text-foreground">{formatNumber(video.shares)}</span>
+          <span className="text-xs text-foreground">{formatNumber(shareCount)}</span>
         </button>
 
         {/* Comments */}
@@ -488,11 +493,12 @@ export const VideoCard = ({
         <CommentsPanel
           videoId={video.id}
           commentCount={video.comments}
+          videoOwnerId={video.user.id}
           onClose={() => setShowComments(false)}
         />
       )}
       {showShare && (
-        <SharePanel video={video} onClose={() => setShowShare(false)} />
+        <SharePanel video={video} onClose={() => setShowShare(false)} onShared={registerShare} />
       )}
       {showProduct && taggedProducts[video.id] && (
         <ProductBottomSheet

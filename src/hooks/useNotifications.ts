@@ -1,7 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/useAuth';
-import { mockNotifications } from '@/data/mockData';
 import type { Notification as AppNotification } from '@/types';
 
 interface DbNotification {
@@ -11,61 +11,100 @@ interface DbNotification {
   message: string;
   type: string;
   reference_id: string | null;
+  actor_id: string | null;
+  aggregate_count: number;
   is_read: boolean;
   created_at: string;
-  order_id: string | null;
 }
 
-// Maps a Supabase row into the app's Notification shape so the existing UI works.
-const dbToApp = (n: DbNotification): AppNotification => ({
-  id: n.id,
-  type: (n.type as AppNotification['type']) || 'like',
-  user: {
-    id: n.reference_id || n.user_id,
-    username: 'support',
-    displayName: n.title,
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face',
-    bio: '',
-    followers: 0,
-    following: 0,
-    likes: 0,
-    isFollowing: false,
-  },
-  message: n.message,
-  createdAt: n.created_at,
-  isRead: n.is_read,
-});
+interface ActorProfile {
+  user_id: string;
+  username: string | null;
+  prenom: string | null;
+  nom: string | null;
+  avatar_url: string | null;
+}
+
+const NOTIFICATION_TYPES = new Set<AppNotification['type']>(['like', 'comment', 'reply', 'follow', 'mention', 'system']);
+
+const normalizeType = (type: string): AppNotification['type'] =>
+  NOTIFICATION_TYPES.has(type as AppNotification['type'])
+    ? (type as AppNotification['type'])
+    : 'system';
+
+const dbToApp = (notification: DbNotification, actors: Map<string, ActorProfile>): AppNotification => {
+  const actor = notification.actor_id ? actors.get(notification.actor_id) : undefined;
+  const username = actor?.username ?? 'afrixa';
+  return {
+    id: notification.id,
+    type: normalizeType(notification.type),
+    user: {
+      id: actor?.user_id ?? notification.actor_id ?? notification.user_id,
+      username,
+      displayName: [actor?.prenom, actor?.nom].filter(Boolean).join(' ') || username,
+      avatar: actor?.avatar_url ?? '',
+      followers: 0,
+      following: 0,
+      likes: 0,
+      isFollowing: false,
+    },
+    message: notification.message,
+    createdAt: notification.created_at,
+    isRead: notification.is_read,
+  };
+};
 
 export function useNotifications() {
   const { user } = useAuth();
+  const client = supabase as any;
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) {
-      setNotifications(mockNotifications);
+      setNotifications([]);
       setLoading(false);
       return;
     }
-    const { data, error } = await supabase
+
+    const { data, error: fetchError } = await client
       .from('notifications')
       .select('*')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-    if (error || !data || data.length === 0) {
-      // Fallback to mock so the UI is never empty in dev / when RLS blocks
-      setNotifications(mockNotifications);
-    } else {
-      setNotifications((data as DbNotification[]).map(dbToApp));
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (fetchError) {
+      console.error('Unable to load notifications', fetchError);
+      setError(fetchError.message);
+      setNotifications([]);
+      setLoading(false);
+      return;
     }
+
+    const rows = (data ?? []) as DbNotification[];
+    const actorIds = [...new Set(rows.map((row) => row.actor_id).filter((id): id is string => Boolean(id)))];
+
+    let actors: ActorProfile[] = [];
+    if (actorIds.length > 0) {
+      const { data: profiles } = await client
+        .from('profiles')
+        .select('user_id,username,prenom,nom,avatar_url')
+        .in('user_id', actorIds);
+      actors = (profiles ?? []) as ActorProfile[];
+    }
+
+    const actorsById = new Map(actors.map((actor) => [actor.user_id, actor]));
+    setNotifications(rows.map((row) => dbToApp(row, actorsById)));
+    setError(null);
     setLoading(false);
-  }, [user]);
+  }, [client, user]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
-  // Realtime subscription for new notifications
   useEffect(() => {
     if (!user) return;
     const channel = supabase
@@ -73,7 +112,7 @@ export function useNotifications() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
-        () => load()
+        () => { void load(); },
       )
       .subscribe();
     return () => {
@@ -82,20 +121,26 @@ export function useNotifications() {
   }, [user, load]);
 
   const markRead = useCallback(async (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    setNotifications((previous) => previous.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
     if (user) {
-      await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+      const { error: updateError } = await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+      if (updateError) console.error('Unable to mark notification as read', updateError);
     }
   }, [user]);
 
   const markAllRead = useCallback(async () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    setNotifications((previous) => previous.map((n) => ({ ...n, isRead: true })));
     if (user) {
-      await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id).eq('is_read', false);
+      const { error: updateError } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false);
+      if (updateError) console.error('Unable to mark all notifications as read', updateError);
     }
   }, [user]);
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
-  return { notifications, unreadCount, loading, markRead, markAllRead, reload: load };
+  return { notifications, unreadCount, loading, error, markRead, markAllRead, reload: load };
 }

@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/useAuth';
 import { ProfileShareSheet } from '@/components/profile/ProfileShareSheet';
 import { CreatorBadge } from '@/components/creators/CreatorBadge';
 import { ProfileCompletionBanner } from '@/components/onboarding/ProfileCompletionBanner';
+import { useProfileVideoCollections } from '@/hooks/useProfileVideoCollections';
 
 const tabs = [
   { id: 'videos', icon: Grid3X3, label: 'Vidéos' },
@@ -26,7 +27,13 @@ const Profile = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const {
+    likedVideos,
+    savedVideos,
+    loading: collectionsLoading,
+    error: collectionsError,
+  } = useProfileVideoCollections(user?.id);
   const unreadCount = mockConversations.reduce((sum, c) => sum + c.unreadCount, 0);
 
   const displayName = profile
@@ -194,6 +201,11 @@ const Profile = () => {
 
       {/* Content */}
       <div className="px-1 py-2">
+        {collectionsError && (activeTab === 'likes' || activeTab === 'saved') && (
+          <p className="px-4 py-6 text-center text-sm text-destructive">
+            Impossible de charger cette collection.
+          </p>
+        )}
         {activeTab === 'videos' && (
           <div className="grid grid-cols-3 gap-0.5">
             {mockVideos.map((video) => (
@@ -207,27 +219,35 @@ const Profile = () => {
         )}
 
         {activeTab === 'likes' && (
-          <div className="grid grid-cols-3 gap-0.5">
-            {mockVideos.filter(v => v.isLiked).map((video) => (
-              <VideoThumbnail
-                key={video.id}
-                video={video}
-                className="aspect-[9/16]"
-              />
-            ))}
-          </div>
+          collectionsLoading ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">Chargement…</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-0.5">
+              {likedVideos.map((video) => (
+                <VideoThumbnail
+                  key={video.id}
+                  video={video}
+                  className="aspect-[9/16]"
+                />
+              ))}
+            </div>
+          )
         )}
 
         {activeTab === 'saved' && (
-          <div className="grid grid-cols-3 gap-0.5">
-            {mockVideos.filter(v => v.isSaved).map((video) => (
-              <VideoThumbnail
-                key={video.id}
-                video={video}
-                className="aspect-[9/16]"
-              />
-            ))}
-          </div>
+          collectionsLoading ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">Chargement…</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-0.5">
+              {savedVideos.map((video) => (
+                <VideoThumbnail
+                  key={video.id}
+                  video={video}
+                  className="aspect-[9/16]"
+                />
+              ))}
+            </div>
+          )
         )}
       </div>
 
@@ -244,8 +264,9 @@ const Profile = () => {
       />
 
       {/* Empty state */}
-      {((activeTab === 'likes' && !mockVideos.some(v => v.isLiked)) ||
-        (activeTab === 'saved' && !mockVideos.some(v => v.isSaved))) && (
+      {!collectionsLoading && !collectionsError &&
+        ((activeTab === 'likes' && likedVideos.length === 0) ||
+          (activeTab === 'saved' && savedVideos.length === 0)) && (
         <div className="flex flex-col items-center justify-center py-16 px-4">
           <div className="w-20 h-20 rounded-full glass flex items-center justify-center mb-4">
             {activeTab === 'likes' ? (
