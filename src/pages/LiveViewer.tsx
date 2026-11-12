@@ -7,7 +7,10 @@ import {
 import { LiveChat } from '@/components/live/LiveChat';
 import { LiveReactions } from '@/components/live/LiveReactions';
 import { useReactions } from '@/components/live/useReactions';
-import { GIFTS } from '@/components/live/gifts';
+import { GiftAnimation } from '@/components/live/GiftAnimation';
+import { type GiftCatalogEntry, type GiftItem } from '@/components/live/gifts';
+import { useCoins } from '@/hooks/useCoins';
+import { sendLiveGift } from '@/lib/coins';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -37,6 +40,8 @@ export default function LiveViewer() {
   const [commentsEnabled, setCommentsEnabled] = useState(true);
   const [showGiftPanel, setShowGiftPanel] = useState(false);
   const [chatVisible, setChatVisible] = useState(true);
+  const [activeGift, setActiveGift] = useState<GiftItem | null>(null);
+  const coins = useCoins();
 
   const presence = useLivePresence(sessionId, user?.id, 'viewer');
   const { counters, isCoHost } = presence;
@@ -93,6 +98,38 @@ export default function LiveViewer() {
       active = false;
     };
   }, [creatorId, navigate]);
+
+  // Cadeaux des autres spectateurs : diffuses par Realtime, deja payes en base.
+  useEffect(() => {
+    if (!sessionId) return;
+    const channel = client
+      .channel(`live-gifts-${sessionId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'gift_transactions', filter: `live_id=eq.${sessionId}` },
+        async (payload: { new: { id: string; sender_id: string; gift_id: string | null; coins_spent: number } }) => {
+          const row = payload.new;
+          if (!row) return;
+          const gift = coins.gifts.find((entry) => entry.id === row.gift_id);
+          const { data: sender } = await client
+            .from('profiles')
+            .select('username')
+            .eq('user_id', row.sender_id)
+            .maybeSingle();
+          setActiveGift({
+            id: row.id,
+            name: gift?.name ?? 'Cadeau',
+            emoji: gift?.emoji ?? '🎁',
+            coins: Number(row.coins_spent) || 0,
+            fromUser: sender?.username ?? 'Un spectateur',
+          });
+        },
+      )
+      .subscribe();
+    return () => {
+      void client.removeChannel(channel);
+    };
+  }, [sessionId, coins.gifts]);
 
   const handleSend = useCallback((text: string) => {
     void chat.sendMessage(text).catch((sendError) => {
@@ -155,9 +192,37 @@ export default function LiveViewer() {
     toast.success('Signalement envoyé à la modération.');
   };
 
-  const handleGift = (gift: typeof GIFTS[number]) => {
-    setShowGiftPanel(false);
-    toast.info(`${gift.emoji} ${gift.name} : les cadeaux seront activés avec les Coins.`);
+  const handleGift = async (gift: GiftCatalogEntry) => {
+    if (!user?.id) {
+      toast.error('Connecte-toi pour envoyer un cadeau.');
+      return;
+    }
+    if (!sessionId) {
+      toast.error('Ce live n’est plus disponible.');
+      return;
+    }
+    try {
+      const result = await sendLiveGift(gift.id, sessionId);
+      setShowGiftPanel(false);
+      setActiveGift({
+        id: gift.id,
+        name: result.gift_name,
+        emoji: result.gift_emoji || gift.emoji,
+        coins: result.coins_spent,
+        fromUser: 'Vous',
+      });
+      toast.success(`${gift.emoji} ${gift.name} envoyé à ${creatorName} !`);
+      void coins.refresh();
+    } catch (giftError) {
+      const message = giftError instanceof Error ? giftError.message : '';
+      if (/Solde de coins insuffisant/i.test(message)) {
+        toast.error('Solde de Coins insuffisant. Recharge ton solde pour envoyer ce cadeau.');
+        navigate('/coins');
+        return;
+      }
+      console.error('Unable to send gift', giftError);
+      toast.error('Impossible d’envoyer ce cadeau.');
+    }
   };
 
   const handleShare = () => {
@@ -238,6 +303,7 @@ export default function LiveViewer() {
       </div>
 
       <LiveReactions reactions={reactions} />
+      <GiftAnimation gift={activeGift} />
 
       <div className="absolute right-4 bottom-48 z-10 flex flex-col gap-3">
         <button onClick={handleLike} className="flex flex-col items-center gap-1 group">
@@ -304,20 +370,29 @@ export default function LiveViewer() {
 
       {showGiftPanel && (
         <div className="absolute bottom-28 left-4 z-20 bg-card/95 backdrop-blur-sm border border-border/30 rounded-2xl p-4 w-72 shadow-2xl">
-          <p className="text-sm font-semibold text-foreground mb-3">🎁 Envoyer un cadeau</p>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-semibold text-foreground">🎁 Envoyer un cadeau</p>
+            <span className="text-xs font-semibold text-primary">{coins.wallet.balance} coins</span>
+          </div>
           <div className="grid grid-cols-3 gap-3">
-            {GIFTS.map((gift) => (
+            {coins.gifts.map((gift) => (
               <button
-                key={gift.name}
-                onClick={() => handleGift(gift)}
+                key={gift.id}
+                onClick={() => void handleGift(gift)}
                 className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-primary/10 border border-transparent hover:border-primary/30 transition-all active:scale-95"
               >
                 <span className="text-2xl">{gift.emoji}</span>
                 <span className="text-xs text-foreground">{gift.name}</span>
-                <span className="text-xs font-semibold text-primary">{gift.value} 🪙</span>
+                <span className="text-xs font-semibold text-primary">{gift.price_coins} 🪙</span>
               </button>
             ))}
           </div>
+          <button
+            onClick={() => navigate('/coins')}
+            className="mt-3 w-full rounded-xl bg-primary/10 py-2 text-xs font-semibold text-primary"
+          >
+            Recharger mes Coins
+          </button>
         </div>
       )}
     </div>

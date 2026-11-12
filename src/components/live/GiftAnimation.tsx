@@ -25,9 +25,9 @@ export const GiftAnimation = ({ gift }: GiftAnimationProps) => {
       <div className="bg-primary/10 border border-primary/30 backdrop-blur-sm rounded-2xl px-5 py-3 flex items-center gap-3 animate-bounce-in">
         <span className="text-4xl">{current.emoji}</span>
         <div>
-          <p className="text-xs text-muted-foreground">{current.fromUser} a envoyÃ©</p>
+          <p className="text-xs text-muted-foreground">{current.fromUser} a envoyé</p>
           <p className="text-base font-bold text-foreground">{current.name}</p>
-          <p className="text-xs text-primary">+{current.value} coins</p>
+          <p className="text-xs text-primary">{current.coins} coins</p>
         </div>
       </div>
     </div>

@@ -52,7 +52,50 @@ Deno.serve(async (req) => {
         .eq('fedapay_transaction_id', objectId)
         .maybeSingle();
       if (txError) throw txError;
-      if (!tx) return json({ received: true, ignored: true });
+      if (!tx) {
+        // Achat de Coins : le reglement est idempotent cote base.
+        const { data: coinPurchase, error: coinError } = await admin.from('coin_purchases')
+          .select('id, user_id, coins_amount, fcfa_paid, fedapay_transaction_id, status')
+          .eq('fedapay_transaction_id', objectId)
+          .maybeSingle();
+        if (coinError) throw coinError;
+        if (!coinPurchase) return json({ received: true, ignored: true });
+
+        const coinResponse = await fedapayRequest(`/transactions/${encodeURIComponent(objectId)}`);
+        const coinPayment = getFedaPayEntity(coinResponse);
+        if (String(coinPayment?.id) !== objectId
+          || Number(coinPayment?.amount) !== Number(coinPurchase.fcfa_paid)
+          || currencyIso(coinPayment?.currency) !== 'XOF') {
+          console.error('FedaPay coin event does not match stored purchase', { purchaseId: coinPurchase.id });
+          return json({ received: true, rejected: true });
+        }
+
+        const coinStatus = String(coinPayment?.status ?? '').toLowerCase();
+        if (coinStatus === 'approved') {
+          const { error: settleError } = await admin.rpc('settle_coin_purchase', {
+            p_purchase_id: coinPurchase.id,
+            p_transaction_id: objectId,
+            p_provider_reference: typeof coinPayment?.reference === 'string'
+              ? coinPayment.reference
+              : null,
+            p_idempotency_key: `coin_purchase:${coinPurchase.id}`,
+          });
+          if (settleError) throw settleError;
+          return json({ received: true, processed: true });
+        }
+
+        if (['declined', 'canceled', 'cancelled'].includes(coinStatus)) {
+          const { error: failError } = await admin.rpc('fail_coin_purchase', {
+            p_purchase_id: coinPurchase.id,
+            p_reason: coinStatus,
+            p_transaction_id: objectId,
+          });
+          if (failError) throw failError;
+          return json({ received: true, processed: true });
+        }
+
+        return json({ received: true, ignored: true });
+      }
 
       // Do not rely on the event's status or amount; fetch the authoritative object.
       const providerResponse = await fedapayRequest(`/transactions/${encodeURIComponent(objectId)}`);

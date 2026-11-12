@@ -10,7 +10,8 @@ import { LiveChat } from '@/components/live/LiveChat';
 import { LiveReactions } from '@/components/live/LiveReactions';
 import { useReactions } from '@/components/live/useReactions';
 import { GiftAnimation } from '@/components/live/GiftAnimation';
-import { type GiftItem, GIFTS } from '@/components/live/gifts';
+import { type GiftItem } from '@/components/live/gifts';
+import { useCoins } from '@/hooks/useCoins';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useAgoraLive } from '@/hooks/useAgoraLive';
@@ -45,6 +46,8 @@ export default function LiveBroadcast() {
   const [duration, setDuration] = useState(0);
   const [chatVisible, setChatVisible] = useState(true);
   const [activeGift, setActiveGift] = useState<GiftItem | null>(null);
+  const [receivedGifts, setReceivedGifts] = useState<GiftItem[]>([]);
+  const coins = useCoins();
   const [showGiftPanel, setShowGiftPanel] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [showCohosts, setShowCohosts] = useState(false);
@@ -56,6 +59,40 @@ export default function LiveBroadcast() {
   useEffect(() => {
     if (!sessionId) navigate('/live/setup', { replace: true });
   }, [navigate, sessionId]);
+
+  // Cadeaux payes par les spectateurs, diffuses en temps reel.
+  useEffect(() => {
+    if (!sessionId) return;
+    const channel = (supabase as any)
+      .channel(`host-gifts-${sessionId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'gift_transactions', filter: `live_id=eq.${sessionId}` },
+        async (payload: { new: { id: string; sender_id: string; gift_id: string | null; coins_spent: number } }) => {
+          const row = payload.new;
+          if (!row) return;
+          const gift = coins.gifts.find((entry: { id: string }) => entry.id === row.gift_id);
+          const { data: sender } = await (supabase as any)
+            .from('profiles')
+            .select('username')
+            .eq('user_id', row.sender_id)
+            .maybeSingle();
+          const entry: GiftItem = {
+            id: row.id,
+            name: gift?.name ?? 'Cadeau',
+            emoji: gift?.emoji ?? '🎁',
+            coins: Number(row.coins_spent) || 0,
+            fromUser: sender?.username ?? 'Un spectateur',
+          };
+          setActiveGift(entry);
+          setReceivedGifts((current) => [entry, ...current].slice(0, 20));
+        },
+      )
+      .subscribe();
+    return () => {
+      void (supabase as any).removeChannel(channel);
+    };
+  }, [sessionId, coins.gifts]);
 
   // Duration timer
   useEffect(() => {
@@ -341,23 +378,32 @@ export default function LiveBroadcast() {
       {/* ── GIFT PANEL ── */}
       {showGiftPanel && (
         <div className="absolute bottom-28 left-4 z-20 bg-card/95 backdrop-blur-sm border border-border/30 rounded-2xl p-4 w-72">
-          <p className="text-sm font-semibold text-foreground mb-3">🎁 Cadeaux des spectateurs</p>
-          <div className="grid grid-cols-3 gap-3">
-            {GIFTS.map(g => (
-              <button
-                key={g.name}
-                onClick={() => {
-                  setShowGiftPanel(false);
-                  toast.info(`Vous ne pouvez pas vous envoyer des cadeaux`);
-                }}
-                className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-muted/50 transition-colors"
-              >
-                <span className="text-2xl">{g.emoji}</span>
-                <span className="text-xs text-foreground">{g.name}</span>
-                <span className="text-xs text-primary">{g.value}</span>
-              </button>
-            ))}
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-semibold text-foreground">🎁 Cadeaux reçus</p>
+            <span className="text-xs font-semibold text-primary">
+              {receivedGifts.reduce((total, gift) => total + gift.coins, 0)} coins
+            </span>
           </div>
+          {receivedGifts.length === 0 ? (
+            <p className="py-4 text-center text-xs text-muted-foreground">
+              Les cadeaux des spectateurs apparaîtront ici.
+            </p>
+          ) : (
+            <div className="max-h-52 space-y-2 overflow-y-auto">
+              {receivedGifts.map((gift, index) => (
+                <div key={`${gift.id}-${index}`} className="flex items-center justify-between rounded-xl bg-muted/40 p-2">
+                  <span className="flex items-center gap-2 text-xs text-foreground">
+                    <span className="text-lg">{gift.emoji}</span>
+                    <span>
+                      <span className="block font-semibold">{gift.name}</span>
+                      <span className="block text-[10px] text-muted-foreground">@{gift.fromUser}</span>
+                    </span>
+                  </span>
+                  <span className="text-xs font-semibold text-primary">{gift.coins} 🪙</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
