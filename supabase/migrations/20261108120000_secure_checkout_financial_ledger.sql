@@ -92,7 +92,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 BEGIN
   IF OLD.status = 'en_attente' AND NEW.status = 'annulee'
     AND NEW.product_id IS NOT NULL THEN
@@ -104,7 +104,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS restore_order_stock_after_cancellation ON public.orders;
 CREATE TRIGGER restore_order_stock_after_cancellation
@@ -118,7 +118,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 DECLARE
   event_message text;
 BEGIN
@@ -141,7 +141,7 @@ BEGIN
   VALUES (NEW.id, NEW.status, event_message);
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS record_status_change ON public.orders;
 DROP TRIGGER IF EXISTS append_order_timeline_event ON public.orders;
