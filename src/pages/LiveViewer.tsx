@@ -11,6 +11,7 @@ import { GiftAnimation } from '@/components/live/GiftAnimation';
 import { type GiftCatalogEntry, type GiftItem } from '@/components/live/gifts';
 import { useCoins } from '@/hooks/useCoins';
 import { sendLiveGift } from '@/lib/coins';
+import { reportContent } from '@/lib/security';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -178,18 +179,20 @@ export default function LiveViewer() {
       return;
     }
     if (!window.confirm('Signaler ce live à la modération ?')) return;
-    const { error } = await client.from('content_reports').insert({
-      reporter_id: user.id,
-      content_type: 'user',
-      content_id: hostId,
-      reason: 'Signalement de live',
-    });
-    if (error) {
-      console.error('Unable to report live', error);
+    try {
+      const result = await reportContent({
+        reporterId: user.id,
+        contentType: 'live',
+        contentId: sessionId,
+        reason: 'Signalement de live',
+      });
+      toast.success(result?.auto_hidden
+        ? 'Signalement envoyé, le live est masqué en attente de modération.'
+        : 'Signalement envoyé à la modération.');
+    } catch (reportError) {
+      console.error('Unable to report live', reportError);
       toast.error('Impossible d’enregistrer le signalement.');
-      return;
     }
-    toast.success('Signalement envoyé à la modération.');
   };
 
   const handleGift = async (gift: GiftCatalogEntry) => {

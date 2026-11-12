@@ -10,7 +10,16 @@ export type RateLimitedAction =
   | 'report'
   | 'tip';
 
-export type ContentType = 'video' | 'comment' | 'product' | 'message' | 'profile';
+export type ContentType =
+  | 'video'
+  | 'comment'
+  | 'product'
+  | 'message'
+  | 'profile'
+  | 'user'
+  | 'live'
+  | 'story'
+  | 'ad';
 
 export const RATE_LIMITS: Record<RateLimitedAction, { limit: number; windowMs: number }> = {
   comment: { limit: 30, windowMs: 60 * 60 * 1000 },
@@ -56,21 +65,28 @@ export const findBannedWords = async (text: string) => {
 };
 
 export const reportContent = async (payload: {
-  reporterId: string;
+  reporterId?: string;
   contentType: ContentType;
   contentId: string;
   reason: string;
   description?: string;
 }) => {
-  const { error } = await supabase.from('content_reports').insert({
-    reporter_id: payload.reporterId,
-    content_type: payload.contentType,
-    content_id: payload.contentId,
-    reason: sanitizeText(payload.reason),
-    description: payload.description ? sanitizeText(payload.description) : null,
+  // La fonction serveur verifie le contenu, identifie l auteur, bloque les
+  // doublons et declenche l auto-masquage ; le client n ecrit plus la table.
+  const { data, error } = await (supabase as unknown as {
+    rpc: (name: string, args: Record<string, unknown>) => Promise<{
+      data: { report_id?: string; status?: string; auto_hidden?: boolean } | null;
+      error: { message: string } | null;
+    }>;
+  }).rpc('submit_report', {
+    p_content_type: payload.contentType,
+    p_content_id: payload.contentId,
+    p_reason: sanitizeText(payload.reason),
+    p_description: payload.description ? sanitizeText(payload.description) : null,
   });
 
   if (error) throw error;
+  return data;
 };
 
 export const blockUser = async (blockerId: string, blockedId: string) => {

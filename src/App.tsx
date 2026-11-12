@@ -54,6 +54,7 @@ const Sounds = lazy(() => import("./pages/Sounds"));
 const Premium = lazy(() => import("./pages/Premium"));
 const Coins = lazy(() => import("./pages/Coins"));
 const AdsManager = lazy(() => import("./pages/AdsManager"));
+const ModerationPage = lazy(() => import("./pages/ModerationPage"));
 const CreatorProgramPage = lazy(() => import("./pages/creators/CreatorProgramPage"));
 const AfrixaStudioPage = lazy(() => import("./pages/creators/AfrixaStudioPage"));
 const CreatorWalletPage = lazy(() => import("./pages/creators/CreatorWalletPage"));
@@ -102,6 +103,7 @@ const AppContent = () => {
           <Route path="/premium" element={<Premium />} />
           <Route path="/coins" element={<Coins />} />
           <Route path="/ads" element={<AdsManager />} />
+          <Route path="/moderation" element={<ModerationPage />} />
 
           {/* App routes */}
           <Route path="/" element={<Index />} />

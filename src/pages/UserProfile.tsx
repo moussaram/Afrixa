@@ -18,6 +18,7 @@ import { VideoThumbnail } from '@/components/video/VideoThumbnail';
 import { Button } from '@/components/ui/button';
 import { formatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
+import { reportContent } from '@/lib/security';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -200,16 +201,15 @@ const UserProfile = () => {
     if (!window.confirm(`Signaler @${username} à la modération ?`)) return;
     setActionPending(true);
     try {
-      const { error: reportError } = await client
-        .from('content_reports')
-        .insert({
-          reporter_id: viewer.id,
-          content_type: 'user',
-          content_id: profile.user_id,
-          reason: 'Signalement utilisateur',
-        });
-      if (reportError) throw reportError;
-      toast.success('Signalement enregistré, merci.');
+      const result = await reportContent({
+        reporterId: viewer.id,
+        contentType: 'user',
+        contentId: profile.user_id,
+        reason: 'Signalement utilisateur',
+      });
+      toast.success(result?.auto_hidden
+        ? 'Signalement enregistré, le contenu est masqué en attente de moderation.'
+        : 'Signalement enregistré, merci.');
     } catch (reportActionError) {
       console.error('Unable to report profile', reportActionError);
       toast.error('Impossible d’enregistrer le signalement.');

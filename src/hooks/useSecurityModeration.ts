@@ -22,7 +22,9 @@ export const useSecurityModeration = (userId?: string) => {
       setLoading(true);
       try {
         const restriction = await hasActiveRestriction(userId);
-        if (restriction?.action_type === 'ban_permanent' || restriction?.action_type === 'ban_7days') {
+        if (restriction?.action_type === 'ban_permanent'
+          || restriction?.action_type === 'ban_7days'
+          || restriction?.action_type === 'restrict_24h') {
           toast.error(restriction.reason || 'Compte temporairement restreint');
           return { allowed: false, content: sanitizeText(textToModerate ?? '') };
         }

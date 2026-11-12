@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { commentSchema } from '@/lib/validation';
+import { reportContent } from '@/lib/security';
 
 export interface RealtimeComment {
   id: string;
@@ -236,13 +237,7 @@ export const useRealtimeComments = (videoId: string, userId?: string) => {
 
   const reportComment = useCallback(async (commentId: string, reason = 'Signalement utilisateur') => {
     if (!userId) throw new Error('Connexion requise');
-    const { error: reportError } = await (supabase as any).from('content_reports').insert({
-      reporter_id: userId,
-      content_type: 'comment',
-      content_id: commentId,
-      reason,
-    });
-    if (reportError) throw reportError;
+    await reportContent({ reporterId: userId, contentType: 'comment', contentId: commentId, reason });
   }, [userId]);
 
   return {
