@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Gauge, MoreHorizontal, PictureInPicture2, RotateCcw, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getVideoWatchStates } from '@/lib/watchHistory';
 
 interface AdvancedVideoControlsProps {
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -27,6 +28,29 @@ export const AdvancedVideoControls = ({ videoRef, videoId, speed, onSpeedChange 
     const save = () => localStorage.setItem(key, String(video.currentTime));
     video.addEventListener('timeupdate', save);
     return () => video.removeEventListener('timeupdate', save);
+  }, [videoId, videoRef]);
+
+  // Reprise de lecture : la position serveur prend le relais quand aucune
+  // position locale n a ete enregistree sur cet appareil.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const local = Number(localStorage.getItem(`afrixa:watch:${videoId}`) || 0);
+    if (local > 0 && Number.isFinite(local)) return;
+
+    let active = true;
+    void getVideoWatchStates([videoId]).then((states) => {
+      const state = states.get(videoId);
+      if (!active || !state || state.completed || state.lastPosition <= 2) return;
+      const apply = () => {
+        if (Number.isFinite(video.duration) && video.duration > state.lastPosition + 2) {
+          video.currentTime = state.lastPosition;
+        }
+      };
+      if (video.readyState >= 1) apply();
+      else video.addEventListener('loadedmetadata', apply, { once: true });
+    });
+    return () => { active = false; };
   }, [videoId, videoRef]);
 
   const seek = (seconds: number) => {

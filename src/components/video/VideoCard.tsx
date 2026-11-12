@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Heart, MessageCircle, Share2, Bookmark, Music, Play, Volume2, VolumeX, ShoppingCart } from 'lucide-react';
 import { Video } from '@/types';
 import { cn } from '@/lib/utils';
@@ -14,6 +14,7 @@ import { CreatorBadge } from '@/components/creators/CreatorBadge';
 import { CreatorTipButton } from '@/components/creators/CreatorTipButton';
 import { AdvancedVideoControls } from '@/components/video/AdvancedVideoControls';
 import { trackFollow, trackProductView, trackVideoComplete, trackVideoLike, trackVideoView } from '@/lib/firebase/analytics';
+import { getVideoWatchStates, recordVideoWatch } from '@/lib/watchHistory';
 
 // Mock: some videos have tagged products
 const taggedProducts: Record<string, { name: string; price: number; currency: string; imageUrl: string; sellerName: string }> = {
@@ -55,6 +56,8 @@ export const VideoCard = ({
   const [progress, setProgress] = useState(0);
   const completionTrackedRef = useRef(false);
   const viewTrackedRef = useRef(false);
+  const lastWatchSaveRef = useRef(0);
+  const [alreadyWatched, setAlreadyWatched] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showProduct, setShowProduct] = useState(false);
@@ -63,6 +66,23 @@ export const VideoCard = ({
   const seekFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  const saveWatchProgress = useCallback((force = false) => {
+    const element = videoRef.current;
+    if (!element || !Number.isFinite(element.duration) || element.duration <= 0) return;
+    if (!force && element.currentTime - lastWatchSaveRef.current < 10) return;
+    lastWatchSaveRef.current = element.currentTime;
+    void recordVideoWatch(video.id, element.currentTime, element.duration);
+  }, [video.id]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    let active = true;
+    void getVideoWatchStates([video.id]).then((states) => {
+      if (active) setAlreadyWatched(states.get(video.id)?.completed ?? false);
+    });
+    return () => { active = false; };
+  }, [isActive, video.id]);
 
   useEffect(() => {
     const element = videoRef.current;
@@ -129,12 +149,13 @@ export const VideoCard = ({
       v.play().catch(() => {});
       setIsPlaying(true);
     } else {
+      saveWatchProgress(true);
       v.pause();
       v.currentTime = 0;
       setIsPlaying(false);
       viewTrackedRef.current = false;
     }
-  }, [isActive]);
+  }, [isActive, saveWatchProgress]);
 
   const handleVideoClick = () => {
     const v = videoRef.current;
@@ -187,9 +208,11 @@ export const VideoCard = ({
     const v = videoRef.current;
     if (v && v.duration) {
       setProgress((v.currentTime / v.duration) * 100);
+      saveWatchProgress();
       if (v.currentTime >= v.duration * 0.95 && !completionTrackedRef.current) {
         completionTrackedRef.current = true;
         void trackVideoComplete(v.duration);
+        setAlreadyWatched(true);
       } else if (v.currentTime < 2) {
         completionTrackedRef.current = false;
       }
@@ -231,9 +254,16 @@ export const VideoCard = ({
         onPointerLeave={handleVideoPointerEnd}
         onContextMenu={event => event.preventDefault()}
         onTimeUpdate={handleTimeUpdate}
+        onPause={() => saveWatchProgress(true)}
         onCanPlay={() => { if (isActive) videoRef.current?.play().catch(() => {}); }}
         poster={video.thumbnailUrl}
       />
+
+      {alreadyWatched && (
+        <span className="pointer-events-none absolute right-3 top-3 z-20 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
+          Déjà vue
+        </span>
+      )}
       <AdvancedVideoControls videoRef={videoRef} videoId={video.id} speed={playbackSpeed} onSpeedChange={setPlaybackSpeed} />
 
       {seekFeedback && (
