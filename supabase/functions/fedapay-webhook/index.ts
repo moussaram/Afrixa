@@ -59,7 +59,43 @@ Deno.serve(async (req) => {
           .eq('fedapay_transaction_id', objectId)
           .maybeSingle();
         if (coinError) throw coinError;
-        if (!coinPurchase) return json({ received: true, ignored: true });
+        if (!coinPurchase) {
+          // Campagne publicitaire : activation apres paiement confirme.
+          const { data: adCampaign, error: adError } = await admin.from('ad_campaigns')
+            .select('id, budget, fedapay_transaction_id, status')
+            .eq('fedapay_transaction_id', objectId)
+            .maybeSingle();
+          if (adError) throw adError;
+          if (!adCampaign) return json({ received: true, ignored: true });
+
+          const adResponse = await fedapayRequest(`/transactions/${encodeURIComponent(objectId)}`);
+          const adPayment = getFedaPayEntity(adResponse);
+          if (String(adPayment?.id) !== objectId
+            || Number(adPayment?.amount) !== Number(adCampaign.budget)
+            || currencyIso(adPayment?.currency) !== 'XOF') {
+            console.error('FedaPay ad event does not match stored campaign', { campaignId: adCampaign.id });
+            return json({ received: true, rejected: true });
+          }
+
+          const adStatus = String(adPayment?.status ?? '').toLowerCase();
+          if (adStatus === 'approved') {
+            const { error: activateError } = await admin.rpc('activate_ad_campaign', {
+              p_campaign_id: adCampaign.id,
+              p_transaction_id: objectId,
+            });
+            if (activateError) throw activateError;
+            return json({ received: true, processed: true });
+          }
+          if (['declined', 'canceled', 'cancelled'].includes(adStatus)) {
+            const { error: failError } = await admin.rpc('fail_ad_campaign', {
+              p_campaign_id: adCampaign.id,
+              p_reason: adStatus,
+            });
+            if (failError) throw failError;
+            return json({ received: true, processed: true });
+          }
+          return json({ received: true, ignored: true });
+        }
 
         const coinResponse = await fedapayRequest(`/transactions/${encodeURIComponent(objectId)}`);
         const coinPayment = getFedaPayEntity(coinResponse);

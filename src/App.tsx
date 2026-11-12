@@ -26,7 +26,7 @@ const Chat = lazy(() => import("./pages/Chat"));
 const NewMessage = lazy(() => import("./pages/NewMessage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const UserProfile = lazy(() => import("./pages/UserProfile"));
-const Boost = lazy(() => import("./pages/Boost"));
+
 const LiveSetup = lazy(() => import("./pages/LiveSetup"));
 const LiveBroadcast = lazy(() => import("./pages/LiveBroadcast"));
 const LiveViewer = lazy(() => import("./pages/LiveViewer"));
@@ -115,7 +115,8 @@ const AppContent = () => {
           <Route path="/messages/new" element={<NewMessage />} />
           <Route path="/chat/:conversationId" element={<Chat />} />
           <Route path="/user/:userId" element={<UserProfile />} />
-          <Route path="/boost" element={<Boost />} />
+          {/* L ancien parcours Boost factice est remplace par Afrixa Ads. */}
+          <Route path="/boost" element={<Navigate to="/ads" replace />} />
           <Route path="/live/setup" element={<LiveSetup />} />
           <Route path="/my-shop" element={<MyShop />} />
           <Route path="/ma-boutique" element={<MyShop />} />
