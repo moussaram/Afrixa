@@ -17,7 +17,7 @@ const AfrixaStudioPage = () => {
   const { user } = useAuth();
   const [profileAnalytics, setProfileAnalytics] = useState<any[]>([]);
   const [videoAnalytics, setVideoAnalytics] = useState<any[]>([]);
-  const [earnings, setEarnings] = useState<any[]>([]);
+  const [revenue, setRevenue] = useState<Array<{ type: string; status: string; total: number; entries: number }>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,17 +30,25 @@ const AfrixaStudioPage = () => {
         if (refresh.error) {
           console.warn('Unable to refresh creator analytics', refresh.error);
         }
-        const [profileResult, videoResult, earningsResult] = await Promise.all([
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const toDate = (date: Date) => date.toISOString().slice(0, 10);
+        const [profileResult, videoResult, revenueResult] = await Promise.all([
           (supabase as any).from('profile_analytics').select('*').eq('user_id', user.id).order('recorded_date', { ascending: false }).limit(90),
           (supabase as any).from('video_analytics').select('*').eq('user_id', user.id).order('recorded_date', { ascending: false }).limit(50),
-          (supabase as any).from('creator_earnings').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(100),
+          (supabase as any).rpc('get_my_revenue', { p_from: toDate(monthStart), p_to: toDate(now) }),
         ]);
         if (profileResult.error) throw profileResult.error;
         if (videoResult.error) throw videoResult.error;
-        if (earningsResult.error) throw earningsResult.error;
+        if (revenueResult.error) throw revenueResult.error;
         setProfileAnalytics(profileResult.data || []);
         setVideoAnalytics(videoResult.data || []);
-        setEarnings(earningsResult.data || []);
+        setRevenue((revenueResult.data || []).map((row: any) => ({
+          type: row.type,
+          status: row.status,
+          total: Number(row.total) || 0,
+          entries: Number(row.entries) || 0,
+        })));
       } catch (error) {
         toast({ title: 'Erreur', description: 'Impossible de charger Afrixa Studio.', variant: 'destructive' });
       } finally {
@@ -51,7 +59,10 @@ const AfrixaStudioPage = () => {
   }, [user?.id]);
 
   const latest = profileAnalytics[0] || {};
-  const monthlyRevenue = earnings.reduce((sum, row) => sum + (row.amount || 0), 0);
+  // Revenus du mois en cours uniquement, tels que calcules par le serveur.
+  const monthlyRevenue = revenue
+    .filter((row) => row.status === 'confirmed')
+    .reduce((sum, row) => sum + row.total, 0);
   const growthData = [...profileAnalytics].reverse().map((row) => ({
     date: new Date(row.recorded_date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
     followers: row.followers_count || 0,
@@ -65,9 +76,11 @@ const AfrixaStudioPage = () => {
       subscription_revenue: 'Abonnements',
     };
     return Object.entries(
-      earnings.reduce((acc, row) => ({ ...acc, [row.type]: (acc[row.type] || 0) + (row.amount || 0) }), {} as Record<string, number>)
+      revenue
+        .filter((row) => row.status === 'confirmed')
+        .reduce((acc, row) => ({ ...acc, [row.type]: (acc[row.type] || 0) + row.total }), {} as Record<string, number>)
     ).map(([type, amount]) => ({ type: labels[type] || type, amount: Number(amount) }));
-  }, [earnings]);
+  }, [revenue]);
   const audienceCountries = videoAnalytics[0]?.audience_countries || {};
 
   return (

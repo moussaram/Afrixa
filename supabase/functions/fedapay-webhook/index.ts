@@ -178,6 +178,7 @@ Deno.serve(async (req) => {
         const { error: payoutUpdateError } = await admin.from('seller_payouts')
           .update({ status: 'envoye', fedapay_response: providerResponse }).eq('id', payout.id);
         if (payoutUpdateError) throw payoutUpdateError;
+        if (!payout.order_id) return json({ received: true, processed: true });
         const { data: paymentTx, error: paymentTxError } = await admin.from('payment_transactions')
           .select('id').eq('order_id', payout.order_id).eq('status', 'successful').single();
         if (paymentTxError) throw paymentTxError;
@@ -196,6 +197,15 @@ Deno.serve(async (req) => {
           if (splitUpdateError) throw splitUpdateError;
         }
       } else if (status === 'failed') {
+        if (!payout.order_id) {
+          // Retrait createur : le montant reserve est rendu au createur.
+          const { error: refundError } = await admin.rpc('fail_creator_withdrawal', {
+            p_payout_id: payout.id,
+            p_reason: 'fedapay_failed',
+          });
+          if (refundError) throw refundError;
+          return json({ received: true, processed: true });
+        }
         const { error: payoutUpdateError } = await admin.from('seller_payouts')
           .update({ status: 'echec', fedapay_response: providerResponse }).eq('id', payout.id);
         if (payoutUpdateError) throw payoutUpdateError;
