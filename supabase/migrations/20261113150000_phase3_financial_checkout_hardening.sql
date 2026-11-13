@@ -28,7 +28,7 @@ CREATE OR REPLACE FUNCTION public.enforce_order_checkout_integrity()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = public
-AS $
+AS $$
 DECLARE
   product_row public.products%ROWTYPE;
   computed_total bigint;
