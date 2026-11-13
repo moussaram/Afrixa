@@ -169,6 +169,7 @@ Deno.serve(async (req) => {
             .update({ status: 'payee' }).eq('id', order.id).eq('status', 'en_attente');
           if (updateOrderError) throw updateOrderError;
         }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: stockConsumeError } = await (admin as any).rpc('consume_order_stock_reservation', {
           p_order_id: order.id,
         });
@@ -208,6 +209,7 @@ Deno.serve(async (req) => {
             .update({ status: 'annulee' }).eq('id', order.id).eq('status', 'en_attente');
           if (orderUpdateError) throw orderUpdateError;
         }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: stockReleaseError } = await (admin as any).rpc('release_order_stock_reservation', {
           p_order_id: order.id,
         });
