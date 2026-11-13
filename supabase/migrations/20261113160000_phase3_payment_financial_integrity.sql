@@ -33,7 +33,7 @@ DECLARE
   v_product public.products%ROWTYPE;
   v_order public.orders%ROWTYPE;
   v_unit_price integer;
-  v_total integer;
+  v_total bigint;
   v_rate double precision;
   v_commission integer;
   v_seller_amount integer;
@@ -46,7 +46,7 @@ BEGIN
     OR v_key IS NULL OR length(v_key) > 120
     OR nullif(btrim(coalesce(p_operator, '')), '') IS NULL
     OR length(coalesce(p_operator, '')) > 40
-    OR length(regexp_replace(coalesce(p_phone, ''), '\\D', '', 'g')) NOT BETWEEN 8 AND 15
+    OR p_phone IS NULL OR length(regexp_replace(coalesce(p_phone, ''), '\\D', '', 'g')) NOT BETWEEN 8 AND 15
     OR length(coalesce(p_delivery_address, '')) < 5
     OR length(coalesce(p_delivery_address, '')) > 500
     OR (p_delivery_lat IS NULL) <> (p_delivery_lng IS NULL)
@@ -89,11 +89,8 @@ BEGIN
     RAISE EXCEPTION 'Stock insuffisant';
   END IF;
 
-  v_unit_price := CASE
-    WHEN v_product.promo_price IS NOT NULL AND v_product.promo_price > 0
-      AND v_product.promo_price < v_product.price THEN v_product.promo_price
-    ELSE v_product.price
-  END;
+  -- Le trigger historique de commande utilise products.price comme prix de reference.
+  v_unit_price := v_product.price;
   v_total := v_unit_price * p_quantity;
   IF v_total <= 0 OR v_total > 2000000000 THEN
     RAISE EXCEPTION 'Montant de commande invalide';
