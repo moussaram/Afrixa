@@ -141,7 +141,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS a_order_checkout_integrity ON public.orders;
 CREATE TRIGGER a_order_checkout_integrity
