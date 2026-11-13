@@ -173,14 +173,16 @@ Deno.serve(async (req) => {
           p_order_id: order.id,
         });
         if (stockConsumeError) throw stockConsumeError;
-        let cartCleanup = admin.from('cart_items').delete()
-          .eq('buyer_id', order.buyer_id)
-          .eq('product_id', order.product_id);
-        cartCleanup = order.variant_id
-          ? cartCleanup.eq('variant_id', order.variant_id)
-          : cartCleanup.is('variant_id', null);
-        const { error: cartCleanupError } = await cartCleanup;
-        if (cartCleanupError) throw cartCleanupError;
+        if (order.product_id) {
+          let cartCleanup = admin.from('cart_items').delete()
+            .eq('buyer_id', order.buyer_id)
+            .eq('product_id', order.product_id);
+          cartCleanup = order.variant_id
+            ? cartCleanup.eq('variant_id', order.variant_id)
+            : cartCleanup.is('variant_id', null);
+          const { error: cartCleanupError } = await cartCleanup;
+          if (cartCleanupError) throw cartCleanupError;
+        }
         const rate = Number(order.commission_rate);
         const type = rate === 0.03 ? 'group_buy' : rate === 0.07 ? 'booste' : rate === 0.08 ? 'live' : 'normale';
         const { error: splitInsertError } = await admin.from('commission_splits').upsert({
