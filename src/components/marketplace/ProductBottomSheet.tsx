@@ -58,7 +58,7 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
   }, [product.id]);
 
   if (showPayment) {
-    return <AfrixaPayment product={{ ...product, variantId: selectedVariant?.id }} onClose={onClose} />;
+    return <AfrixaPayment product={{ ...product, price: selectedVariant?.price ?? product.price, variantId: selectedVariant?.id }} onClose={onClose} />;
   }
 
   const addToCart = async () => {
