@@ -819,7 +819,9 @@ BEGIN
     seller_id, name, description, category, price, stock, city, country, images
   ) VALUES (
     v_seller, btrim(p_name), nullif(btrim(coalesce(p_description, '')), ''),
-    btrim(p_category), p_price, p_stock,
+    btrim(p_category), p_price,
+    CASE WHEN nullif(btrim(coalesce(p_variant_name, '')), '') IS NOT NULL
+      THEN p_variant_stock ELSE p_stock END,
     nullif(btrim(coalesce(p_city, '')), ''),
     nullif(btrim(coalesce(p_country, '')), ''),
     coalesce(p_images, '{}'::text[])
