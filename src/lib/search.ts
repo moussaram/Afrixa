@@ -22,7 +22,7 @@ export const searchAll = async (query: string) => {
   const client = supabase as any;
   const [videos, users, products, sounds] = await Promise.all([
     client.from('videos').select('*').textSearch('search_vector', clean).limit(20),
-    client.from('profiles').select('*').or(`username.ilike.%${clean}%,prenom.ilike.%${clean}%,nom.ilike.%${clean}%`).limit(20),
+    client.from('public_profiles').select('user_id,username,prenom,nom,avatar_url,bio,is_private').or(`username.ilike.%${clean}%,prenom.ilike.%${clean}%,nom.ilike.%${clean}%`).limit(20),
     client.from('products').select('*').ilike('name', `%${clean}%`).limit(20),
     client.from('sounds').select('*').or(`title.ilike.%${clean}%,artist.ilike.%${clean}%`).limit(20),
   ]);
