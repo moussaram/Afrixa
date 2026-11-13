@@ -435,9 +435,6 @@ COMMENT ON FUNCTION public.request_my_withdrawal(integer, text, text, text) IS
 
 
 -- Finalize a marketplace payment atomically and idempotently after verifying FedaPay server-side.
-CREATE UNIQUE INDEX IF NOT EXISTS commission_splits_transaction_id_uidx
-  ON public.commission_splits (transaction_id);
-
 CREATE OR REPLACE FUNCTION public.settle_order_payment(
   p_transaction_id uuid,
   p_provider_response jsonb
