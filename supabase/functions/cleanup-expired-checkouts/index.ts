@@ -28,7 +28,7 @@ serve(async request => {
   const supabase = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data, error } = await supabase.rpc('cleanup_expired_checkout_reservations', {
+  const { data, error } = await (supabase as any).rpc('cleanup_expired_checkout_reservations', {
     p_older_than: '30 minutes',
   });
   if (error) {
