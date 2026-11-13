@@ -16,6 +16,7 @@ const as = async (role, sub = null) => {
   await db.exec('RESET ROLE;');
   await db.query("select set_config('request.jwt.claims', $1, false)", [JSON.stringify({ role, sub })]);
   await db.exec(`SET ROLE ${role};`);
+  currentRole = { role, sub };
 };
 const rows = async (sql, params = []) => (await db.query(sql, params)).rows;
 const one = async (sql, params = []) => (await rows(sql, params))[0] ?? null;
