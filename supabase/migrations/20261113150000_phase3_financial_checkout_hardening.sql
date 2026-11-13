@@ -54,7 +54,7 @@ BEGIN
 
   PERFORM pg_advisory_xact_lock(hashtextextended(v_buyer::text || ':' || v_key, 0));
 
-  SELECT * INTO v_order
+  SELECT existing_order.* INTO v_order
   FROM public.orders AS existing_order
   JOIN public.checkout_idempotency AS idem ON idem.order_id = existing_order.id
   WHERE idem.buyer_id = v_buyer AND idem.idempotency_key = v_key
