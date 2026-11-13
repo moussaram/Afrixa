@@ -715,6 +715,26 @@ GRANT EXECUTE ON FUNCTION public.add_cart_item(uuid, integer, uuid) TO authentic
 
 
 
+CREATE OR REPLACE FUNCTION public.protect_product_sales_count()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $
+BEGIN
+  IF coalesce(auth.role(), '') <> 'service_role'
+    AND NEW.sales_count IS DISTINCT FROM OLD.sales_count THEN
+    RAISE EXCEPTION 'Product sales count is managed by verified payments';
+  END IF;
+  RETURN NEW;
+END;
+$;
+DROP TRIGGER IF EXISTS protect_product_sales_count_before_update ON public.products;
+CREATE TRIGGER protect_product_sales_count_before_update
+BEFORE UPDATE OF sales_count ON public.products
+FOR EACH ROW EXECUTE FUNCTION public.protect_product_sales_count();
+REVOKE ALL ON FUNCTION public.protect_product_sales_count() FROM PUBLIC, anon, authenticated;
+
+
 CREATE OR REPLACE FUNCTION public.record_product_sale(p_order_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
