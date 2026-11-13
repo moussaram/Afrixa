@@ -73,6 +73,24 @@ export const MarketplaceContent = () => {
       if (sellersError) throw sellersError;
 
       const sellerMap = new Map((sellerRows ?? []).map(seller => [seller.user_id, seller as PublicSeller]));
+      const productIds = productRows.map(row => row.id);
+      const { data: relatedOrders, error: ordersError } = productIds.length
+        ? await supabase.from('orders').select('id, product_id').in('product_id', productIds)
+        : { data: [], error: null };
+      if (ordersError) throw ordersError;
+      const orderIds = (relatedOrders ?? []).map(order => order.id);
+      const { data: reviewRows, error: reviewsError } = orderIds.length
+        ? await supabase.from('reviews').select('order_id, rating').in('order_id', orderIds)
+        : { data: [], error: null };
+      if (reviewsError) throw reviewsError;
+      const orderProductMap = new Map((relatedOrders ?? []).map(order => [order.id, order.product_id]));
+      const ratingTotals = new Map<string, { total: number; count: number }>();
+      for (const review of reviewRows ?? []) {
+        const productId = orderProductMap.get(review.order_id);
+        if (!productId) continue;
+        const current = ratingTotals.get(productId) ?? { total: 0, count: 0 };
+        ratingTotals.set(productId, { total: current.total + review.rating, count: current.count + 1 });
+      }
       const mappedProducts: Product[] = productRows.map(row => {
         const seller = sellerMap.get(row.seller_id);
         return {
@@ -92,7 +110,7 @@ export const MarketplaceContent = () => {
           country: row.country ?? '',
           views: row.views_count ?? 0,
           sales: row.sales_count ?? 0,
-          rating: 0,
+          rating: ratingTotals.has(row.id) ? Number((ratingTotals.get(row.id)!.total / ratingTotals.get(row.id)!.count).toFixed(1)) : 0,
           createdAt: row.created_at,
         };
       });
@@ -122,7 +140,6 @@ export const MarketplaceContent = () => {
           };
         }));
 
-        const productIds = mappedProducts.map(product => product.id);
         const { data: videoRows, error: videosError } = productIds.length
           ? await supabase.from('videos')
             .select('id, user_id, title, hls_url, thumbnail_url, views_count, tagged_products')
