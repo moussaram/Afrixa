@@ -108,10 +108,9 @@ try {
     db.query("UPDATE public.products SET sales_count=999 WHERE id=$1",[variantProduct]),
     /managed by verified payments/i);
 
-  await db.exec('RESET ROLE;');
+  await as('service_role');
   await db.query("UPDATE public.payment_transactions SET status='successful' WHERE order_id=$1",[variantCheckout.order_id]);
   await db.query("UPDATE public.orders SET status='payee' WHERE id=$1",[variantCheckout.order_id]);
-  await as('service_role');
   const sale1 = await one('SELECT public.record_product_sale($1) AS result',[variantCheckout.order_id]);
   const sale2 = await one('SELECT public.record_product_sale($1) AS result',[variantCheckout.order_id]);
   const saleCount = await adminOne('SELECT sales_count FROM public.products WHERE id=$1',[variantProduct]);
