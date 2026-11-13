@@ -2788,6 +2788,36 @@ export type Database = {
           has_more: boolean
         }[]
       }
+      create_my_order_payment: {
+        Args: {
+          p_product_id: string
+          p_quantity: number
+          p_operator: string
+          p_phone: string
+          p_delivery_address: string
+          p_buyer_note?: string | null
+          p_delivery_lat?: number | null
+          p_delivery_lng?: number | null
+          p_idempotency_key?: string | null
+        }
+        Returns: Json
+      }
+      confirm_order_payment: {
+        Args: {
+          p_transaction_id: string
+          p_provider_transaction_id: string
+          p_provider_response: Json
+        }
+        Returns: Json
+      }
+      fail_order_payment: {
+        Args: {
+          p_transaction_id: string
+          p_final_status: string
+          p_provider_response: Json
+        }
+        Returns: Json
+      }
       consume_rate_limit: {
         Args: {
           p_action: string
