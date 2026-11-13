@@ -41,7 +41,7 @@ DECLARE
   v_order public.orders%ROWTYPE;
   v_tx public.payment_transactions%ROWTYPE;
   v_key text := nullif(btrim(coalesce(p_idempotency_key, '')), '');
-  v_phone text := regexp_replace(coalesce(p_phone, ''), '\\D', '', 'g');
+  v_phone text := regexp_replace(coalesce(p_phone, ''), '[^0-9]', '', 'g');
   v_reference text;
   v_rate numeric;
   v_total bigint;
