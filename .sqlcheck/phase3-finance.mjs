@@ -42,6 +42,7 @@ try {
   const product = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const groupProduct = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const stockProduct = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const selfProduct = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 
   await db.exec('RESET ROLE;');
   await db.exec(`
@@ -53,6 +54,8 @@ try {
       VALUES ('${groupProduct}','${groupSeller}','Produit group buy',5000,20,true,true);
     INSERT INTO public.products(id,seller_id,name,price,stock,is_active)
       VALUES ('${stockProduct}','${seller}','Stock faible',9000,1,true);
+    INSERT INTO public.products(id,seller_id,name,price,stock,is_active)
+      VALUES ('${selfProduct}','${buyer}','Produit du buyer',9000,1,true);
     INSERT INTO public.creator_wallet(user_id,balance,pending,total_earned)
       VALUES ('${buyer}',20000,0,20000);
   `);
@@ -102,18 +105,22 @@ try {
     [product, 1, 'mtn_open', '97000000', 'Cotonou, Benin', null, null, null, 'checkout-key-fail'],
   ).then((row) => row.result);
   const failedTx = await adminOne('SELECT id FROM public.payment_transactions WHERE order_id=$1',[failedCheckout.order_id]);
-  check('Une deuxième commande réserve une unité', (await adminOne('SELECT stock FROM public.products WHERE id=$1',[product])).stock === 17);
+  const stockAfterSecond = (await adminOne('SELECT stock FROM public.products WHERE id=$1',[product])).stock;
+  check('Une deuxième commande réserve une unité', stockAfterSecond === 17, `stock=${stockAfterSecond}`);
   await as('service_role');
   const failedPayment = await one('SELECT public.fail_order_payment($1,$2,$3) AS result',
     [failedTx.id, 'failed', '{"provider":"FedaPay","status":"declined"}']).then((row) => row.result);
+  const failedOrderState = await adminOne('SELECT status,stock_reserved FROM public.orders WHERE id=$1',[failedCheckout.order_id]);
+  const stockAfterFailure = (await adminOne('SELECT stock FROM public.products WHERE id=$1',[product])).stock;
   check('Un paiement refusé annule la commande et restitue le stock',
-    failedPayment === true
-      && (await adminOne('SELECT status,stock_reserved FROM public.orders WHERE id=$1',[failedCheckout.order_id])).status === 'annulee'
-      && (await adminOne('SELECT stock FROM public.products WHERE id=$1',[product])).stock === 18);
+    failedPayment === true && failedOrderState.status === 'annulee'
+      && failedOrderState.stock_reserved === false && stockAfterFailure === 18,
+    `result=${failedPayment}, order=${JSON.stringify(failedOrderState)}, stock=${stockAfterFailure}`);
   const failedAgain = await one('SELECT public.fail_order_payment($1,$2,$3) AS result',
     [failedTx.id, 'failed', '{"provider":"FedaPay","status":"declined"}']).then((row) => row.result);
+  const stockAfterFailureReplay = (await adminOne('SELECT stock FROM public.products WHERE id=$1',[product])).stock;
   check('Un webhook d échec répété ne restitue pas le stock deux fois', failedAgain === false
-    && (await adminOne('SELECT stock FROM public.products WHERE id=$1',[product])).stock === 18);
+    && stockAfterFailureReplay === 18, `result=${failedAgain}, stock=${stockAfterFailureReplay}`);
 
   await as('authenticated', buyer);
   const replay = await one(
@@ -122,8 +129,8 @@ try {
   ).then((row) => row.result);
   check('Une relance du checkout est idempotente', replay.reused === true && replay.order_id === created.order_id);
   check('Une relance ne crée pas de deuxième commande ni transaction',
-    (await adminOne('SELECT count(*)::int AS n FROM public.orders')).n === 1
-      && (await adminOne('SELECT count(*)::int AS n FROM public.payment_transactions')).n === 1);
+    (await adminOne('SELECT count(*)::int AS n FROM public.orders')).n === 2
+      && (await adminOne('SELECT count(*)::int AS n FROM public.payment_transactions')).n === 2);
 
   await expectError('Un opérateur non FedaPay est refusé', () =>
     db.query('SELECT public.create_order_payment_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9)',
@@ -139,7 +146,7 @@ try {
     /Stock insuffisant/i);
   await expectError('Un vendeur ne peut pas acheter son propre produit', () =>
     db.query('SELECT public.create_order_payment_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-      [product,1,'mtn_open','97000000','Cotonou',null,null,null,'checkout-self']),
+      [selfProduct,1,'mtn_open','97000000','Cotonou',null,null,null,'checkout-self']),
     /propre produit/i);
 
   // A direct authenticated insert is still normalized by the database trigger.
@@ -156,6 +163,9 @@ try {
       && normalized?.unit_price === 8000 && normalized?.total_price === 8000
       && normalized?.commission_amount === 400 && normalized?.seller_amount === 7600
       && normalized?.payment_reference?.startsWith('AFR-'));
+  await as('authenticated', buyer);
+  const roleBeforeUpdate = await one('SELECT auth.role() AS role, auth.uid() AS user_id');
+  check('Le test de modification s’exécute avec le rôle acheteur', roleBeforeUpdate.role === 'authenticated' && roleBeforeUpdate.user_id === buyer, JSON.stringify(roleBeforeUpdate));
   await expectError('Un client ne peut pas modifier le montant après création', () =>
     db.query('UPDATE public.orders SET total_price=1 WHERE id=$1', [direct.rows[0].id]),
     /Checkout and escrow fields cannot be changed/i);
