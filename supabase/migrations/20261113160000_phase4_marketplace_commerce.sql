@@ -205,7 +205,9 @@ BEGIN
   IF v_user IS NULL THEN RAISE EXCEPTION 'Connexion requise'; END IF;
   IF length(btrim(coalesce(p_reason, ''))) NOT BETWEEN 3 AND 120
     OR length(coalesce(p_description, '')) > 3000
-    OR length(coalesce(p_evidence_url, '')) > 1000 THEN
+    OR length(coalesce(p_evidence_url, '')) > 1000
+    OR (nullif(btrim(coalesce(p_evidence_url, '')), '') IS NOT NULL
+      AND btrim(p_evidence_url) !~* '^https?://') THEN
     RAISE EXCEPTION 'Informations de litige invalides';
   END IF;
   SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
@@ -253,7 +255,9 @@ DECLARE
 BEGIN
   IF v_user IS NULL THEN RAISE EXCEPTION 'Connexion requise'; END IF;
   IF length(btrim(coalesce(p_message, ''))) < 2
-    OR length(coalesce(p_evidence_url, '')) > 1000 THEN
+    OR length(coalesce(p_evidence_url, '')) > 1000
+    OR (nullif(btrim(coalesce(p_evidence_url, '')), '') IS NOT NULL
+      AND btrim(p_evidence_url) !~* '^https?://') THEN
     RAISE EXCEPTION 'Réponse invalide';
   END IF;
   SELECT * INTO v_dispute FROM public.disputes WHERE id = p_dispute_id FOR UPDATE;
