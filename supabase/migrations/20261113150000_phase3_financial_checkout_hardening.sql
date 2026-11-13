@@ -118,7 +118,8 @@ BEGIN
     OR NEW.payment_operator IS DISTINCT FROM OLD.payment_operator
     OR NEW.buyer_phone IS DISTINCT FROM OLD.buyer_phone
     OR NEW.payment_reference IS DISTINCT FROM OLD.payment_reference
-    OR NEW.escrow_released IS DISTINCT FROM OLD.escrow_released\n    OR NEW.stock_reserved IS DISTINCT FROM OLD.stock_reserved THEN
+    OR NEW.escrow_released IS DISTINCT FROM OLD.escrow_released
+    OR NEW.stock_reserved IS DISTINCT FROM OLD.stock_reserved THEN
     RAISE EXCEPTION 'Checkout and escrow fields cannot be changed by a client';
   END IF;
 
