@@ -89,9 +89,6 @@ CREATE INDEX IF NOT EXISTS comments_parent_created_idx
 CREATE INDEX IF NOT EXISTS comment_likes_user_comment_idx
   ON public.comment_likes (user_id, comment_id);
 
-CREATE INDEX IF NOT EXISTS follows_follower_following_idx
-  ON public.follows (follower_id, following_id);
-
 -- Both existing indexes cover the same messages lookup; keep the DESC index
 -- used by conversation history queries.
 DROP INDEX IF EXISTS public.idx_messages_conversation_id;
