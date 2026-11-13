@@ -1,20 +1,32 @@
-import { FixedSizeList, type ListChildComponentProps } from 'react-window';
+import { List, type RowComponentProps } from 'react-window';
+import type { ReactNode } from 'react';
 
 interface VirtualListProps<T> {
   items: T[];
   height: number;
   itemSize: number;
-  renderItem: (item: T, index: number) => React.ReactNode;
+  renderItem: (item: T, index: number) => ReactNode;
 }
 
+type VirtualRowProps<T> = {
+  items: T[];
+  renderItem: (item: T, index: number) => ReactNode;
+};
+
 export const VirtualList = <T,>({ items, height, itemSize, renderItem }: VirtualListProps<T>) => {
-  const Row = ({ index, style }: ListChildComponentProps) => (
-    <div style={style}>{renderItem(items[index], index)}</div>
+  const Row = ({ index, style, ariaAttributes, items: rows, renderItem: render }: RowComponentProps<VirtualRowProps<T>>) => (
+    <div style={style} {...ariaAttributes}>{render(rows[index], index)}</div>
   );
 
   return (
-    <FixedSizeList height={height} width="100%" itemCount={items.length} itemSize={itemSize}>
-      {Row}
-    </FixedSizeList>
+    <List
+      height={height}
+      width="100%"
+      rowCount={items.length}
+      rowHeight={itemSize}
+      rowProps={{ items, renderItem }}
+      rowComponent={Row}
+      overscanCount={3}
+    />
   );
 };

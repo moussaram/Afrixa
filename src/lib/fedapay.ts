@@ -36,7 +36,7 @@ export const generateOrderRef = () => {
   if (typeof crypto === 'undefined' || !crypto.randomUUID) {
     throw new Error('Référence sécurisée indisponible');
   }
-  return `AFR-${crypto.randomUUID().replaceAll('-', '')}`;
+  return `AFR-${crypto.randomUUID().replace(/-/g, '')}`;
 };
 
 export const createFedaPayCheckout = async (orderId: string): Promise<{ checkoutUrl: string; transactionId: string }> => {
