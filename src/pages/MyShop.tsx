@@ -22,6 +22,10 @@ interface ShopProduct {
   sales: number;
   city?: string | null;
   country?: string | null;
+  variantId?: string | null;
+  variantName?: string | null;
+  variantPrice?: number | null;
+  variantStock?: number | null;
 }
 
 const MyShop = () => {
@@ -78,19 +82,40 @@ const MyShop = () => {
       ]);
       if (error) throw error;
       if (statsError) throw statsError;
-      setProducts((data ?? []).map(product => ({
-        id: product.id,
-        name: product.name,
-        description: product.description,
-        category: product.category,
-        price: product.price,
-        currency: 'FCFA',
-        stock: product.stock ?? 0,
-        imageUrl: product.images?.[0] ?? '',
-        sales: product.sales_count ?? 0,
-        city: product.city,
-        country: product.country,
-      })));
+      const productIds = (data ?? []).map(product => product.id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: variants, error: variantsError } = productIds.length
+        ? await (supabase as any).from('product_variants')
+          .select('id, product_id, name, price, stock')
+          .in('product_id', productIds)
+          .eq('is_active', true)
+        : { data: [], error: null };
+      if (variantsError) throw variantsError;
+      const variantByProduct = new Map<string, { id: string; name: string; price: number | null; stock: number }>(
+        (variants ?? []).map((variant: { id: string; product_id: string; name: string; price: number | null; stock: number }) => [
+          variant.product_id, variant,
+        ]),
+      );
+      setProducts((data ?? []).map(product => {
+        const variant = variantByProduct.get(product.id);
+        return {
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          category: product.category,
+          price: product.price,
+          currency: 'FCFA',
+          stock: variant?.stock ?? product.stock ?? 0,
+          imageUrl: product.images?.[0] ?? '',
+          sales: product.sales_count ?? 0,
+          city: product.city,
+          country: product.country,
+          variantId: variant?.id ?? null,
+          variantName: variant?.name ?? null,
+          variantPrice: variant?.price ?? null,
+          variantStock: variant?.stock ?? null,
+        };
+      }));
       const shopStats = statsRows?.[0] ?? { completed_sales: 0, orders_in_progress: 0, seller_amount_total: 0 };
       setStats([
         { label: 'Ventes confirmées', value: String(shopStats.completed_sales ?? 0), icon: TrendingUp, color: 'text-green-400' },
@@ -121,7 +146,7 @@ const MyShop = () => {
       toast.error('Vérifie le nom, le prix et le stock.');
       return;
     }
-    const shouldCreateVariant = !editingProduct && Boolean(newProduct.variantName.trim());
+    const shouldCreateVariant = Boolean(newProduct.variantName.trim());
     const variantPrice = newProduct.variantPrice.trim() ? Number.parseInt(newProduct.variantPrice, 10) : null;
     const variantStock = Number.parseInt(newProduct.variantStock || '0', 10);
     if (shouldCreateVariant && (
@@ -143,12 +168,24 @@ const MyShop = () => {
         country: newProduct.country.trim() || null,
         images: newProduct.imageUrl.trim() ? [newProduct.imageUrl.trim()] : [],
       };
-      let savedProductId = editingProduct?.id;
       if (editingProduct) {
-        const { error } = await supabase.from('products')
-          .update(productPayload)
-          .eq('id', editingProduct.id)
-          .eq('seller_id', user.id);
+        // Product fields and its existing/first variant are updated atomically.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any).rpc('update_shop_product_with_variant', {
+          p_product_id: editingProduct.id,
+          p_name: productPayload.name,
+          p_description: productPayload.description,
+          p_category: productPayload.category,
+          p_price: productPayload.price,
+          p_stock: productPayload.stock,
+          p_city: productPayload.city,
+          p_country: productPayload.country,
+          p_images: productPayload.images,
+          p_variant_id: editingProduct.variantId ?? null,
+          p_variant_name: shouldCreateVariant ? newProduct.variantName.trim() : null,
+          p_variant_price: shouldCreateVariant ? variantPrice : null,
+          p_variant_stock: shouldCreateVariant ? variantStock : 0,
+        });
         if (error) throw error;
       } else {
         // Product and first variant are created in one database transaction.
@@ -171,7 +208,6 @@ const MyShop = () => {
         );
         if (error) throw error;
         if (typeof createdProductId !== 'string') throw new Error('Création du produit impossible.');
-        savedProductId = createdProductId;
       }
 
       toast.success(editingProduct ? 'Produit modifié.' : 'Produit publié.');
