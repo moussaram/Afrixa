@@ -50,8 +50,8 @@ export const VideoCard = ({
   const previousSpeedRef = useRef(1);
 
   useEffect(() => () => {
-    if (longPressRef.current) window.clearTimeout(longPressRef.current);
-    if (seekFeedbackTimerRef.current) window.clearTimeout(seekFeedbackTimerRef.current);
+    if (longPressRef.current) window.window.clearTimeout(longPressRef.current);
+    if (seekFeedbackTimerRef.current) window.window.clearTimeout(seekFeedbackTimerRef.current);
   }, []);
   const [progress, setProgress] = useState(0);
   const completionTrackedRef = useRef(false);
@@ -179,8 +179,8 @@ export const VideoCard = ({
         element.currentTime = Math.max(0, Math.min(duration, element.currentTime + (direction === 'forward' ? 10 : -10)));
       }
       setSeekFeedback(direction);
-      if (seekFeedbackTimerRef.current) clearTimeout(seekFeedbackTimerRef.current);
-      seekFeedbackTimerRef.current = setTimeout(() => setSeekFeedback(null), 700);
+      if (seekFeedbackTimerRef.current) window.clearTimeout(seekFeedbackTimerRef.current);
+      seekFeedbackTimerRef.current = window.setTimeout(() => setSeekFeedback(null), 700);
       return;
     }
 
@@ -230,7 +230,7 @@ export const VideoCard = ({
   };
 
   const handleVideoPointerEnd = () => {
-    if (longPressRef.current) window.clearTimeout(longPressRef.current);
+    if (longPressRef.current) window.window.clearTimeout(longPressRef.current);
     longPressRef.current = null;
     if (longPressTriggeredRef.current) setPlaybackSpeed(previousSpeedRef.current);
     longPressTriggeredRef.current = false;
