@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
       const providerResponse = await fedapayRequest(`/transactions/${encodeURIComponent(objectId)}`);
       const payment = getFedaPayEntity(providerResponse);
       const { data: order, error: orderError } = await admin.from('orders')
-        .select('id, total_price, commission_rate, status')
+        .select('id, buyer_id, seller_id, product_id, variant_id, total_price, commission_rate, status')
         .eq('id', tx.order_id)
         .maybeSingle();
       if (orderError) throw orderError;
