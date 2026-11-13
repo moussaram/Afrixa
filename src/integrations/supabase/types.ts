@@ -433,19 +433,19 @@ export type Database = {
       }
       comment_likes: {
         Row: {
-          comment_id: string | null
+          comment_id: string
           id: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
-          comment_id?: string | null
+          comment_id: string
           id?: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
-          comment_id?: string | null
+          comment_id?: string
           id?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {
@@ -496,8 +496,8 @@ export type Database = {
           likes_count: number | null
           parent_id: string | null
           replies_count: number | null
-          user_id: string | null
-          video_id: string | null
+          user_id: string
+          video_id: string
         }
         Insert: {
           content: string
@@ -508,8 +508,8 @@ export type Database = {
           likes_count?: number | null
           parent_id?: string | null
           replies_count?: number | null
-          user_id?: string | null
-          video_id?: string | null
+          user_id: string
+          video_id: string
         }
         Update: {
           content?: string
@@ -520,8 +520,8 @@ export type Database = {
           likes_count?: number | null
           parent_id?: string | null
           replies_count?: number | null
-          user_id?: string | null
-          video_id?: string | null
+          user_id?: string
+          video_id?: string
         }
         Relationships: [
           {
@@ -2278,21 +2278,21 @@ export type Database = {
           id: string
           not_interested: string[] | null
           updated_at: string | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           categories?: string[] | null
           id?: string
           not_interested?: string[] | null
           updated_at?: string | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           categories?: string[] | null
           id?: string
           not_interested?: string[] | null
           updated_at?: string | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -2532,22 +2532,22 @@ export type Database = {
           id: string
           last_calculated: string | null
           score: number | null
-          user_id: string | null
-          video_id: string | null
+          user_id: string
+          video_id: string
         }
         Insert: {
           id?: string
           last_calculated?: string | null
           score?: number | null
-          user_id?: string | null
-          video_id?: string | null
+          user_id: string
+          video_id: string
         }
         Update: {
           id?: string
           last_calculated?: string | null
           score?: number | null
-          user_id?: string | null
-          video_id?: string | null
+          user_id?: string
+          video_id?: string
         }
         Relationships: [
           {
@@ -2776,6 +2776,18 @@ export type Database = {
       }
     }
     Functions: {
+      refresh_video_scores_batch: {
+        Args: {
+          p_after_video_id?: string | null
+          p_batch_size?: number
+        }
+        Returns: {
+          processed_videos: number
+          scored_rows: number
+          next_after_video_id: string | null
+          has_more: boolean
+        }[]
+      }
       consume_rate_limit: {
         Args: {
           p_action: string
