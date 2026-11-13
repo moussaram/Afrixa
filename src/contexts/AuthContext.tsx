@@ -4,57 +4,23 @@ import { supabase } from '@/integrations/supabase/client';
 import { AuthContext, type Profile } from './auth';
 import { removeWebPushTokenRecord } from '@/lib/firebase/messaging';
 
-const DEV_MODE = import.meta.env.DEV;
-
-const mockUser = {
-  id: 'mock-dev-user-001',
-  email: 'moncompte@afrixa.dev',
-  app_metadata: {},
-  user_metadata: { full_name: 'Mon Compte' },
-  aud: 'authenticated',
-  created_at: new Date().toISOString(),
-} as unknown as User;
-
-const mockSession = {
-  access_token: 'mock-token',
-  refresh_token: 'mock-refresh',
-  user: mockUser,
-  expires_in: 999999,
-  token_type: 'bearer',
-} as unknown as Session;
-
-const mockProfile: Profile = {
-  id: 'mock-profile-001',
-  user_id: 'mock-dev-user-001',
-  nom: 'Compte',
-  prenom: 'Mon',
-  deuxieme_prenom: null,
-  date_naissance: '1995-06-15',
-  lieu_naissance: 'Abidjan',
-  profession: 'Créateur de contenu',
-  numero_mobile: '+225 07 00 00 00',
-  mobile_verifie: true,
-  email_verifie: true,
-  avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face',
-  bio: '✨ Bienvenue sur mon profil | Créateur de contenu',
-  username: '@moncompte',
-  nationalite: 'Ivoirienne',
-  nationalite_flag: '🇨🇮',
-  inscription_complete: true,
-};
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(DEV_MODE ? mockUser : null);
-  const [session, setSession] = useState<Session | null>(DEV_MODE ? mockSession : null);
-  const [profile, setProfile] = useState<Profile | null>(DEV_MODE ? mockProfile : null);
-  const [loading, setLoading] = useState(DEV_MODE ? false : true);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (authUser: User) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id,user_id,nom,prenom,deuxieme_prenom,date_naissance,lieu_naissance,profession,numero_mobile,mobile_verifie,email_verifie,avatar_url,bio,username,nationalite,nationalite_flag,inscription_complete')
       .eq('user_id', authUser.id)
-      .single();
+      .maybeSingle();
+    if (error) {
+      setProfile(null);
+      console.error('Unable to load the authenticated profile', error);
+      throw error;
+    }
     setProfile(data ? {
       ...(data as Profile),
       mobile_verifie: !!authUser.phone_confirmed_at,
@@ -67,18 +33,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    if (DEV_MODE) return; // Skip auth listeners in dev mode
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchProfile(session.user);
-        } else {
-          setProfile(null);
+        try {
+          if (session?.user) await fetchProfile(session.user);
+          else setProfile(null);
+        } catch (error) {
+          console.error('Profile loading failed after authentication change', error);
+        } finally {
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
@@ -86,16 +53,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user);
+        void fetchProfile(session.user).catch((error: unknown) => {
+          console.error('Unable to restore the authenticated profile', error);
+        }).finally(() => setLoading(false));
+      } else {
+        setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
   const signOut = async () => {
-    if (user && !DEV_MODE) {
+    if (user) {
       try {
         await removeWebPushTokenRecord(user.id);
       } catch (error) {
