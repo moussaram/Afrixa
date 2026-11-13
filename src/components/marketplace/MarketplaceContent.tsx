@@ -36,6 +36,7 @@ export const MarketplaceContent = () => {
   const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('newest');
   const [products, setProducts] = useState<Product[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [videos, setVideos] = useState<ShoppableVideo[]>([]);
@@ -55,10 +56,13 @@ export const MarketplaceContent = () => {
         .from('products')
         .select('id, name, description, price, promo_price, category, seller_id, images, stock, unlimited_stock, city, country, views_count, sales_count, created_at')
         .eq('is_active', true)
-        .order('created_at', { ascending: false })
         .range(pageToLoad * PAGE_SIZE, pageToLoad * PAGE_SIZE + PAGE_SIZE - 1);
 
       if (activeCategory) query = query.eq('category', activeCategory);
+      if (sort === 'price_asc') query = query.order('price', { ascending: true });
+      else if (sort === 'price_desc') query = query.order('price', { ascending: false });
+      else if (sort === 'popular') query = query.order('sales_count', { ascending: false });
+      else query = query.order('created_at', { ascending: false });
       if (search.trim()) query = query.ilike('name', `%${search.trim().slice(0, 80)}%`);
 
       const { data: rows, error: productsError } = await query;
@@ -185,7 +189,7 @@ export const MarketplaceContent = () => {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [activeCategory, search]);
+  }, [activeCategory, search, sort]);
 
   useEffect(() => {
     void loadPage(0, false);
@@ -200,6 +204,19 @@ export const MarketplaceContent = () => {
   return (
     <div className="animate-fade-in">
       <section className="px-4 py-4 border-b border-border/20">
+        <div className="flex gap-2 mt-3">
+          <select
+            value={sort}
+            onChange={event => setSort(event.target.value)}
+            className="w-full px-3 py-2 rounded-xl bg-card border border-border/30 text-xs text-foreground"
+            aria-label="Trier les produits"
+          >
+            <option value="newest">Plus récents</option>
+            <option value="popular">Plus vendus</option>
+            <option value="price_asc">Prix croissant</option>
+            <option value="price_desc">Prix décroissant</option>
+          </select>
+        </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
