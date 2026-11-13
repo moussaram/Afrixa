@@ -21,6 +21,7 @@ interface PaymentProduct {
   sellerName: string;
   sellerId?: string;
   variantId?: string;
+  initialQuantity?: number;
 }
 
 interface AfrixaPaymentProps {
@@ -39,7 +40,7 @@ const operators = [
 
 export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 'normale' }: AfrixaPaymentProps) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(Math.max(1, product.initialQuantity ?? 1));
   const [address, setAddress] = useState('');
   const [deliveryCoordinates, setDeliveryCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [mapsUnavailable, setMapsUnavailable] = useState(false);
