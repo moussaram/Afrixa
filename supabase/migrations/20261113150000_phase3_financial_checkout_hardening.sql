@@ -154,3 +154,119 @@ GRANT EXECUTE ON FUNCTION public.create_order_payment_atomic(
 COMMENT ON FUNCTION public.create_order_payment_atomic(
   uuid, integer, text, text, text, text, double precision, double precision, text
 ) IS 'Creates an order and its FedaPay intent atomically; product price, seller, image and commission are read from the database.';
+
+
+-- Serialize creator withdrawals per account. This closes the race where two
+-- concurrent requests both pass the pending/daily-limit checks before either
+-- reservation is inserted, and preserves idempotent retries.
+CREATE OR REPLACE FUNCTION public.request_my_withdrawal(
+  p_amount integer,
+  p_operator text,
+  p_phone text,
+  p_idempotency_key text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_user uuid := auth.uid();
+  v_settings public.monetization_settings%ROWTYPE;
+  v_operator text := nullif(btrim(coalesce(p_operator, '')), '');
+  v_phone_digits text := regexp_replace(coalesce(p_phone, ''), '[^0-9]', '', 'g');
+  v_key text := nullif(btrim(coalesce(p_idempotency_key, '')), '');
+  v_balance integer;
+  v_pending integer;
+  v_today integer;
+  v_result jsonb;
+  v_existing public.financial_ledger%ROWTYPE;
+  v_existing_status text;
+BEGIN
+  IF v_user IS NULL THEN
+    RAISE EXCEPTION 'Connexion requise pour retirer';
+  END IF;
+  IF p_amount IS NULL OR p_amount <= 0
+    OR v_operator IS NULL
+    OR length(v_phone_digits) < 8 OR length(v_phone_digits) > 15
+    OR v_key IS NULL OR length(v_key) > 120 THEN
+    RAISE EXCEPTION 'Parametres de retrait invalides';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended(v_user::text || ':creator-withdrawal', 0));
+
+  SELECT * INTO v_existing
+  FROM public.financial_ledger
+  WHERE idempotency_key = v_key
+    AND reference_type = 'seller_payout';
+  IF FOUND THEN
+    SELECT status INTO v_existing_status
+    FROM public.seller_payouts
+    WHERE id = v_existing.reference_id;
+    RETURN jsonb_build_object(
+      'duplicate', true,
+      'payout_id', v_existing.reference_id,
+      'balance', v_existing.balance_after,
+      'status', coalesce(v_existing_status, 'demande')
+    );
+  END IF;
+
+  SELECT * INTO v_settings FROM public.monetization_settings WHERE id = 1;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Reglages monetaires indisponibles';
+  END IF;
+  IF p_amount < v_settings.min_withdrawal_fcfa THEN
+    RAISE EXCEPTION 'Le retrait minimum est de % FCFA', v_settings.min_withdrawal_fcfa;
+  END IF;
+
+  SELECT balance INTO v_balance
+  FROM public.creator_wallet
+  WHERE user_id = v_user
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Portefeuille createur introuvable';
+  END IF;
+  IF v_balance < p_amount THEN
+    RAISE EXCEPTION 'Solde disponible insuffisant';
+  END IF;
+
+  SELECT count(*) INTO v_pending
+  FROM public.seller_payouts
+  WHERE seller_id = v_user AND status IN ('demande', 'processing');
+  IF v_pending > 0 THEN
+    RAISE EXCEPTION 'Un retrait est deja en cours de traitement';
+  END IF;
+
+  SELECT count(*) INTO v_today
+  FROM public.seller_payouts
+  WHERE seller_id = v_user
+    AND created_at >= date_trunc('day', now());
+  IF v_today >= v_settings.withdrawal_daily_limit THEN
+    RAISE EXCEPTION 'Limite quotidienne de retraits atteinte';
+  END IF;
+
+  v_result := public.request_creator_withdrawal(
+    v_user, p_amount, v_operator, btrim(p_phone), v_key
+  );
+
+  IF coalesce((v_result ->> 'duplicate')::boolean, false) IS FALSE THEN
+    PERFORM set_config('afrixa.financial_writer', 'on', true);
+    UPDATE public.seller_payouts
+    SET payout_reference = 'AFR-WD-' || replace((v_result ->> 'payout_id'), '-', '')
+    WHERE id = (v_result ->> 'payout_id')::uuid
+      AND payout_reference IS NULL;
+  END IF;
+
+  RETURN v_result || jsonb_build_object(
+    'status', coalesce(v_result ->> 'status', 'demande')
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.request_my_withdrawal(integer, text, text, text)
+  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.request_my_withdrawal(integer, text, text, text)
+  TO authenticated;
+
+COMMENT ON FUNCTION public.request_my_withdrawal(integer, text, text, text) IS
+  'Retrait createur atomique, idempotent et serialise par compte; applique le solde, le plafond quotidien et la limite de retrait en cours.';
