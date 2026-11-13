@@ -39,5 +39,6 @@ jobs:
           cd .sqlcheck
           npm ci
           node phase3-finance.mjs
+          node phase4-marketplace.mjs
       - name: Production build
         run: npm run build
