@@ -64,6 +64,21 @@ try {
       VALUES ('${variantId}','${variantProduct}','Taille M',4500,5);
   `);
 
+  await as('authenticated', seller);
+  const sellerProduct = await one(
+    'SELECT public.create_shop_product_with_variant($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) AS id',
+    ['Boutique atomique','Produit test','Mode',7000,0,'Cotonou','Bénin',['https://cdn.test/new.jpg'],'Bleu',null,4],
+  );
+  const sellerProductStock = await adminOne('SELECT stock FROM public.products WHERE id=$1',[sellerProduct.id]);
+  const sellerVariant = await adminOne('SELECT name,stock FROM public.product_variants WHERE product_id=$1',[sellerProduct.id]);
+  check('La boutique crée produit et première variante atomiquement',
+    typeof sellerProduct?.id === 'string' && sellerProductStock?.stock === 4
+      && sellerVariant?.name === 'Bleu' && sellerVariant?.stock === 4);
+  await expectError('Une variante invalide bloque la création du produit', () =>
+    db.query('SELECT public.create_shop_product_with_variant($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+      ['Produit invalide',null,'Mode',7000,0,null,null,[],'Rouge',null,-1]),
+    /Informations variante invalides/i);
+
   await as('authenticated', buyer);
   const variantCheckout = await one(
     'SELECT public.create_order_payment_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS result',
