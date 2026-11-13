@@ -6,6 +6,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/useAuth';
 import { AfrixaPayment } from '@/components/payment/AfrixaPayment';
 
+type CartRow = { id: string; product_id: string; variant_id: string | null; quantity: number };
+type ProductRow = {
+  id: string; name: string; price: number; promo_price: number | null; images: string[] | null;
+  seller_id: string; stock: number | null; unlimited_stock: boolean | null; is_active: boolean;
+};
+type VariantRow = { id: string; name: string; price: number | null; stock: number; is_active: boolean };
+type SellerRow = { user_id: string; username: string | null; prenom: string | null; nom: string | null; avatar_url: string | null };
+
 type CartLine = {
   id: string;
   productId: string;
@@ -44,14 +52,14 @@ export default function Cart() {
         .eq('buyer_id', user.id)
         .order('updated_at', { ascending: false });
       if (cartError) throw cartError;
-      const rows = cartRows ?? [];
+      const rows = (cartRows ?? []) as CartRow[];
       if (!rows.length) {
         setItems([]);
         return;
       }
 
-      const productIds = [...new Set(rows.map((row: { product_id: string }) => row.product_id))];
-      const variantIds = [...new Set(rows.map((row: { variant_id: string | null }) => row.variant_id).filter(Boolean))] as string[];
+      const productIds: string[] = Array.from(new Set<string>(rows.map(row => row.product_id)));
+      const variantIds: string[] = Array.from(new Set<string>(rows.map(row => row.variant_id).filter((id): id is string => Boolean(id))));
       const [{ data: products, error: productsError }, { data: variants, error: variantsError }] = await Promise.all([
         supabase.from('products')
           .select('id, name, price, promo_price, images, seller_id, stock, unlimited_stock, is_active')
@@ -70,10 +78,10 @@ export default function Cart() {
         : { data: [], error: null };
       if (sellersError) throw sellersError;
 
-      const productMap = new Map((products ?? []).map(product => [product.id, product]));
-      const variantMap = new Map((variants ?? []).map((variant: { id: string; name: string; price: number | null; stock: number; is_active: boolean }) => [variant.id, variant]));
-      const sellerMap = new Map((sellers ?? []).map(seller => [seller.user_id, seller]));
-      setItems(rows.flatMap((row: { id: string; product_id: string; variant_id: string | null; quantity: number }) => {
+      const productMap = new Map<string, ProductRow>((products ?? []).map(product => [product.id, product as ProductRow]));
+      const variantMap = new Map<string, VariantRow>((variants ?? []).map((variant: VariantRow) => [variant.id, variant]));
+      const sellerMap = new Map<string, SellerRow>((sellers ?? []).map(seller => [seller.user_id, seller as SellerRow]));
+      setItems(rows.flatMap((row: CartRow) => {
         const product = productMap.get(row.product_id);
         if (!product || !product.is_active) return [];
         const variant = row.variant_id ? variantMap.get(row.variant_id) : null;
