@@ -569,7 +569,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $
+AS $$
 DECLARE
   v_tx public.payment_transactions%ROWTYPE;
   v_order public.orders%ROWTYPE;
@@ -700,7 +700,7 @@ GRANT EXECUTE ON FUNCTION public.fail_order_payment(uuid, text, jsonb) TO servic
     'refund_amount', v_refund_amount
   );
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.reconcile_fedapay_refund(uuid, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reconcile_fedapay_refund(uuid, jsonb) TO service_role;
