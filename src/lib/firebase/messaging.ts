@@ -10,10 +10,41 @@ const ensureMessaging = async () => {
   return getMessaging(getFirebaseApp());
 };
 
+type TokenRow = { id: string };
+type TokenQuery = {
+  upsert: (
+    values: { user_id: string; token: string; platform: string; updated_at: string },
+    options: { onConflict: string },
+  ) => Promise<{ error: Error | null }>;
+  delete: () => {
+    eq: (column: "user_id", value: string) => {
+      eq: (column: "platform", value: string) => Promise<{ error: Error | null }>;
+    };
+  };
+  select: (columns: "id") => {
+    eq: (column: "user_id", value: string) => {
+      eq: (column: "platform", value: string) => {
+        limit: (count: number) => Promise<{ data: TokenRow[] | null; error: Error | null }>;
+      };
+    };
+  };
+};
 type TokenTable = {
-  from: (name: "user_fcm_tokens") => any;
+  from: (name: "user_fcm_tokens") => TokenQuery;
 };
 const tokenTable = () => (supabase as unknown as TokenTable).from("user_fcm_tokens");
+
+export async function hasWebPushToken(userId: string): Promise<boolean> {
+  const { data, error } = await tokenTable().select("id")
+    .eq("user_id", userId).eq("platform", "web_fid").limit(1);
+  if (error) throw error;
+  return Boolean(data?.length);
+}
+
+export async function removeWebPushTokenRecord(userId: string): Promise<void> {
+  const { error } = await tokenTable().delete().eq("user_id", userId).eq("platform", "web_fid");
+  if (error) throw error;
+}
 
 export async function enableWebPush(userId: string): Promise<void> {
   if (!window.isSecureContext) throw new Error("Les notifications push nécessitent HTTPS.");
