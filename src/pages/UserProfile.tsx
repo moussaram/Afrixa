@@ -11,8 +11,6 @@ import {
   UserX,
   Flag,
   Link as LinkIcon,
-  Globe,
-  Briefcase,
 } from 'lucide-react';
 import { VideoThumbnail } from '@/components/video/VideoThumbnail';
 import { Button } from '@/components/ui/button';
@@ -120,7 +118,7 @@ const UserProfile = () => {
 
   const username = profile.username || 'utilisateur';
   const displayName =
-    [profile.prenom, profile.deuxieme_prenom, profile.nom].filter(Boolean).join(' ') || username;
+    [profile.prenom, profile.nom].filter(Boolean).join(' ') || username;
   const followersCount = stats.followersCount;
   const isLocked = Boolean(profile.is_private) && !isOwnProfile && !isFollowing;
   // Un compte bloqué ne doit plus exposer ses vidéos dans cette vue.
@@ -291,21 +289,7 @@ const UserProfile = () => {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
-            {profile.nationalite && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/40 text-sm text-foreground">
-                {profile.nationalite_flag && <span>{profile.nationalite_flag}</span>}
-                <Globe className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>{profile.nationalite}</span>
-              </span>
-            )}
-            {profile.profession && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/40 text-sm text-foreground">
-                <Briefcase className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>{profile.profession}</span>
-              </span>
-            )}
-          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-3" />
 
           <div className="flex items-center gap-8 mt-4">
             <div className="text-center">

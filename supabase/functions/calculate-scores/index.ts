@@ -1,22 +1,38 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.98.0';
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const supabase = createClient(supabaseUrl, serviceKey);
+const supabaseUrl = Deno.env.get('SUPABASE_URL');
+const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const cronSecret = Deno.env.get('CRON_SECRET');
 
-serve(async () => {
-  const { data: users, error: usersError } = await supabase
-    .from('user_interests')
-    .select('user_id,categories,not_interested');
-  if (usersError) return new Response(usersError.message, { status: 500 });
+function safeEqual(a: string, b: string): boolean {
+  const left = new TextEncoder().encode(a);
+  const right = new TextEncoder().encode(b);
+  let diff = left.length ^ right.length;
+  for (let i = 0; i < Math.max(left.length, right.length); i++) diff |= (left[i] ?? 0) ^ (right[i] ?? 0);
+  return diff === 0;
+}
+
+serve(async (request) => {
+  if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+  if (!supabaseUrl || !serviceKey || !cronSecret) {
+    console.error('Missing server configuration for calculate-scores');
+    return new Response('Scheduled job is not configured', { status: 503 });
+  }
+  if (!safeEqual(request.headers.get('x-cron-secret') ?? '', cronSecret)) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: users, error: usersError } = await supabase.from('user_interests').select('user_id,categories,not_interested');
+  if (usersError) return new Response('Unable to load user interests', { status: 500 });
 
   const { data: videos, error: videosError } = await supabase
     .from('videos')
     .select('id,user_id,title,description,views_count,likes_count,comments_count,shares_count,created_at,location_name')
     .eq('is_published', true)
     .limit(500);
-  if (videosError) return new Response(videosError.message, { status: 500 });
+  if (videosError) return new Response('Unable to load videos', { status: 500 });
 
   const rows = [];
   for (const user of users ?? []) {
@@ -31,11 +47,9 @@ serve(async () => {
       rows.push({ user_id: user.user_id, video_id: video.id, score, last_calculated: new Date().toISOString() });
     }
   }
-
-  if (rows.length > 0) {
-    const { error } = await supabase.from('video_scores').upsert(rows, { onConflict: 'video_id,user_id' });
-    if (error) return new Response(error.message, { status: 500 });
+  for (let offset = 0; offset < rows.length; offset += 500) {
+    const { error } = await supabase.from('video_scores').upsert(rows.slice(offset, offset + 500), { onConflict: 'video_id,user_id' });
+    if (error) return new Response('Unable to save calculated scores', { status: 500 });
   }
-
   return Response.json({ calculated: rows.length });
 });

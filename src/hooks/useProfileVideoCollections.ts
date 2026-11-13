@@ -70,7 +70,7 @@ export const useProfileVideoCollections = (userId?: string) => {
       const rows = (videoRows ?? []) as VideoRow[];
       const ownerIds = [...new Set(rows.map((row) => row.user_id))];
       const { data: profileRows, error: profileError } = await client
-        .from('profiles')
+        .from('public_profiles')
         .select('user_id,username,prenom,nom,avatar_url')
         .in('user_id', ownerIds);
       if (profileError) throw profileError;
