@@ -433,19 +433,19 @@ export type Database = {
       }
       comment_likes: {
         Row: {
-          comment_id: string | null
+          comment_id: string
           id: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
-          comment_id?: string | null
+          comment_id: string
           id?: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
-          comment_id?: string | null
+          comment_id?: string
           id?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {
@@ -496,8 +496,8 @@ export type Database = {
           likes_count: number | null
           parent_id: string | null
           replies_count: number | null
-          user_id: string | null
-          video_id: string | null
+          user_id: string
+          video_id: string
         }
         Insert: {
           content: string
@@ -508,8 +508,8 @@ export type Database = {
           likes_count?: number | null
           parent_id?: string | null
           replies_count?: number | null
-          user_id?: string | null
-          video_id?: string | null
+          user_id: string
+          video_id: string
         }
         Update: {
           content?: string
@@ -520,8 +520,8 @@ export type Database = {
           likes_count?: number | null
           parent_id?: string | null
           replies_count?: number | null
-          user_id?: string | null
-          video_id?: string | null
+          user_id?: string
+          video_id?: string
         }
         Relationships: [
           {
