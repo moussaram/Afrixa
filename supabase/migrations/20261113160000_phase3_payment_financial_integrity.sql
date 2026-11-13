@@ -163,7 +163,7 @@ BEGIN
   IF coalesce(auth.role(), '') <> 'service_role' THEN
     RAISE EXCEPTION 'Operation reservee au serveur';
   END IF;
-  IF p_transaction_id IS NULL OR p_provider_transaction_id !~ '^\d{1,32}$' THEN
+  IF p_transaction_id IS NULL OR p_provider_transaction_id IS NULL OR p_provider_transaction_id !~ '^\d{1,32}
     RAISE EXCEPTION 'Reference de paiement invalide';
   END IF;
 
@@ -183,7 +183,118 @@ BEGIN
     RAISE EXCEPTION 'Incoherence des montants de paiement';
   END IF;
 
-  IF v_tx.status = 'successful' AND v_order.status IN ('payee', 'en_preparation', 'expediee', 'livree', 'terminee') THEN
+  IF v_tx.status = 'successful' AND v_order.status IN ('payee', 'en_preparation', 'expediee', 'livree', 'terminee', 'litige') THEN
+    v_duplicate := true;
+  ELSIF v_tx.status NOT IN ('initiated', 'creating', 'pending')
+    OR v_order.status <> 'en_attente' THEN
+    RAISE EXCEPTION 'Transition de paiement interdite';
+  END IF;
+
+  UPDATE public.payment_transactions
+  SET status = 'successful', fedapay_response = p_provider_response, updated_at = now()
+  WHERE id = v_tx.id AND status IN ('initiated', 'creating', 'pending');
+
+  UPDATE public.orders
+  SET status = 'payee', updated_at = now()
+  WHERE id = v_order.id AND status = 'en_attente';
+
+  v_rate := v_order.commission_rate;
+  v_type := CASE v_rate
+    WHEN 0.03 THEN 'group_buy'
+    WHEN 0.07 THEN 'booste'
+    WHEN 0.08 THEN 'live'
+    ELSE 'normale'
+  END;
+
+  INSERT INTO public.commission_splits (
+    transaction_id, afrixa_amount, seller_amount, split_type, split_rate, status
+  ) VALUES (
+    v_tx.id, v_tx.commission_amount, v_tx.seller_amount, v_type, v_rate, 'pending'
+  )
+  ON CONFLICT (transaction_id) DO NOTHING;
+
+  RETURN jsonb_build_object('verified', true, 'order_id', v_order.id, 'duplicate', v_duplicate);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.confirm_order_payment(uuid, text, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.confirm_order_payment(uuid, text, jsonb) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.fail_order_payment(
+  p_transaction_id uuid,
+  p_final_status text,
+  p_provider_response jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_tx public.payment_transactions%ROWTYPE;
+  v_order public.orders%ROWTYPE;
+BEGIN
+  IF coalesce(auth.role(), '') <> 'service_role' THEN
+    RAISE EXCEPTION 'Operation reservee au serveur';
+  END IF;
+  IF p_transaction_id IS NULL OR p_final_status NOT IN ('failed', 'cancelled') THEN
+    RAISE EXCEPTION 'Statut de paiement invalide';
+  END IF;
+
+  SELECT * INTO v_tx FROM public.payment_transactions
+  WHERE id = p_transaction_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Transaction introuvable';
+  END IF;
+
+  SELECT * INTO v_order FROM public.orders
+  WHERE id = v_tx.order_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Commande introuvable';
+  END IF;
+
+  IF v_tx.status IN ('failed', 'cancelled') THEN
+    RETURN jsonb_build_object('processed', false, 'duplicate', true);
+  END IF;
+  IF v_tx.status NOT IN ('initiated', 'creating', 'pending') OR v_order.status <> 'en_attente' THEN
+    RAISE EXCEPTION 'Un paiement confirme ne peut pas etre annule par cet evenement';
+  END IF;
+
+  UPDATE public.payment_transactions
+  SET status = p_final_status, fedapay_response = p_provider_response, updated_at = now()
+  WHERE id = v_tx.id;
+
+  UPDATE public.orders
+  SET status = 'annulee', updated_at = now()
+  WHERE id = v_order.id AND status = 'en_attente';
+
+  RETURN jsonb_build_object('processed', true, 'duplicate', false);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.fail_order_payment(uuid, text, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.fail_order_payment(uuid, text, jsonb) TO service_role;
+ THEN
+    RAISE EXCEPTION 'Reference de paiement invalide';
+  END IF;
+
+  SELECT * INTO v_tx FROM public.payment_transactions
+  WHERE id = p_transaction_id FOR UPDATE;
+  IF NOT FOUND OR v_tx.fedapay_transaction_id IS DISTINCT FROM p_provider_transaction_id THEN
+    RAISE EXCEPTION 'Transaction de paiement introuvable';
+  END IF;
+
+  SELECT * INTO v_order FROM public.orders
+  WHERE id = v_tx.order_id FOR UPDATE;
+  IF NOT FOUND OR v_order.total_price <> v_tx.amount
+    OR v_order.commission_amount <> v_tx.commission_amount
+    OR v_order.seller_amount <> v_tx.seller_amount
+    OR v_order.total_price <> v_order.commission_amount + v_order.seller_amount
+    OR v_tx.currency <> 'XOF' THEN
+    RAISE EXCEPTION 'Incoherence des montants de paiement';
+  END IF;
+
+  IF v_tx.status = 'successful' AND v_order.status IN ('payee', 'en_preparation', 'expediee', 'livree', 'terminee', 'litige') THEN
     v_duplicate := true;
   ELSIF v_tx.status NOT IN ('initiated', 'creating', 'pending')
     OR v_order.status <> 'en_attente' THEN
