@@ -20,6 +20,7 @@ interface PaymentProduct {
   imageUrl: string;
   sellerName: string;
   sellerId?: string;
+  variantId?: string;
 }
 
 interface AfrixaPaymentProps {
@@ -117,6 +118,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
         {
           p_product_id: product.id,
           p_quantity: quantity,
+          p_variant_id: product.variantId ?? null,
           p_operator: operator,
           p_phone: phone,
           p_delivery_address: address,
