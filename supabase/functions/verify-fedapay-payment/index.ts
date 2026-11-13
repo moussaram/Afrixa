@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
 
     const { data: order, error: orderError } = await admin
       .from('orders')
-      .select('id, buyer_id, total_price, commission_rate, status')
+      .select('id, buyer_id, product_id, variant_id, total_price, commission_rate, status')
       .eq('id', tx.order_id)
       .maybeSingle();
     if (orderError) throw orderError;
@@ -103,6 +103,10 @@ Deno.serve(async (req) => {
           p_provider_response: providerResponse,
         });
         if (failError) throw failError;
+        const { error: releaseError } = await admin.rpc('release_order_stock_reservation', {
+          p_order_id: order.id,
+        });
+        if (releaseError) throw releaseError;
       }
       return json({ verified: false, status: providerStatus });
     }
@@ -112,6 +116,24 @@ Deno.serve(async (req) => {
       p_provider_response: providerResponse,
     });
     if (settleError) throw settleError;
+    const { error: consumeError } = await admin.rpc('consume_order_stock_reservation', {
+      p_order_id: order.id,
+    });
+    if (consumeError) throw consumeError;
+    const { error: saleError } = await admin.rpc('record_product_sale', {
+      p_order_id: order.id,
+    });
+    if (saleError) throw saleError;
+    if (order.product_id) {
+      let cartCleanup = admin.from('cart_items').delete()
+        .eq('buyer_id', order.buyer_id)
+        .eq('product_id', order.product_id);
+      cartCleanup = order.variant_id
+        ? cartCleanup.eq('variant_id', order.variant_id)
+        : cartCleanup.is('variant_id', null);
+      const { error: cartCleanupError } = await cartCleanup;
+      if (cartCleanupError) throw cartCleanupError;
+    }
 
     return json({ verified: true, status: 'approved', order_id: order.id });
   } catch (error) {
