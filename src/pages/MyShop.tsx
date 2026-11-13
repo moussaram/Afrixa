@@ -121,6 +121,16 @@ const MyShop = () => {
       toast.error('Vérifie le nom, le prix et le stock.');
       return;
     }
+    const shouldCreateVariant = !editingProduct && Boolean(newProduct.variantName.trim());
+    const variantPrice = newProduct.variantPrice.trim() ? Number.parseInt(newProduct.variantPrice, 10) : null;
+    const variantStock = Number.parseInt(newProduct.variantStock || '0', 10);
+    if (shouldCreateVariant && (
+      (variantPrice !== null && (!Number.isSafeInteger(variantPrice) || variantPrice <= 0))
+      || !Number.isSafeInteger(variantStock) || variantStock < 0
+    )) {
+      toast.error('Prix ou stock de variante invalide.');
+      return;
+    }
     setSubmitting(true);
     try {
       const productPayload = {
@@ -149,13 +159,7 @@ const MyShop = () => {
         savedProductId = data.id;
       }
 
-      if (!editingProduct && newProduct.variantName.trim() && savedProductId) {
-        const variantPrice = newProduct.variantPrice.trim() ? Number.parseInt(newProduct.variantPrice, 10) : null;
-        const variantStock = Number.parseInt(newProduct.variantStock || '0', 10);
-        if ((variantPrice !== null && (!Number.isSafeInteger(variantPrice) || variantPrice <= 0))
-          || !Number.isSafeInteger(variantStock) || variantStock < 0) {
-          throw new Error('Prix ou stock de variante invalide.');
-        }
+      if (shouldCreateVariant && savedProductId) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: variantError } = await (supabase as any).from('product_variants').insert({
           product_id: savedProductId,
@@ -163,7 +167,13 @@ const MyShop = () => {
           price: variantPrice,
           stock: variantStock,
         });
-        if (variantError) throw variantError;
+        if (variantError) {
+          // Keep a failed first-variant creation from leaving a public product
+          // that cannot be purchased because the database requires a variant.
+          await supabase.from('products').update({ is_active: false })
+            .eq('id', savedProductId).eq('seller_id', user.id);
+          throw variantError;
+        }
       }
 
       toast.success(editingProduct ? 'Produit modifié.' : 'Produit publié.');
