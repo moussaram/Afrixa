@@ -125,7 +125,7 @@ CREATE TRIGGER validate_cart_item_before_write
   FOR EACH ROW EXECUTE FUNCTION public.validate_cart_item();
 
 ALTER TABLE public.orders
-  ADD COLUMN IF NOT EXISTS variant_id uuid REFERENCES public.product_variants(id) ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS variant_id uuid REFERENCES public.product_variants(id) ON DELETE RESTRICT;
 
 ALTER TABLE public.disputes
   ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
