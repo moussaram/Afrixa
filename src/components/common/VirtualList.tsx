@@ -20,8 +20,7 @@ export const VirtualList = <T,>({ items, height, itemSize, renderItem }: Virtual
 
   return (
     <List
-      height={height}
-      width="100%"
+      style={{ height, width: '100%' }}
       rowCount={items.length}
       rowHeight={itemSize}
       rowProps={{ items, renderItem }}

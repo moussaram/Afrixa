@@ -59,7 +59,7 @@ export default function LiveSetup() {
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) throw new Error('Connectez-vous pour démarrer un live');
-      const channel = crypto.randomUUID().replaceAll('-', '');
+      const channel = crypto.randomUUID().replace(/-/g, '');
       const { data: session, error } = await supabase.from('live_sessions').insert({
         host_id: user.id,
         agora_channel: channel,
