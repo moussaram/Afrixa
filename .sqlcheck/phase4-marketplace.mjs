@@ -104,6 +104,10 @@ try {
   const cart2 = await one('SELECT public.add_cart_item($1,1,$2) AS result',[variantProduct,variantId]);
   check('Le panier regroupe une même variante et augmente la quantité', cart1?.result?.quantity === 1 && cart2?.result?.quantity === 2);
 
+  await expectError('Un vendeur ne peut pas falsifier le compteur de ventes', () =>
+    db.query("UPDATE public.products SET sales_count=999 WHERE id=$1",[variantProduct]),
+    /managed by verified payments/i);
+
   await db.exec('RESET ROLE;');
   await db.query("UPDATE public.payment_transactions SET status='successful' WHERE order_id=$1",[variantCheckout.order_id]);
   await db.query("UPDATE public.orders SET status='payee' WHERE id=$1",[variantCheckout.order_id]);
