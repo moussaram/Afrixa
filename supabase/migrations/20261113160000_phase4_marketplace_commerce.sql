@@ -313,7 +313,8 @@ GRANT SELECT ON public.disputes TO authenticated;
 -- approval or restored after a definitive payment failure.
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS stock_reservation_status text NOT NULL DEFAULT 'none'
-  CHECK (stock_reservation_status IN ('none', 'reserved', 'consumed', 'released'));
+  CHECK (stock_reservation_status IN ('none', 'reserved', 'consumed', 'released')),
+  ADD COLUMN IF NOT EXISTS sales_count_recorded_at timestamptz;
 
 CREATE OR REPLACE FUNCTION public.enforce_order_checkout_integrity()
 RETURNS trigger
@@ -385,6 +386,7 @@ BEGIN
     OR NEW.product_id IS DISTINCT FROM OLD.product_id
     OR NEW.variant_id IS DISTINCT FROM OLD.variant_id
     OR NEW.stock_reservation_status IS DISTINCT FROM OLD.stock_reservation_status
+    OR NEW.sales_count_recorded_at IS DISTINCT FROM OLD.sales_count_recorded_at
     OR NEW.product_name IS DISTINCT FROM OLD.product_name
     OR NEW.product_image IS DISTINCT FROM OLD.product_image
     OR NEW.quantity IS DISTINCT FROM OLD.quantity
@@ -706,6 +708,46 @@ $$;
 REVOKE ALL ON FUNCTION public.add_cart_item(uuid, integer, uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.add_cart_item(uuid, integer, uuid) TO authenticated;
 
+
+
+CREATE OR REPLACE FUNCTION public.record_product_sale(p_order_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $
+DECLARE
+  v_order public.orders%ROWTYPE;
+  v_payment_exists boolean;
+BEGIN
+  IF coalesce(auth.role(), '') <> 'service_role' THEN
+    RAISE EXCEPTION 'service_role required';
+  END IF;
+  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Commande introuvable'; END IF;
+  IF v_order.sales_count_recorded_at IS NOT NULL THEN
+    RETURN jsonb_build_object('recorded', true, 'duplicate', true);
+  END IF;
+  IF v_order.status NOT IN ('payee', 'en_preparation', 'expediee', 'livree', 'terminee') THEN
+    RAISE EXCEPTION 'Commande non payee';
+  END IF;
+  SELECT EXISTS (
+    SELECT 1 FROM public.payment_transactions
+    WHERE order_id = p_order_id AND status = 'successful'
+  ) INTO v_payment_exists;
+  IF NOT v_payment_exists THEN RAISE EXCEPTION 'Paiement non confirme'; END IF;
+
+  UPDATE public.products
+  SET sales_count = coalesce(sales_count, 0) + v_order.quantity
+  WHERE id = v_order.product_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Produit introuvable'; END IF;
+
+  UPDATE public.orders SET sales_count_recorded_at = now() WHERE id = p_order_id;
+  RETURN jsonb_build_object('recorded', true, 'duplicate', false);
+END;
+$;
+REVOKE ALL ON FUNCTION public.record_product_sale(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.record_product_sale(uuid) TO service_role;
 
 
 CREATE OR REPLACE FUNCTION public.get_product_rating_summary(p_product_ids uuid[])
