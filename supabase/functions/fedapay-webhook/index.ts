@@ -188,10 +188,18 @@ Deno.serve(async (req) => {
         return json({ received: true, rejected: true });
       }
       if (status === 'sent') {
+        if (!payout.order_id) {
+          const { error: settlePayoutError } = await admin.rpc('complete_creator_withdrawal', {
+            p_payout_id: payout.id,
+            p_provider_transaction_id: objectId,
+            p_provider_response: providerResponse,
+          });
+          if (settlePayoutError) throw settlePayoutError;
+          return json({ received: true, processed: true });
+        }
         const { error: payoutUpdateError } = await admin.from('seller_payouts')
           .update({ status: 'envoye', fedapay_response: providerResponse }).eq('id', payout.id);
         if (payoutUpdateError) throw payoutUpdateError;
-        if (!payout.order_id) return json({ received: true, processed: true });
         const { data: paymentTx, error: paymentTxError } = await admin.from('payment_transactions')
           .select('id').eq('order_id', payout.order_id).eq('status', 'successful').single();
         if (paymentTxError) throw paymentTxError;
