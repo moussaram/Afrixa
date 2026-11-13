@@ -474,7 +474,9 @@ BEGIN
   SET status = 'successful', fedapay_response = p_provider_response, updated_at = now()
   WHERE id = v_tx.id;
 
-  UPDATE public.orders\n  SET status = 'payee', stock_reserved = false, updated_at = now()\n  WHERE id = v_order.id AND status = 'en_attente';
+  UPDATE public.orders
+  SET status = 'payee', stock_reserved = false, updated_at = now()
+  WHERE id = v_order.id AND status = 'en_attente';
 
   v_type := CASE
     WHEN v_order.commission_rate = 0.03 THEN 'group_buy'
@@ -535,7 +537,9 @@ BEGIN
     WHERE id = v_order.product_id;
   END IF;
 
-  UPDATE public.orders\n  SET status = 'annulee', stock_reserved = false, updated_at = now()\n  WHERE id = v_order.id AND status = 'en_attente';
+  UPDATE public.orders
+  SET status = 'annulee', stock_reserved = false, updated_at = now()
+  WHERE id = v_order.id AND status = 'en_attente';
 
   RETURN true;
 END;
