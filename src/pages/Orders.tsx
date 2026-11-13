@@ -11,6 +11,7 @@ type OrderRow = {
   buyer_id: string;
   seller_id: string;
   product_name: string;
+  variant_name: string | null;
   product_image: string | null;
   quantity: number;
   total_price: number;
@@ -56,7 +57,7 @@ const Orders = () => {
     try {
       const { data, error: queryError } = await supabase
         .from('orders')
-        .select('id, buyer_id, seller_id, product_name, product_image, quantity, total_price, payment_operator, status, created_at')
+        .select('id, buyer_id, seller_id, product_name, variant_name, product_image, quantity, total_price, payment_operator, status, created_at')
         .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -134,6 +135,7 @@ const Orders = () => {
               )}
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-semibold text-foreground truncate">{order.product_name}</h3>
+                {order.variant_name && <p className="text-xs text-muted-foreground">{order.variant_name}</p>}
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {order.buyer_id === user?.id ? 'Achat' : 'Vente'} · Qté {order.quantity}
                   {order.payment_operator ? ` · ${order.payment_operator}` : ''}
