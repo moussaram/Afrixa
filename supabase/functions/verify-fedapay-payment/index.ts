@@ -130,20 +130,15 @@ Deno.serve(async (req) => {
 
     const rate = Number(order.commission_rate);
     const splitType = rate === 0.03 ? 'group_buy' : rate === 0.07 ? 'booste' : rate === 0.08 ? 'live' : 'normale';
-    const { data: existingSplit, error: splitReadError } = await admin.from('commission_splits')
-      .select('id').eq('transaction_id', tx.id).limit(1).maybeSingle();
-    if (splitReadError) throw splitReadError;
-    if (!existingSplit) {
-      const { error: splitInsertError } = await admin.from('commission_splits').insert({
-        transaction_id: tx.id,
-        afrixa_amount: Number(tx.commission_amount),
-        seller_amount: Number(tx.seller_amount),
-        split_type: splitType,
-        split_rate: rate,
-        status: 'pending',
-      });
-      if (splitInsertError) throw splitInsertError;
-    }
+    const { error: splitInsertError } = await admin.from('commission_splits').upsert({
+      transaction_id: tx.id,
+      afrixa_amount: Number(tx.commission_amount),
+      seller_amount: Number(tx.seller_amount),
+      split_type: splitType,
+      split_rate: rate,
+      status: 'pending',
+    }, { onConflict: 'transaction_id', ignoreDuplicates: true });
+    if (splitInsertError) throw splitInsertError;
 
     return json({ verified: true, status: 'approved', order_id: order.id });
   } catch (error) {
