@@ -83,8 +83,7 @@ CREATE INDEX IF NOT EXISTS comments_top_level_feed_idx
   WHERE parent_id IS NULL AND is_deleted = false;
 
 CREATE INDEX IF NOT EXISTS comments_parent_created_idx
-  ON public.comments (parent_id, created_at ASC)
-  WHERE is_deleted = false;
+  ON public.comments (parent_id, created_at ASC);
 
 CREATE INDEX IF NOT EXISTS comment_likes_user_comment_idx
   ON public.comment_likes (user_id, comment_id);
