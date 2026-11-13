@@ -1,4 +1,10 @@
 ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS description text,
+  ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'Autre',
+  ADD COLUMN IF NOT EXISTS city text,
+  ADD COLUMN IF NOT EXISTS country text;
+
+ALTER TABLE public.products
   ADD COLUMN IF NOT EXISTS sales_count integer NOT NULL DEFAULT 0;
 
 CREATE TABLE public.disputes (
