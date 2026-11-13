@@ -66,19 +66,17 @@ const MyShop = () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const [{ data, error }, { data: orderRows, error: ordersError }] = await Promise.all([
+      const [{ data, error }, { data: statsRows, error: statsError }] = await Promise.all([
         supabase.from('products')
           .select('id, name, description, category, price, stock, images, sales_count, city, country')
           .eq('seller_id', user.id)
           .eq('is_active', true)
           .order('created_at', { ascending: false }),
-        supabase.from('orders')
-          .select('id, status, seller_amount')
-          .eq('seller_id', user.id)
-          .limit(500),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any).rpc('get_my_shop_stats'),
       ]);
       if (error) throw error;
-      if (ordersError) throw ordersError;
+      if (statsError) throw statsError;
       setProducts((data ?? []).map(product => ({
         id: product.id,
         name: product.name,
@@ -92,13 +90,11 @@ const MyShop = () => {
         city: product.city,
         country: product.country,
       })));
-      const sales = (orderRows ?? []).filter(order => ['payee', 'en_preparation', 'expediee', 'livree', 'terminee'].includes(order.status));
-      const pending = (orderRows ?? []).filter(order => ['en_attente', 'payee', 'en_preparation', 'expediee'].includes(order.status));
-      const sellerRevenue = sales.reduce((total, order) => total + (order.seller_amount ?? 0), 0);
+      const shopStats = statsRows?.[0] ?? { completed_sales: 0, orders_in_progress: 0, seller_amount_total: 0 };
       setStats([
-        { label: 'Ventes', value: String(sales.length), icon: TrendingUp, color: 'text-green-400' },
-        { label: 'En attente', value: String(pending.length), icon: Clock, color: 'text-amber-400' },
-        { label: 'Revenus vendeur', value: `${formatNumber(sellerRevenue)} FCFA`, icon: DollarSign, color: 'text-primary' },
+        { label: 'Ventes confirmées', value: String(shopStats.completed_sales ?? 0), icon: TrendingUp, color: 'text-green-400' },
+        { label: 'En cours', value: String(shopStats.orders_in_progress ?? 0), icon: Clock, color: 'text-amber-400' },
+        { label: 'Montant vendeur', value: `${formatNumber(shopStats.seller_amount_total ?? 0)} FCFA`, icon: DollarSign, color: 'text-primary' },
       ]);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'Erreur réseau');
