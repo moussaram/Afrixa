@@ -56,6 +56,13 @@ BEGIN
     IF coalesce(product_row.is_group_buy, false) THEN
       RAISE EXCEPTION 'Group purchases are temporarily unavailable';
     END IF;
+    IF NEW.payment_operator IS NULL OR NEW.payment_operator NOT IN (
+      'mtn_open', 'moov', 'sbin', 'mtn_ci', 'moov_tg', 'togocel',
+      'orange-bf', 'moov_bf', 'mtn_open_gn', 'moov_ci', 'wave_ci',
+      'orange_ci', 'wave_sn', 'orange_sn'
+    ) THEN
+      RAISE EXCEPTION 'Unsupported payment operator';
+    END IF;
     IF NOT coalesce(product_row.unlimited_stock, false)
       AND coalesce(product_row.stock, 0) < NEW.quantity THEN
       RAISE EXCEPTION 'Insufficient product stock';
@@ -265,7 +272,7 @@ BEGIN
 
   RETURN jsonb_build_object(
     'order_id', v_order.id,
-    'order_ref', v_reference,
+    'order_ref', v_order.payment_reference,
     'total_price', v_order.total_price,
     'transaction_id', v_tx.id,
     'reused', false
