@@ -33,7 +33,7 @@ DECLARE
   product_row public.products%ROWTYPE;
   computed_total bigint;
 BEGIN
-  IF auth.role() = 'service_role' THEN
+  IF auth.role() = 'service_role' OR current_setting('afrixa.financial_writer', true) = 'on' THEN
     RETURN NEW;
   END IF;
 
