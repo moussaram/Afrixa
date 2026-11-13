@@ -19,6 +19,119 @@ CREATE UNIQUE INDEX IF NOT EXISTS commission_splits_transaction_id_unique
 ALTER TABLE public.checkout_idempotency ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.checkout_idempotency FROM PUBLIC, anon, authenticated;
 
+-- Enforce server-derived checkout values even when an authenticated client
+-- attempts to insert an order directly instead of using the checkout RPC.
+CREATE OR REPLACE FUNCTION public.enforce_order_checkout_integrity()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $
+DECLARE
+  product_row public.products%ROWTYPE;
+  computed_total bigint;
+BEGIN
+  IF auth.role() = 'service_role' THEN
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    IF auth.uid() IS NULL OR NEW.buyer_id IS DISTINCT FROM auth.uid() THEN
+      RAISE EXCEPTION 'A buyer may only create their own order';
+    END IF;
+    IF NEW.product_id IS NULL OR NEW.quantity IS NULL OR NEW.quantity < 1 OR NEW.quantity > 50 THEN
+      RAISE EXCEPTION 'A valid product and quantity are required';
+    END IF;
+
+    SELECT * INTO product_row
+    FROM public.products
+    WHERE id = NEW.product_id AND is_active = true
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Product is unavailable';
+    END IF;
+    IF product_row.seller_id = NEW.buyer_id THEN
+      RAISE EXCEPTION 'A seller cannot buy their own product';
+    END IF;
+    IF coalesce(product_row.is_group_buy, false) THEN
+      RAISE EXCEPTION 'Group purchases are temporarily unavailable';
+    END IF;
+    IF NOT coalesce(product_row.unlimited_stock, false)
+      AND coalesce(product_row.stock, 0) < NEW.quantity THEN
+      RAISE EXCEPTION 'Insufficient product stock';
+    END IF;
+
+    NEW.seller_id := product_row.seller_id;
+    NEW.product_name := product_row.name;
+    NEW.product_image := product_row.images[1];
+    NEW.unit_price := CASE
+      WHEN product_row.promo_price IS NOT NULL
+        AND product_row.promo_price > 0
+        AND product_row.promo_price < product_row.price
+        THEN product_row.promo_price
+      ELSE product_row.price
+    END;
+    computed_total := NEW.unit_price::bigint * NEW.quantity;
+    IF computed_total < 1 OR computed_total > 2147483647 THEN
+      RAISE EXCEPTION 'Order total is outside supported limits';
+    END IF;
+    NEW.total_price := computed_total::integer;
+    NEW.commission_rate := 0.05;
+    NEW.commission_amount := round(computed_total * NEW.commission_rate)::integer;
+    NEW.seller_amount := (computed_total - NEW.commission_amount)::integer;
+    NEW.payment_reference := 'AFR-' || replace(gen_random_uuid()::text, '-', '');
+    NEW.status := 'en_attente';
+    NEW.escrow_released := false;
+    RETURN NEW;
+  END IF;
+
+  IF NEW.buyer_id IS DISTINCT FROM OLD.buyer_id
+    OR NEW.seller_id IS DISTINCT FROM OLD.seller_id
+    OR NEW.product_id IS DISTINCT FROM OLD.product_id
+    OR NEW.product_name IS DISTINCT FROM OLD.product_name
+    OR NEW.product_image IS DISTINCT FROM OLD.product_image
+    OR NEW.quantity IS DISTINCT FROM OLD.quantity
+    OR NEW.unit_price IS DISTINCT FROM OLD.unit_price
+    OR NEW.total_price IS DISTINCT FROM OLD.total_price
+    OR NEW.commission_rate IS DISTINCT FROM OLD.commission_rate
+    OR NEW.commission_amount IS DISTINCT FROM OLD.commission_amount
+    OR NEW.seller_amount IS DISTINCT FROM OLD.seller_amount
+    OR NEW.payment_operator IS DISTINCT FROM OLD.payment_operator
+    OR NEW.buyer_phone IS DISTINCT FROM OLD.buyer_phone
+    OR NEW.payment_reference IS DISTINCT FROM OLD.payment_reference
+    OR NEW.escrow_released IS DISTINCT FROM OLD.escrow_released THEN
+    RAISE EXCEPTION 'Checkout and escrow fields cannot be changed by a client';
+  END IF;
+
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    IF auth.uid() = OLD.buyer_id AND NEW.status = 'livree' AND OLD.status = 'expediee' THEN
+      RETURN NEW;
+    END IF;
+    IF auth.uid() = OLD.seller_id
+      AND ((OLD.status = 'payee' AND NEW.status = 'en_preparation')
+        OR (OLD.status = 'en_preparation' AND NEW.status = 'expediee')) THEN
+      RETURN NEW;
+    END IF;
+    IF auth.uid() = OLD.buyer_id AND NEW.status = 'litige'
+      AND OLD.status IN ('payee', 'en_preparation', 'expediee', 'livree') THEN
+      RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'This order status transition must be performed through the authorized flow';
+  END IF;
+
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS a_order_checkout_integrity ON public.orders;
+CREATE TRIGGER a_order_checkout_integrity
+BEFORE INSERT OR UPDATE ON public.orders
+FOR EACH ROW EXECUTE FUNCTION public.enforce_order_checkout_integrity();
+
+CREATE UNIQUE INDEX IF NOT EXISTS orders_payment_reference_unique
+  ON public.orders(payment_reference)
+  WHERE payment_reference IS NOT NULL;
+
 CREATE OR REPLACE FUNCTION public.create_order_payment_atomic(
   p_product_id uuid,
   p_quantity integer,
@@ -53,7 +166,11 @@ BEGIN
   IF p_product_id IS NULL OR p_quantity IS NULL OR p_quantity < 1 OR p_quantity > 50
     OR v_key IS NULL OR length(v_key) > 120
     OR length(v_phone) < 8 OR length(v_phone) > 15
-    OR p_operator IS NULL OR p_operator NOT IN ('orange_money', 'wave', 'mtn', 'moov')
+    OR p_operator IS NULL OR p_operator NOT IN (
+      'mtn_open', 'moov', 'sbin', 'mtn_ci', 'moov_tg', 'togocel',
+      'orange-bf', 'moov_bf', 'mtn_open_gn', 'moov_ci', 'wave_ci',
+      'orange_ci', 'wave_sn', 'orange_sn'
+    )
     OR length(btrim(coalesce(p_delivery_address, ''))) < 5
     OR length(coalesce(p_buyer_note, '')) > 1000 THEN
     RAISE EXCEPTION 'Parametres de commande invalides';
@@ -92,6 +209,9 @@ BEGIN
   IF v_product.seller_id = v_buyer THEN
     RAISE EXCEPTION 'Impossible d acheter son propre produit';
   END IF;
+  IF coalesce(v_product.is_group_buy, false) THEN
+    RAISE EXCEPTION 'Les achats groupes sont temporairement indisponibles';
+  END IF;
   IF NOT coalesce(v_product.unlimited_stock, false)
     AND coalesce(v_product.stock, 0) < p_quantity THEN
     RAISE EXCEPTION 'Stock insuffisant';
@@ -100,8 +220,14 @@ BEGIN
     RAISE EXCEPTION 'Prix du produit invalide';
   END IF;
 
-  v_rate := CASE WHEN coalesce(v_product.is_group_buy, false) THEN 0.03 ELSE 0.05 END;
-  v_total := v_product.price::bigint * p_quantity;
+  v_rate := 0.05;
+  v_total := CASE
+    WHEN v_product.promo_price IS NOT NULL
+      AND v_product.promo_price > 0
+      AND v_product.promo_price < v_product.price
+      THEN v_product.promo_price::bigint
+    ELSE v_product.price::bigint
+  END * p_quantity;
   IF v_total > 2147483647 THEN
     RAISE EXCEPTION 'Montant de commande trop eleve';
   END IF;
@@ -115,7 +241,10 @@ BEGIN
     delivery_lat, delivery_lng, buyer_note, status, payment_reference
   ) VALUES (
     v_buyer, v_product.seller_id, v_product.id, v_product.name, v_product.images[1],
-    p_quantity, v_product.price, v_total::integer, v_rate, v_commission::integer,
+    p_quantity,
+    CASE WHEN v_product.promo_price IS NOT NULL AND v_product.promo_price > 0
+      AND v_product.promo_price < v_product.price THEN v_product.promo_price ELSE v_product.price END,
+    v_total::integer, v_rate, v_commission::integer,
     (v_total - v_commission)::integer, p_operator, v_phone, btrim(p_delivery_address),
     p_delivery_lat, p_delivery_lng, nullif(btrim(coalesce(p_buyer_note, '')), ''),
     'en_attente', v_reference
