@@ -16,6 +16,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS payment_transactions_order_id_unique
 CREATE UNIQUE INDEX IF NOT EXISTS commission_splits_transaction_id_unique
   ON public.commission_splits(transaction_id);
 
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS stock_reserved boolean NOT NULL DEFAULT false;
+
 ALTER TABLE public.checkout_idempotency ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.checkout_idempotency FROM PUBLIC, anon, authenticated;
 
@@ -249,7 +252,7 @@ BEGIN
     buyer_id, seller_id, product_id, product_name, product_image,
     quantity, unit_price, total_price, commission_rate, commission_amount,
     seller_amount, payment_operator, buyer_phone, delivery_address,
-    delivery_lat, delivery_lng, buyer_note, status, payment_reference
+    delivery_lat, delivery_lng, buyer_note, status, payment_reference, stock_reserved
   ) VALUES (
     v_buyer, v_product.seller_id, v_product.id, v_product.name, v_product.images[1],
     p_quantity,
@@ -258,9 +261,18 @@ BEGIN
     v_total::integer, v_rate, v_commission::integer,
     (v_total - v_commission)::integer, p_operator, v_phone, btrim(p_delivery_address),
     p_delivery_lat, p_delivery_lng, nullif(btrim(coalesce(p_buyer_note, '')), ''),
-    'en_attente', v_reference
+    'en_attente', v_reference, NOT coalesce(v_product.unlimited_stock, false)
   )
   RETURNING * INTO v_order;
+
+  IF NOT coalesce(v_product.unlimited_stock, false) THEN
+    UPDATE public.products
+    SET stock = stock - p_quantity, updated_at = now()
+    WHERE id = v_product.id AND stock >= p_quantity;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Stock insuffisant';
+    END IF;
+  END IF;
 
   INSERT INTO public.payment_transactions (
     order_id, fedapay_ref, amount, commission_amount, seller_amount,
@@ -410,3 +422,117 @@ GRANT EXECUTE ON FUNCTION public.request_my_withdrawal(integer, text, text, text
 
 COMMENT ON FUNCTION public.request_my_withdrawal(integer, text, text, text) IS
   'Retrait createur atomique, idempotent et serialise par compte; applique le solde, le plafond quotidien et la limite de retrait en cours.';
+
+
+-- Finalize a marketplace payment atomically and idempotently after verifying FedaPay server-side.
+CREATE OR REPLACE FUNCTION public.settle_order_payment(
+  p_transaction_id uuid,
+  p_provider_response jsonb
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_tx public.payment_transactions%ROWTYPE;
+  v_order public.orders%ROWTYPE;
+  v_type text;
+BEGIN
+  SELECT * INTO v_tx
+  FROM public.payment_transactions
+  WHERE id = p_transaction_id
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Transaction introuvable'; END IF;
+
+  SELECT * INTO v_order FROM public.orders WHERE id = v_tx.order_id FOR UPDATE;
+  IF NOT FOUND OR v_order.total_price <> v_tx.amount THEN
+    RAISE EXCEPTION 'Commande et transaction incoherentes';
+  END IF;
+  IF v_tx.status = 'successful' THEN RETURN false; END IF;
+  IF v_tx.status NOT IN ('initiated', 'creating', 'pending') THEN
+    RAISE EXCEPTION 'Transaction non payable';
+  END IF;
+  IF v_order.status NOT IN ('en_attente', 'payee') THEN
+    RAISE EXCEPTION 'Commande non payable';
+  END IF;
+
+  UPDATE public.payment_transactions
+  SET status = 'successful', fedapay_response = p_provider_response, updated_at = now()
+  WHERE id = v_tx.id;
+
+  UPDATE public.orders
+  SET status = 'payee', updated_at = now()
+  WHERE id = v_order.id AND status = 'en_attente';
+
+  v_type := CASE
+    WHEN v_order.commission_rate = 0.03 THEN 'group_buy'
+    WHEN v_order.commission_rate = 0.07 THEN 'booste'
+    WHEN v_order.commission_rate = 0.08 THEN 'live'
+    ELSE 'normale'
+  END;
+
+  INSERT INTO public.commission_splits (
+    transaction_id, afrixa_amount, seller_amount, split_type, split_rate, status
+  ) VALUES (
+    v_tx.id, v_tx.commission_amount, v_tx.seller_amount, v_type, v_order.commission_rate, 'pending'
+  )
+  ON CONFLICT (transaction_id) DO NOTHING;
+
+  RETURN true;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.fail_order_payment(
+  p_transaction_id uuid,
+  p_final_status text,
+  p_provider_response jsonb
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_tx public.payment_transactions%ROWTYPE;
+  v_order public.orders%ROWTYPE;
+BEGIN
+  IF p_final_status NOT IN ('failed', 'cancelled') THEN
+    RAISE EXCEPTION 'Statut final invalide';
+  END IF;
+
+  SELECT * INTO v_tx
+  FROM public.payment_transactions
+  WHERE id = p_transaction_id
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Transaction introuvable'; END IF;
+  IF v_tx.status IN ('failed', 'cancelled') THEN RETURN false; END IF;
+  IF v_tx.status NOT IN ('initiated', 'creating', 'pending') THEN
+    RAISE EXCEPTION 'Transaction non annulable';
+  END IF;
+
+  SELECT * INTO v_order FROM public.orders WHERE id = v_tx.order_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Commande introuvable'; END IF;
+
+  UPDATE public.payment_transactions
+  SET status = p_final_status, fedapay_response = p_provider_response, updated_at = now()
+  WHERE id = v_tx.id;
+
+  IF v_order.stock_reserved AND v_order.product_id IS NOT NULL THEN
+    UPDATE public.products
+    SET stock = stock + v_order.quantity, updated_at = now()
+    WHERE id = v_order.product_id;
+  END IF;
+
+  UPDATE public.orders
+  SET status = 'annulee', stock_reserved = false, updated_at = now()
+  WHERE id = v_order.id AND status = 'en_attente';
+
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.settle_order_payment(uuid, jsonb) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.fail_order_payment(uuid, text, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.settle_order_payment(uuid, jsonb) TO service_role;
+GRANT EXECUTE ON FUNCTION public.fail_order_payment(uuid, text, jsonb) TO service_role;
