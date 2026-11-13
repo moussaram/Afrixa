@@ -78,9 +78,11 @@ REVOKE ALL PRIVILEGES ON TABLE public.video_comments FROM PUBLIC, anon, authenti
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM public.comments WHERE user_id IS NULL OR video_id IS NULL)
-    OR EXISTS (SELECT 1 FROM public.comment_likes WHERE user_id IS NULL OR comment_id IS NULL) THEN
+    OR EXISTS (SELECT 1 FROM public.comment_likes WHERE user_id IS NULL OR comment_id IS NULL)
+    OR EXISTS (SELECT 1 FROM public.user_interests WHERE user_id IS NULL)
+    OR EXISTS (SELECT 1 FROM public.video_scores WHERE user_id IS NULL OR video_id IS NULL) THEN
     RAISE EXCEPTION
-      'Phase 2 migration stopped: comments or comment likes contain rows without required owner/parent references';
+      'Phase 2 migration stopped: comments, likes, interests, or scores contain rows without required owner/parent references';
   END IF;
 
   ALTER TABLE public.comments
@@ -89,6 +91,11 @@ BEGIN
   ALTER TABLE public.comment_likes
     ALTER COLUMN user_id SET NOT NULL,
     ALTER COLUMN comment_id SET NOT NULL;
+  ALTER TABLE public.user_interests
+    ALTER COLUMN user_id SET NOT NULL;
+  ALTER TABLE public.video_scores
+    ALTER COLUMN user_id SET NOT NULL,
+    ALTER COLUMN video_id SET NOT NULL;
 END;
 $$;
 
@@ -137,6 +144,23 @@ CREATE POLICY comment_likes_owner_all
   TO authenticated
   USING ((select auth.uid()) = user_id)
   WITH CHECK ((select auth.uid()) IS NOT NULL AND (select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS user_interests_owner_all ON public.user_interests;
+CREATE POLICY user_interests_owner_all
+  ON public.user_interests FOR ALL
+  TO authenticated
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) IS NOT NULL AND (select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS video_scores_owner_select ON public.video_scores;
+CREATE POLICY video_scores_owner_select
+  ON public.video_scores FOR SELECT
+  TO authenticated
+  USING ((select auth.uid()) = user_id);
+
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE
+  ON public.video_scores FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.video_scores TO authenticated;
 
 -- ---------------------------------------------------------------------------
 -- DB-04: indexes for actual feed, reply, like, and follow access patterns.
