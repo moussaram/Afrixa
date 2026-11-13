@@ -38,3 +38,9 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+GRANT SELECT, INSERT ON public.reviews TO authenticated;
+GRANT SELECT ON public.reviews TO anon;
+CREATE POLICY "Buyers can create reviews" ON public.reviews
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = buyer_id);
