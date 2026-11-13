@@ -18,6 +18,7 @@ CREATE TABLE public.disputes (
   reason text NOT NULL,
   buyer_evidence text,
   seller_evidence text,
+  admin_decision text,
   status text NOT NULL DEFAULT 'ouvert',
   created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -60,3 +61,20 @@ CREATE POLICY orders_participant_update ON public.orders
   FOR UPDATE TO authenticated
   USING (auth.uid() = buyer_id OR auth.uid() = seller_id)
   WITH CHECK (auth.uid() = buyer_id OR auth.uid() = seller_id);
+
+ALTER TABLE public.disputes ENABLE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT, UPDATE ON public.disputes TO authenticated;
+CREATE POLICY "Dispute participants can view" ON public.disputes
+  FOR SELECT TO authenticated
+  USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+CREATE POLICY "Buyers can open their own eligible order disputes" ON public.disputes
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = buyer_id AND status = 'ouvert' AND admin_decision IS NULL AND seller_evidence IS NULL);
+CREATE POLICY "Buyer can add evidence to open dispute" ON public.disputes
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = buyer_id AND status = 'ouvert')
+  WITH CHECK (auth.uid() = buyer_id AND status = 'ouvert');
+CREATE POLICY "Seller can add evidence to open dispute" ON public.disputes
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = seller_id AND status = 'ouvert')
+  WITH CHECK (auth.uid() = seller_id AND status = 'ouvert');
