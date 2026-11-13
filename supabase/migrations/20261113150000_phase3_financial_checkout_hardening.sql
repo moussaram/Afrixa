@@ -280,7 +280,7 @@ BEGIN
     order_id, fedapay_ref, amount, commission_amount, seller_amount,
     currency, operator, buyer_phone, status, escrow_status
   ) VALUES (
-    v_order.id, v_reference, v_order.total_price, v_order.commission_amount,
+    v_order.id, v_order.payment_reference, v_order.total_price, v_order.commission_amount,
     v_order.seller_amount, 'XOF', p_operator, v_phone, 'initiated', 'held'
   )
   RETURNING * INTO v_tx;
