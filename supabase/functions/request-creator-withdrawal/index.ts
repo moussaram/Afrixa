@@ -122,8 +122,22 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (payoutError) throw payoutError;
     if (!payout) throw new Error('Reserved payout not found');
-    if (payout.fedapay_transfer_id) {
-      return json({ success: true, pending: true, status: 'processing', payout_id: payout.id });
+    if (payout.fedapay_transfer_id || payout.status === 'processing') {
+      // Une tentative deja lancee sans identifiant fournisseur doit etre rapprochee manuellement.
+      // Ne jamais recreer un transfert dont la reponse precedente a pu etre perdue.
+      return json({ success: true, pending: true, status: 'processing', payout_id: payout.id }, 202);
+    }
+
+    const { data: claim, error: claimError } = await admin.from('seller_payouts')
+      .update({ status: 'processing' })
+      .eq('id', payout.id)
+      .eq('status', 'demande')
+      .is('fedapay_transfer_id', null)
+      .select('id')
+      .maybeSingle();
+    if (claimError) throw claimError;
+    if (!claim) {
+      return json({ success: true, pending: true, status: 'processing', payout_id: payout.id }, 202);
     }
 
     const reference = payout.payout_reference ?? `AFR-WD-${payout.id.replaceAll('-', '')}`;
@@ -150,17 +164,22 @@ Deno.serve(async (req) => {
     const transferId = String(providerPayout?.id ?? '');
     if (!/^\d{1,32}$/.test(transferId) || Number(providerPayout?.amount) !== Number(payout.amount)) {
       console.error('FedaPay returned an invalid creator payout', { payoutId: payout.id });
-      await admin.rpc('fail_creator_withdrawal', { p_payout_id: payout.id, p_reason: 'invalid_provider_response' });
-      return json({ error: 'payout_status_unknown' }, 202);
+      return json({ success: true, pending: true, status: 'processing', payout_id: payout.id }, 202);
     }
 
-    const { error: saveError } = await admin.from('seller_payouts').update({
+    const { data: savedTransfer, error: saveError } = await admin.from('seller_payouts').update({
       fedapay_transfer_id: transferId,
       fedapay_transfer_ref: reference,
       fedapay_response: providerResponse,
-      status: 'processing',
-    }).eq('id', payout.id);
+    }).eq('id', payout.id)
+      .eq('status', 'processing')
+      .is('fedapay_transfer_id', null)
+      .select('id')
+      .maybeSingle();
     if (saveError) throw saveError;
+    if (!savedTransfer) {
+      return json({ success: true, pending: true, status: 'processing', payout_id: payout.id }, 202);
+    }
 
     try {
       await fedapayRequest('/payouts/start', {
@@ -174,15 +193,17 @@ Deno.serve(async (req) => {
 
     return json({ success: true, pending: true, status: 'processing', payout_id: payout.id });
   } catch (error) {
-    console.error('Creator withdrawal failed', error);
+    console.error('Creator withdrawal requires reconciliation', error);
     if (payoutId) {
-      const admin = createClient(supabaseUrl, serviceRole, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
-      await admin.rpc('fail_creator_withdrawal', { p_payout_id: payoutId, p_reason: 'payout_processing_failed' })
-        .then(({ error: failError }) => {
-          if (failError) console.error('Unable to refund failed withdrawal', failError);
-        });
+      // Un timeout ou une reponse perdue ne prouve pas que FedaPay n'a pas cree le transfert.
+      // Le montant reste reserve jusqu'a confirmation ou rapprochement manuel.
+      return json({
+        success: true,
+        pending: true,
+        status: 'processing',
+        payout_id: payoutId,
+        message: 'Le retrait est en cours de rapprochement. Il ne sera pas relance automatiquement.',
+      }, 202);
     }
     return json({ error: 'payout_processing_failed' }, 502);
   }
