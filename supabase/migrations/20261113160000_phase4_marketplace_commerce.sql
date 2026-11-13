@@ -21,6 +21,11 @@ CREATE INDEX IF NOT EXISTS product_variants_product_active_idx
 CREATE UNIQUE INDEX IF NOT EXISTS product_variants_product_sku_unique
   ON public.product_variants(product_id, sku) WHERE sku IS NOT NULL;
 
+DROP TRIGGER IF EXISTS update_product_variants_updated_at ON public.product_variants;
+CREATE TRIGGER update_product_variants_updated_at
+  BEFORE UPDATE ON public.product_variants
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
 ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS product_variants_public_read ON public.product_variants;
 CREATE POLICY product_variants_public_read
@@ -52,7 +57,7 @@ CREATE TABLE IF NOT EXISTS public.cart_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   buyer_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-  variant_id uuid REFERENCES public.product_variants(id) ON DELETE SET NULL,
+  variant_id uuid REFERENCES public.product_variants(id) ON DELETE CASCADE,
   quantity integer NOT NULL DEFAULT 1 CHECK (quantity BETWEEN 1 AND 50),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -64,6 +69,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS cart_items_buyer_product_variant_unique
   ON public.cart_items(buyer_id, product_id, variant_id) WHERE variant_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS cart_items_buyer_updated_idx
   ON public.cart_items(buyer_id, updated_at DESC);
+
+DROP TRIGGER IF EXISTS update_cart_items_updated_at ON public.cart_items;
+CREATE TRIGGER update_cart_items_updated_at
+  BEFORE UPDATE ON public.cart_items
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 ALTER TABLE public.cart_items ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS cart_items_owner_select ON public.cart_items;
