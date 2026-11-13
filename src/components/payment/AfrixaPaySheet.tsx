@@ -30,7 +30,7 @@ const paymentMethods = [
   { id: 'moov', name: 'Moov Money', color: 'bg-blue-600', emoji: '🔵' },
 ];
 
-export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commissionType = 'normale' }: AfrixaPaySheetProps) => {
+export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle }: AfrixaPaySheetProps) => {
   const [step, setStep] = useState<number>(1);
   const [quantity, setQuantity] = useState(1);
   const [address, setAddress] = useState('');
