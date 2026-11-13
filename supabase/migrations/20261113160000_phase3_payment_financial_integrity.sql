@@ -46,7 +46,7 @@ BEGIN
     OR v_key IS NULL OR length(v_key) > 120
     OR nullif(btrim(coalesce(p_operator, '')), '') IS NULL
     OR length(coalesce(p_operator, '')) > 40
-    OR p_phone IS NULL OR length(regexp_replace(coalesce(p_phone, ''), '\\D', '', 'g')) NOT BETWEEN 8 AND 15
+    OR p_phone IS NULL OR length(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g')) NOT BETWEEN 8 AND 15
     OR length(coalesce(p_delivery_address, '')) < 5
     OR length(coalesce(p_delivery_address, '')) > 500
     OR (p_delivery_lat IS NULL) <> (p_delivery_lng IS NULL)
@@ -111,7 +111,7 @@ BEGIN
     v_buyer, v_product.seller_id, v_product.id, v_product.name,
     v_product.images[1], p_quantity, v_unit_price, v_total, v_rate,
     v_commission, v_seller_amount, p_operator,
-    regexp_replace(p_phone, '\\D', '', 'g'), btrim(p_delivery_address),
+    regexp_replace(p_phone, '\D', '', 'g'), btrim(p_delivery_address),
     p_delivery_lat, p_delivery_lng, nullif(btrim(coalesce(p_buyer_note, '')), ''),
     'en_attente', false, v_reference, v_key
   )
@@ -122,7 +122,7 @@ BEGIN
     currency, operator, buyer_phone, status, escrow_status
   ) VALUES (
     v_order.id, v_reference, v_total, v_commission, v_seller_amount,
-    'XOF', p_operator, regexp_replace(p_phone, '\\D', '', 'g'),
+    'XOF', p_operator, regexp_replace(p_phone, '\D', '', 'g'),
     'initiated', 'held'
   );
 
@@ -163,7 +163,7 @@ BEGIN
   IF coalesce(auth.role(), '') <> 'service_role' THEN
     RAISE EXCEPTION 'Operation reservee au serveur';
   END IF;
-  IF p_transaction_id IS NULL OR p_provider_transaction_id !~ '^\\d{1,32}$' THEN
+  IF p_transaction_id IS NULL OR p_provider_transaction_id !~ '^\d{1,32}$' THEN
     RAISE EXCEPTION 'Reference de paiement invalide';
   END IF;
 
