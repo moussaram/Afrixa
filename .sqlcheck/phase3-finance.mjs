@@ -6,6 +6,7 @@ const root = new URL('../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), 'utf8');
 let pass = 0;
 let fail = 0;
+let currentRole = { role: 'postgres', sub: null };
 const results = [];
 const check = (name, ok, detail = '') => {
   results.push({ name, ok: Boolean(ok), detail });
@@ -19,8 +20,11 @@ const as = async (role, sub = null) => {
 const rows = async (sql, params = []) => (await db.query(sql, params)).rows;
 const one = async (sql, params = []) => (await rows(sql, params))[0] ?? null;
 const adminOne = async (sql, params = []) => {
+  const previous = currentRole;
   await db.exec('RESET ROLE;');
-  return one(sql, params);
+  const result = await one(sql, params);
+  await as(previous.role, previous.sub);
+  return result;
 };
 const expectError = async (name, fn, pattern) => {
   try { await fn(); check(name, false, 'Aucune erreur'); }
