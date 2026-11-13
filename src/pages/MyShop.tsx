@@ -151,29 +151,27 @@ const MyShop = () => {
           .eq('seller_id', user.id);
         if (error) throw error;
       } else {
-        const { data, error } = await supabase.from('products')
-          .insert({ ...productPayload, seller_id: user.id })
-          .select('id')
-          .single();
-        if (error) throw error;
-        savedProductId = data.id;
-      }
-
-      if (shouldCreateVariant && savedProductId) {
+        // Product and first variant are created in one database transaction.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: variantError } = await (supabase as any).from('product_variants').insert({
-          product_id: savedProductId,
-          name: newProduct.variantName.trim(),
-          price: variantPrice,
-          stock: variantStock,
-        });
-        if (variantError) {
-          // Keep a failed first-variant creation from leaving a public product
-          // that cannot be purchased because the database requires a variant.
-          await supabase.from('products').update({ is_active: false })
-            .eq('id', savedProductId).eq('seller_id', user.id);
-          throw variantError;
-        }
+        const { data: createdProductId, error } = await (supabase as any).rpc(
+          'create_shop_product_with_variant',
+          {
+            p_name: productPayload.name,
+            p_description: productPayload.description,
+            p_category: productPayload.category,
+            p_price: productPayload.price,
+            p_stock: productPayload.stock,
+            p_city: productPayload.city,
+            p_country: productPayload.country,
+            p_images: productPayload.images,
+            p_variant_name: shouldCreateVariant ? newProduct.variantName.trim() : null,
+            p_variant_price: shouldCreateVariant ? variantPrice : null,
+            p_variant_stock: shouldCreateVariant ? variantStock : 0,
+          },
+        );
+        if (error) throw error;
+        if (typeof createdProductId !== 'string') throw new Error('Création du produit impossible.');
+        savedProductId = createdProductId;
       }
 
       toast.success(editingProduct ? 'Produit modifié.' : 'Produit publié.');
