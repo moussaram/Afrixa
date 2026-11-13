@@ -35,6 +35,7 @@ const MyInfo = lazy(() => import("./pages/MyInfo"));
 const Login = lazy(() => import("./pages/auth/Login"));
 const MyShop = lazy(() => import("./pages/MyShop"));
 const Orders = lazy(() => import("./pages/Orders"));
+const Cart = lazy(() => import("./pages/Cart"));
 const OrderDetail = lazy(() => import("./pages/OrderDetail"));
 const Marketplace = lazy(() => import("./pages/Marketplace"));
 const GroupBuy = lazy(() => import("./pages/GroupBuy"));
@@ -123,6 +124,7 @@ const AppContent = () => {
           <Route path="/my-shop" element={<MyShop />} />
           <Route path="/ma-boutique" element={<MyShop />} />
           <Route path="/orders" element={<Orders />} />
+          <Route path="/cart" element={<Cart />} />
           <Route path="/orders/:orderId" element={<OrderDetail />} />
           <Route path="/marketplace" element={<Marketplace />} />
           <Route path="/group-buy" element={<GroupBuy />} />
