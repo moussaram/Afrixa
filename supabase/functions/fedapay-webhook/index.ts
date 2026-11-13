@@ -169,6 +169,14 @@ Deno.serve(async (req) => {
         return json({ received: true, processed: true, changed: failed === true });
       }
 
+      if (providerStatus === 'refunded') {
+        const { data: refund, error: refundError } = await admin.rpc('reconcile_fedapay_refund', {
+          p_transaction_id: tx.id,
+          p_provider_response: providerResponse,
+        });
+        if (refundError) throw refundError;
+        return json({ received: true, processed: true, refund });
+      }
 
     }
 
