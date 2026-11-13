@@ -295,3 +295,303 @@ DROP POLICY IF EXISTS "Buyers and sellers can create disputes" ON public.dispute
 DROP POLICY IF EXISTS "Participants can update disputes" ON public.disputes;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.disputes FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.disputes TO authenticated;
+
+
+-- Inventory is reserved atomically at checkout and either consumed on payment
+-- approval or restored after a definitive payment failure.
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS stock_reservation_status text NOT NULL DEFAULT 'none'
+  CHECK (stock_reservation_status IN ('none', 'reserved', 'consumed', 'released'));
+
+CREATE OR REPLACE FUNCTION public.enforce_order_checkout_integrity()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+DECLARE
+  v_product public.products%ROWTYPE;
+  v_variant public.product_variants%ROWTYPE;
+  v_unit_price integer;
+BEGIN
+  IF coalesce(auth.role(), '') = 'service_role' THEN RETURN NEW; END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    IF auth.uid() IS NULL OR NEW.buyer_id IS DISTINCT FROM auth.uid() THEN
+      RAISE EXCEPTION 'A buyer may only create their own order';
+    END IF;
+    IF NEW.product_id IS NULL OR NEW.quantity IS NULL OR NEW.quantity < 1 THEN
+      RAISE EXCEPTION 'A valid product and quantity are required';
+    END IF;
+
+    SELECT * INTO v_product FROM public.products
+    WHERE id = NEW.product_id AND is_active = true FOR SHARE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Product is unavailable'; END IF;
+    IF v_product.seller_id = NEW.buyer_id THEN RAISE EXCEPTION 'A seller cannot buy their own product'; END IF;
+
+    IF NEW.variant_id IS NOT NULL THEN
+      SELECT * INTO v_variant FROM public.product_variants
+      WHERE id = NEW.variant_id AND product_id = NEW.product_id AND is_active = true FOR SHARE;
+      IF NOT FOUND THEN RAISE EXCEPTION 'Product variant is unavailable'; END IF;
+      IF NOT coalesce(v_product.unlimited_stock, false) AND v_variant.stock < NEW.quantity THEN
+        RAISE EXCEPTION 'Insufficient variant stock';
+      END IF;
+      v_unit_price := coalesce(v_variant.price, v_product.promo_price, v_product.price);
+    ELSE
+      IF EXISTS (SELECT 1 FROM public.product_variants WHERE product_id = NEW.product_id AND is_active = true) THEN
+        RAISE EXCEPTION 'A product variant must be selected';
+      END IF;
+      IF NOT coalesce(v_product.unlimited_stock, false) AND coalesce(v_product.stock, 0) < NEW.quantity THEN
+        RAISE EXCEPTION 'Insufficient product stock';
+      END IF;
+      v_unit_price := CASE
+        WHEN v_product.promo_price > 0 AND v_product.promo_price < v_product.price THEN v_product.promo_price
+        ELSE v_product.price
+      END;
+    END IF;
+
+    NEW.seller_id := v_product.seller_id;
+    NEW.product_name := v_product.name;
+    NEW.product_image := v_product.images[1];
+    NEW.unit_price := v_unit_price;
+    NEW.commission_rate := CASE WHEN coalesce(v_product.is_group_buy, false) THEN 0.03 ELSE 0.05 END;
+    NEW.status := 'en_attente';
+    NEW.escrow_released := false;
+    NEW.stock_reservation_status := 'reserved';
+    RETURN NEW;
+  END IF;
+
+  IF NEW.buyer_id IS DISTINCT FROM OLD.buyer_id
+    OR NEW.seller_id IS DISTINCT FROM OLD.seller_id
+    OR NEW.product_id IS DISTINCT FROM OLD.product_id
+    OR NEW.variant_id IS DISTINCT FROM OLD.variant_id
+    OR NEW.stock_reservation_status IS DISTINCT FROM OLD.stock_reservation_status
+    OR NEW.product_name IS DISTINCT FROM OLD.product_name
+    OR NEW.product_image IS DISTINCT FROM OLD.product_image
+    OR NEW.quantity IS DISTINCT FROM OLD.quantity
+    OR NEW.unit_price IS DISTINCT FROM OLD.unit_price
+    OR NEW.total_price IS DISTINCT FROM OLD.total_price
+    OR NEW.commission_rate IS DISTINCT FROM OLD.commission_rate
+    OR NEW.commission_amount IS DISTINCT FROM OLD.commission_amount
+    OR NEW.seller_amount IS DISTINCT FROM OLD.seller_amount
+    OR NEW.payment_operator IS DISTINCT FROM OLD.payment_operator
+    OR NEW.buyer_phone IS DISTINCT FROM OLD.buyer_phone
+    OR NEW.payment_reference IS DISTINCT FROM OLD.payment_reference
+    OR NEW.escrow_released IS DISTINCT FROM OLD.escrow_released THEN
+    RAISE EXCEPTION 'Checkout, inventory and escrow fields cannot be changed by a client';
+  END IF;
+
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    IF auth.uid() = OLD.buyer_id AND NEW.status = 'livree' AND OLD.status = 'expediee' THEN RETURN NEW; END IF;
+    IF auth.uid() = OLD.seller_id
+      AND ((OLD.status = 'payee' AND NEW.status = 'en_preparation')
+        OR (OLD.status = 'en_preparation' AND NEW.status = 'expediee')) THEN RETURN NEW; END IF;
+    IF auth.uid() = OLD.buyer_id AND NEW.status = 'litige'
+      AND OLD.status IN ('payee', 'en_preparation', 'expediee', 'livree') THEN RETURN NEW; END IF;
+    RAISE EXCEPTION 'This order status transition must be performed through the authorized flow';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP FUNCTION IF EXISTS public.create_order_payment_atomic(
+  uuid, integer, text, text, text, text, double precision, double precision, text
+);
+
+CREATE OR REPLACE FUNCTION public.create_order_payment_atomic(
+  p_product_id uuid,
+  p_quantity integer,
+  p_operator text,
+  p_phone text,
+  p_delivery_address text,
+  p_buyer_note text DEFAULT NULL,
+  p_delivery_lat double precision DEFAULT NULL,
+  p_delivery_lng double precision DEFAULT NULL,
+  p_variant_id uuid DEFAULT NULL,
+  p_idempotency_key text DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_buyer uuid := auth.uid();
+  v_product public.products%ROWTYPE;
+  v_variant public.product_variants%ROWTYPE;
+  v_order public.orders%ROWTYPE;
+  v_tx public.payment_transactions%ROWTYPE;
+  v_key text := nullif(btrim(coalesce(p_idempotency_key, '')), '');
+  v_phone text := regexp_replace(coalesce(p_phone, ''), '[^0-9]', '', 'g');
+  v_reference text;
+  v_rate numeric;
+  v_unit_price integer;
+  v_total bigint;
+  v_commission bigint;
+BEGIN
+  IF v_buyer IS NULL THEN RAISE EXCEPTION 'Connexion requise'; END IF;
+  IF p_product_id IS NULL OR p_quantity IS NULL OR p_quantity < 1 OR p_quantity > 50
+    OR v_key IS NULL OR length(v_key) > 120
+    OR length(v_phone) < 8 OR length(v_phone) > 15
+    OR p_operator IS NULL OR p_operator NOT IN ('orange_money', 'wave', 'mtn', 'moov')
+    OR length(btrim(coalesce(p_delivery_address, ''))) < 5
+    OR length(coalesce(p_buyer_note, '')) > 1000 THEN
+    RAISE EXCEPTION 'Parametres de commande invalides';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended(v_buyer::text || ':' || v_key, 0));
+  SELECT existing_order.* INTO v_order
+  FROM public.orders AS existing_order
+  JOIN public.checkout_idempotency AS idem ON idem.order_id = existing_order.id
+  WHERE idem.buyer_id = v_buyer AND idem.idempotency_key = v_key
+  FOR UPDATE OF existing_order;
+  IF FOUND THEN
+    SELECT * INTO v_tx FROM public.payment_transactions WHERE order_id = v_order.id;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Intent de paiement existant incomplet'; END IF;
+    RETURN jsonb_build_object(
+      'order_id', v_order.id, 'order_ref', v_order.payment_reference,
+      'total_price', v_order.total_price, 'transaction_id', v_tx.id, 'reused', true
+    );
+  END IF;
+
+  SELECT * INTO v_product FROM public.products
+  WHERE id = p_product_id AND is_active = true FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Produit indisponible'; END IF;
+  IF v_product.seller_id = v_buyer THEN RAISE EXCEPTION 'Impossible d acheter son propre produit'; END IF;
+
+  IF p_variant_id IS NOT NULL THEN
+    SELECT * INTO v_variant FROM public.product_variants
+    WHERE id = p_variant_id AND product_id = p_product_id AND is_active = true FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Variante indisponible'; END IF;
+    IF NOT coalesce(v_product.unlimited_stock, false) AND v_variant.stock < p_quantity THEN
+      RAISE EXCEPTION 'Stock de la variante insuffisant';
+    END IF;
+    v_unit_price := coalesce(v_variant.price, v_product.promo_price, v_product.price);
+  ELSE
+    IF EXISTS (SELECT 1 FROM public.product_variants WHERE product_id = p_product_id AND is_active = true) THEN
+      RAISE EXCEPTION 'Veuillez choisir une variante';
+    END IF;
+    IF NOT coalesce(v_product.unlimited_stock, false) AND coalesce(v_product.stock, 0) < p_quantity THEN
+      RAISE EXCEPTION 'Stock insuffisant';
+    END IF;
+    v_unit_price := CASE
+      WHEN v_product.promo_price > 0 AND v_product.promo_price < v_product.price THEN v_product.promo_price
+      ELSE v_product.price
+    END;
+  END IF;
+
+  IF v_unit_price IS NULL OR v_unit_price <= 0 THEN RAISE EXCEPTION 'Prix invalide'; END IF;
+  v_rate := CASE WHEN coalesce(v_product.is_group_buy, false) THEN 0.03 ELSE 0.05 END;
+  v_total := v_unit_price::bigint * p_quantity;
+  IF v_total > 2147483647 THEN RAISE EXCEPTION 'Montant de commande trop eleve'; END IF;
+  v_commission := round(v_total * v_rate);
+  v_reference := 'AFR-' || replace(gen_random_uuid()::text, '-', '');
+
+  INSERT INTO public.orders (
+    buyer_id, seller_id, product_id, variant_id, product_name, product_image,
+    quantity, unit_price, total_price, commission_rate, commission_amount,
+    seller_amount, payment_operator, buyer_phone, delivery_address,
+    delivery_lat, delivery_lng, buyer_note, status, payment_reference, stock_reservation_status
+  ) VALUES (
+    v_buyer, v_product.seller_id, v_product.id, p_variant_id, v_product.name, v_product.images[1],
+    p_quantity, v_unit_price, v_total::integer, v_rate, v_commission::integer,
+    (v_total - v_commission)::integer, p_operator, v_phone, btrim(p_delivery_address),
+    p_delivery_lat, p_delivery_lng, nullif(btrim(coalesce(p_buyer_note, '')), ''),
+    'en_attente', v_reference, 'reserved'
+  ) RETURNING * INTO v_order;
+
+  IF NOT coalesce(v_product.unlimited_stock, false) THEN
+    IF p_variant_id IS NOT NULL THEN
+      UPDATE public.product_variants SET stock = stock - p_quantity, updated_at = now()
+      WHERE id = p_variant_id AND stock >= p_quantity;
+      IF NOT FOUND THEN RAISE EXCEPTION 'Stock de la variante insuffisant'; END IF;
+    ELSE
+      UPDATE public.products SET stock = stock - p_quantity, updated_at = now()
+      WHERE id = p_product_id AND stock >= p_quantity;
+      IF NOT FOUND THEN RAISE EXCEPTION 'Stock insuffisant'; END IF;
+    END IF;
+  END IF;
+
+  INSERT INTO public.payment_transactions (
+    order_id, fedapay_ref, amount, commission_amount, seller_amount,
+    currency, operator, buyer_phone, status, escrow_status
+  ) VALUES (
+    v_order.id, v_reference, v_order.total_price, v_order.commission_amount,
+    v_order.seller_amount, 'XOF', p_operator, v_phone, 'initiated', 'held'
+  ) RETURNING * INTO v_tx;
+
+  INSERT INTO public.checkout_idempotency (buyer_id, idempotency_key, order_id)
+  VALUES (v_buyer, v_key, v_order.id);
+
+  RETURN jsonb_build_object(
+    'order_id', v_order.id, 'order_ref', v_reference,
+    'total_price', v_order.total_price, 'transaction_id', v_tx.id, 'reused', false
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_order_payment_atomic(
+  uuid, integer, text, text, text, text, double precision, double precision, uuid, text
+) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.create_order_payment_atomic(
+  uuid, integer, text, text, text, text, double precision, double precision, uuid, text
+) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.release_order_stock_reservation(p_order_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_order public.orders%ROWTYPE;
+BEGIN
+  IF coalesce(auth.role(), '') <> 'service_role' THEN
+    RAISE EXCEPTION 'service_role required';
+  END IF;
+  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN RETURN jsonb_build_object('released', false, 'reason', 'order_not_found'); END IF;
+  IF v_order.stock_reservation_status <> 'reserved' THEN
+    RETURN jsonb_build_object('released', false, 'duplicate', true, 'status', v_order.stock_reservation_status);
+  END IF;
+
+  IF v_order.variant_id IS NOT NULL THEN
+    UPDATE public.product_variants
+    SET stock = stock + v_order.quantity, updated_at = now()
+    WHERE id = v_order.variant_id;
+  ELSE
+    UPDATE public.products
+    SET stock = coalesce(stock, 0) + v_order.quantity, updated_at = now()
+    WHERE id = v_order.product_id AND coalesce(unlimited_stock, false) = false;
+  END IF;
+  UPDATE public.orders SET stock_reservation_status = 'released' WHERE id = p_order_id;
+  RETURN jsonb_build_object('released', true, 'status', 'released');
+END;
+$$;
+REVOKE ALL ON FUNCTION public.release_order_stock_reservation(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.release_order_stock_reservation(uuid) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.consume_order_stock_reservation(p_order_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_order public.orders%ROWTYPE;
+BEGIN
+  IF coalesce(auth.role(), '') <> 'service_role' THEN RAISE EXCEPTION 'service_role required'; END IF;
+  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Commande introuvable'; END IF;
+  IF v_order.stock_reservation_status = 'consumed' THEN
+    RETURN jsonb_build_object('consumed', true, 'duplicate', true);
+  END IF;
+  IF v_order.stock_reservation_status <> 'reserved' THEN
+    RAISE EXCEPTION 'Reservation de stock indisponible';
+  END IF;
+  UPDATE public.orders SET stock_reservation_status = 'consumed' WHERE id = p_order_id;
+  RETURN jsonb_build_object('consumed', true, 'duplicate', false);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.consume_order_stock_reservation(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.consume_order_stock_reservation(uuid) TO service_role;
+
