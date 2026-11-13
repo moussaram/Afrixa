@@ -125,7 +125,8 @@ CREATE TRIGGER validate_cart_item_before_write
   FOR EACH ROW EXECUTE FUNCTION public.validate_cart_item();
 
 ALTER TABLE public.orders
-  ADD COLUMN IF NOT EXISTS variant_id uuid REFERENCES public.product_variants(id) ON DELETE RESTRICT;
+  ADD COLUMN IF NOT EXISTS variant_id uuid REFERENCES public.product_variants(id) ON DELETE RESTRICT,
+  ADD COLUMN IF NOT EXISTS variant_name text;
 
 ALTER TABLE public.disputes
   ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
@@ -371,6 +372,7 @@ BEGIN
     END IF;
 
     NEW.seller_id := v_product.seller_id;
+    NEW.variant_name := CASE WHEN NEW.variant_id IS NOT NULL THEN v_variant.name ELSE NULL END;
     NEW.product_name := v_product.name;
     NEW.product_image := v_product.images[1];
     NEW.unit_price := v_unit_price;
@@ -385,6 +387,7 @@ BEGIN
     OR NEW.seller_id IS DISTINCT FROM OLD.seller_id
     OR NEW.product_id IS DISTINCT FROM OLD.product_id
     OR NEW.variant_id IS DISTINCT FROM OLD.variant_id
+    OR NEW.variant_name IS DISTINCT FROM OLD.variant_name
     OR NEW.stock_reservation_status IS DISTINCT FROM OLD.stock_reservation_status
     OR NEW.sales_count_recorded_at IS DISTINCT FROM OLD.sales_count_recorded_at
     OR NEW.product_name IS DISTINCT FROM OLD.product_name
@@ -525,12 +528,14 @@ BEGIN
 
   PERFORM set_config('afrixa.checkout_writer', 'on', true);
   INSERT INTO public.orders (
-    buyer_id, seller_id, product_id, variant_id, product_name, product_image,
+    buyer_id, seller_id, product_id, variant_id, variant_name, product_name, product_image,
     quantity, unit_price, total_price, commission_rate, commission_amount,
     seller_amount, payment_operator, buyer_phone, delivery_address,
     delivery_lat, delivery_lng, buyer_note, status, payment_reference, stock_reservation_status
   ) VALUES (
-    v_buyer, v_product.seller_id, v_product.id, p_variant_id, v_product.name, v_product.images[1],
+    v_buyer, v_product.seller_id, v_product.id, p_variant_id,
+    CASE WHEN p_variant_id IS NOT NULL THEN v_variant.name ELSE NULL END,
+    v_product.name, v_product.images[1],
     p_quantity, v_unit_price, v_total::integer, v_rate, v_commission::integer,
     (v_total - v_commission)::integer, p_operator, v_phone, btrim(p_delivery_address),
     p_delivery_lat, p_delivery_lng, nullif(btrim(coalesce(p_buyer_note, '')), ''),
