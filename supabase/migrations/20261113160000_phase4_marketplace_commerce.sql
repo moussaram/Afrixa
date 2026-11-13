@@ -604,3 +604,70 @@ $$;
 REVOKE ALL ON FUNCTION public.consume_order_stock_reservation(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.consume_order_stock_reservation(uuid) TO service_role;
 
+
+
+CREATE OR REPLACE FUNCTION public.add_cart_item(
+  p_product_id uuid,
+  p_quantity integer DEFAULT 1,
+  p_variant_id uuid DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_user uuid := auth.uid();
+  v_product public.products%ROWTYPE;
+  v_variant public.product_variants%ROWTYPE;
+  v_item public.cart_items%ROWTYPE;
+  v_new_quantity integer;
+BEGIN
+  IF v_user IS NULL THEN RAISE EXCEPTION 'Connexion requise'; END IF;
+  IF p_product_id IS NULL OR p_quantity IS NULL OR p_quantity < 1 OR p_quantity > 50 THEN
+    RAISE EXCEPTION 'Quantité invalide';
+  END IF;
+  SELECT * INTO v_product FROM public.products
+  WHERE id = p_product_id AND is_active = true FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Produit indisponible'; END IF;
+
+  IF p_variant_id IS NOT NULL THEN
+    SELECT * INTO v_variant FROM public.product_variants
+    WHERE id = p_variant_id AND product_id = p_product_id AND is_active = true FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Variante indisponible'; END IF;
+    SELECT * INTO v_item FROM public.cart_items
+    WHERE buyer_id = v_user AND product_id = p_product_id AND variant_id = p_variant_id
+    FOR UPDATE;
+  ELSE
+    IF EXISTS (SELECT 1 FROM public.product_variants WHERE product_id = p_product_id AND is_active = true) THEN
+      RAISE EXCEPTION 'Veuillez choisir une variante';
+    END IF;
+    SELECT * INTO v_item FROM public.cart_items
+    WHERE buyer_id = v_user AND product_id = p_product_id AND variant_id IS NULL
+    FOR UPDATE;
+  END IF;
+
+  v_new_quantity := coalesce(v_item.quantity, 0) + p_quantity;
+  IF v_new_quantity > 50 THEN RAISE EXCEPTION 'Quantité maximale du panier dépassée'; END IF;
+  IF NOT coalesce(v_product.unlimited_stock, false) THEN
+    IF p_variant_id IS NOT NULL AND v_variant.stock < v_new_quantity THEN
+      RAISE EXCEPTION 'Stock de la variante insuffisant';
+    ELSIF p_variant_id IS NULL AND coalesce(v_product.stock, 0) < v_new_quantity THEN
+      RAISE EXCEPTION 'Stock insuffisant';
+    END IF;
+  END IF;
+
+  IF FOUND THEN
+    UPDATE public.cart_items SET quantity = v_new_quantity, updated_at = now()
+    WHERE id = v_item.id RETURNING * INTO v_item;
+  ELSE
+    INSERT INTO public.cart_items (buyer_id, product_id, variant_id, quantity)
+    VALUES (v_user, p_product_id, p_variant_id, p_quantity)
+    RETURNING * INTO v_item;
+  END IF;
+  RETURN jsonb_build_object('success', true, 'cart_item_id', v_item.id, 'quantity', v_item.quantity);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.add_cart_item(uuid, integer, uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.add_cart_item(uuid, integer, uuid) TO authenticated;
+
