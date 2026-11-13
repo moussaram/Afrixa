@@ -327,6 +327,11 @@ DECLARE
 BEGIN
   IF coalesce(auth.role(), '') = 'service_role' THEN RETURN NEW; END IF;
 
+  IF TG_OP = 'INSERT'
+    AND current_setting('afrixa.checkout_writer', true) IS DISTINCT FROM 'on' THEN
+    RAISE EXCEPTION 'Orders must be created through secure checkout';
+  END IF;
+
   IF TG_OP = 'INSERT' THEN
     IF auth.uid() IS NULL OR NEW.buyer_id IS DISTINCT FROM auth.uid() THEN
       RAISE EXCEPTION 'A buyer may only create their own order';
@@ -447,7 +452,10 @@ BEGIN
   IF p_product_id IS NULL OR p_quantity IS NULL OR p_quantity < 1 OR p_quantity > 50
     OR v_key IS NULL OR length(v_key) > 120
     OR length(v_phone) < 8 OR length(v_phone) > 15
-    OR p_operator IS NULL OR p_operator NOT IN ('orange_money', 'wave', 'mtn', 'moov')
+    OR p_operator IS NULL OR p_operator NOT IN (
+      'mtn_open', 'moov', 'sbin', 'mtn_ci', 'moov_tg',
+      'togocel', 'mtn_open_gn', 'free_sn', 'airtel_ne'
+    )
     OR length(btrim(coalesce(p_delivery_address, ''))) < 5
     OR length(coalesce(p_buyer_note, '')) > 1000 THEN
     RAISE EXCEPTION 'Parametres de commande invalides';
@@ -480,7 +488,16 @@ BEGIN
     IF NOT coalesce(v_product.unlimited_stock, false) AND v_variant.stock < p_quantity THEN
       RAISE EXCEPTION 'Stock de la variante insuffisant';
     END IF;
-    v_unit_price := coalesce(v_variant.price, v_product.promo_price, v_product.price);
+    v_unit_price := coalesce(
+      v_variant.price,
+      CASE
+        WHEN v_product.promo_price IS NOT NULL
+          AND v_product.promo_price > 0
+          AND v_product.promo_price < v_product.price
+          THEN v_product.promo_price
+        ELSE v_product.price
+      END
+    );
   ELSE
     IF EXISTS (SELECT 1 FROM public.product_variants WHERE product_id = p_product_id AND is_active = true) THEN
       RAISE EXCEPTION 'Veuillez choisir une variante';
@@ -495,12 +512,16 @@ BEGIN
   END IF;
 
   IF v_unit_price IS NULL OR v_unit_price <= 0 THEN RAISE EXCEPTION 'Prix invalide'; END IF;
-  v_rate := CASE WHEN coalesce(v_product.is_group_buy, false) THEN 0.03 ELSE 0.05 END;
+  IF coalesce(v_product.is_group_buy, false) THEN
+    RAISE EXCEPTION 'Les achats groupes sont temporairement indisponibles';
+  END IF;
+  v_rate := 0.05;
   v_total := v_unit_price::bigint * p_quantity;
   IF v_total > 2147483647 THEN RAISE EXCEPTION 'Montant de commande trop eleve'; END IF;
   v_commission := round(v_total * v_rate);
   v_reference := 'AFR-' || replace(gen_random_uuid()::text, '-', '');
 
+  PERFORM set_config('afrixa.checkout_writer', 'on', true);
   INSERT INTO public.orders (
     buyer_id, seller_id, product_id, variant_id, product_name, product_image,
     quantity, unit_price, total_price, commission_rate, commission_amount,
@@ -513,6 +534,7 @@ BEGIN
     p_delivery_lat, p_delivery_lng, nullif(btrim(coalesce(p_buyer_note, '')), ''),
     'en_attente', v_reference, 'reserved'
   ) RETURNING * INTO v_order;
+  PERFORM set_config('afrixa.checkout_writer', 'off', true);
 
   IF NOT coalesce(v_product.unlimited_stock, false) THEN
     IF p_variant_id IS NOT NULL THEN
@@ -684,6 +706,30 @@ $$;
 REVOKE ALL ON FUNCTION public.add_cart_item(uuid, integer, uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.add_cart_item(uuid, integer, uuid) TO authenticated;
 
+
+
+CREATE OR REPLACE FUNCTION public.get_product_rating_summary(p_product_ids uuid[])
+RETURNS TABLE (product_id uuid, average_rating numeric, review_count bigint)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $
+BEGIN
+  IF p_product_ids IS NULL OR cardinality(p_product_ids) > 100 THEN
+    RAISE EXCEPTION 'Liste de produits invalide';
+  END IF;
+  RETURN QUERY
+  SELECT order_row.product_id, round(avg(review.rating)::numeric, 1), count(*)::bigint
+  FROM public.reviews AS review
+  JOIN public.orders AS order_row ON order_row.id = review.order_id
+  WHERE order_row.product_id = ANY(p_product_ids)
+    AND order_row.status IN ('livree', 'terminee')
+  GROUP BY order_row.product_id;
+END;
+$;
+REVOKE ALL ON FUNCTION public.get_product_rating_summary(uuid[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_product_rating_summary(uuid[]) TO anon, authenticated;
 
 
 CREATE OR REPLACE FUNCTION public.get_my_shop_stats()
