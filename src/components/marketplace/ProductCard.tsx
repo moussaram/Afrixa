@@ -43,8 +43,14 @@ export const ProductCard = ({ product, onView }: ProductCardProps) => {
         </div>
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-center gap-1">
-            <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-            <span className="text-xs text-muted-foreground">{product.rating}</span>
+            {product.rating > 0 ? (
+              <>
+                <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                <span className="text-xs text-muted-foreground">{product.rating.toFixed(1)}</span>
+              </>
+            ) : (
+              <span className="text-xs text-muted-foreground">Nouveau</span>
+            )}
           </div>
           <span className="text-xs text-muted-foreground">{formatNumber(product.sales)} vendus</span>
         </div>

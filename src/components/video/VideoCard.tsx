@@ -9,18 +9,13 @@ import { ProductBottomSheet } from '@/components/marketplace/ProductBottomSheet'
 import { useSocialInteractions, useFollow } from '@/hooks/useSocialInteractions';
 import { useAuth } from '@/contexts/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { currentUser } from '@/data/mockData';
 import { CreatorBadge } from '@/components/creators/CreatorBadge';
 import { CreatorTipButton } from '@/components/creators/CreatorTipButton';
 import { AdvancedVideoControls } from '@/components/video/AdvancedVideoControls';
 import { trackFollow, trackProductView, trackVideoComplete, trackVideoLike, trackVideoView } from '@/lib/firebase/analytics';
 import { getVideoWatchStates, recordVideoWatch } from '@/lib/watchHistory';
-
-// Mock: some videos have tagged products
-const taggedProducts: Record<string, { name: string; price: number; currency: string; imageUrl: string; sellerName: string }> = {
-  '1': { name: 'Robe Wax Ankara Premium', price: 15000, currency: 'FCFA', imageUrl: 'https://images.unsplash.com/photo-1590735213920-68192a487bc2?w=400&h=500&fit=crop', sellerName: 'Afri Fashion' },
-  '4': { name: 'Écouteurs Bluetooth Pro', price: 8500, currency: 'FCFA', imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=500&fit=crop', sellerName: 'TechZone Africa' },
-};
+import { supabase } from '@/integrations/supabase/client';
+import type { Product } from '@/types/marketplace';
 
 interface VideoCardProps {
   video: Video;
@@ -41,7 +36,7 @@ export const VideoCard = ({
 }: VideoCardProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const viewerId = user?.id ?? currentUser.id;
+  const viewerId = user?.id ?? '';
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -61,11 +56,72 @@ export const VideoCard = ({
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showProduct, setShowProduct] = useState(false);
+  const [taggedProduct, setTaggedProduct] = useState<Product | null>(null);
   const [showHeart, setShowHeart] = useState(false);
   const [seekFeedback, setSeekFeedback] = useState<'forward' | 'backward' | null>(null);
   const seekFeedbackTimerRef = useRef<number | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    const loadTaggedProduct = async () => {
+      try {
+        const { data: videoRow, error: videoError } = await supabase.from('videos')
+          .select('tagged_products')
+          .eq('id', video.id)
+          .maybeSingle();
+        if (videoError) throw videoError;
+        const productId = videoRow?.tagged_products?.[0];
+        if (!productId) {
+          if (active) setTaggedProduct(null);
+          return;
+        }
+        const { data: productRow, error: productError } = await supabase.from('products')
+          .select('id, name, description, price, promo_price, category, seller_id, images, stock, unlimited_stock, city, country, views_count, sales_count, created_at')
+          .eq('id', productId)
+          .eq('is_active', true)
+          .maybeSingle();
+        if (productError) throw productError;
+        if (!productRow) {
+          if (active) setTaggedProduct(null);
+          return;
+        }
+        const { data: seller, error: sellerError } = await supabase.from('public_profiles')
+          .select('user_id, username, prenom, nom, avatar_url')
+          .eq('user_id', productRow.seller_id)
+          .maybeSingle();
+        if (sellerError) throw sellerError;
+        if (!active) return;
+        setTaggedProduct({
+          id: productRow.id,
+          name: productRow.name,
+          description: productRow.description ?? '',
+          price: productRow.promo_price && productRow.promo_price > 0 && productRow.promo_price < productRow.price
+            ? productRow.promo_price : productRow.price,
+          currency: 'FCFA',
+          imageUrl: productRow.images?.[0] ?? '',
+          category: productRow.category,
+          sellerId: productRow.seller_id,
+          sellerName: seller?.username || [seller?.prenom, seller?.nom].filter(Boolean).join(' ') || 'Vendeur Afrixa',
+          sellerAvatar: seller?.avatar_url ?? '',
+          sellerVerified: false,
+          stock: productRow.unlimited_stock ? -1 : productRow.stock ?? 0,
+          city: productRow.city ?? '',
+          country: productRow.country ?? '',
+          views: productRow.views_count ?? 0,
+          sales: productRow.sales_count ?? 0,
+          rating: 0,
+          createdAt: productRow.created_at,
+        });
+      } catch (error) {
+        console.error('Unable to load tagged marketplace product', error);
+        if (active) setTaggedProduct(null);
+      }
+    };
+    void loadTaggedProduct();
+    return () => { active = false; };
+  }, [video.id]);
 
   const saveWatchProgress = useCallback((force = false) => {
     const element = videoRef.current;
@@ -324,7 +380,7 @@ export const VideoCard = ({
               )}
             </div>
             {/* Inline follow button */}
-            {video.user.id !== currentUser.id && (
+            {user?.id && video.user.id !== user.id && (
               <button
                 onClick={toggleFollow}
                 className={cn(
@@ -471,7 +527,7 @@ export const VideoCard = ({
             className="w-12 h-12 rounded-full border-2 border-foreground object-cover cursor-pointer"
             onClick={() => navigate(`/user/${video.user.id}`)}
           />
-          {video.user.id !== currentUser.id && (
+          {user?.id && video.user.id !== user.id && (
             <button
               onClick={() => {
                 if (!isFollowing) void trackFollow();
@@ -504,11 +560,10 @@ export const VideoCard = ({
       </button>
 
       {/* Shoppable product button */}
-      {taggedProducts[video.id] && (
+      {taggedProduct && (
         <button
           onClick={() => {
-            const product = taggedProducts[video.id];
-            void trackProductView(product.price, 'XOF');
+            void trackProductView(taggedProduct.price, 'XOF');
             setShowProduct(true);
           }}
           className="absolute bottom-24 left-4 z-10 flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/90 backdrop-blur-sm"
@@ -530,9 +585,9 @@ export const VideoCard = ({
       {showShare && (
         <SharePanel video={video} onClose={() => setShowShare(false)} onShared={registerShare} />
       )}
-      {showProduct && taggedProducts[video.id] && (
+      {showProduct && taggedProduct && (
         <ProductBottomSheet
-          product={taggedProducts[video.id]}
+          product={taggedProduct}
           onClose={() => setShowProduct(false)}
         />
       )}

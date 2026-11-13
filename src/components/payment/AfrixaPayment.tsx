@@ -20,6 +20,8 @@ interface PaymentProduct {
   imageUrl: string;
   sellerName: string;
   sellerId?: string;
+  variantId?: string;
+  initialQuantity?: number;
 }
 
 interface AfrixaPaymentProps {
@@ -55,7 +57,7 @@ const operatorsByCountry: Record<string, Array<{ id: string; name: string; emoji
 
 export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 'normale' }: AfrixaPaymentProps) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(Math.max(1, product.initialQuantity ?? 1));
   const [address, setAddress] = useState('');
   const [deliveryCoordinates, setDeliveryCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [mapsUnavailable, setMapsUnavailable] = useState(false);
@@ -83,9 +85,10 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
         if (error || !data.user) throw new Error('Session utilisateur indisponible');
         setBuyerEmail(data.user.email ?? '');
         const metadataCountry = data.user.user_metadata?.country;
-        setCountry(typeof metadataCountry === 'string' && /^[A-Za-z]{2}$/.test(metadataCountry)
+        const normalizedCountry = typeof metadataCountry === 'string' && /^[A-Za-z]{2}$/.test(metadataCountry)
           ? metadataCountry.toUpperCase()
-          : 'BJ');
+          : 'BJ';
+        setCountry(operatorsByCountry[normalizedCountry] ? normalizedCountry : 'BJ');
       })
       .catch(() => {
         if (active) toast.error('Connectez-vous pour poursuivre le paiement');
@@ -115,7 +118,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
   }, [step]);
 
   const startPayment = async () => {
-    if (!operator || !phone.trim()) {
+    if (!selectedOp || !phone.trim()) {
       toast.error('Choisissez un opérateur et saisissez votre numéro');
       return;
     }
@@ -140,6 +143,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
         {
           p_product_id: product.id,
           p_quantity: quantity,
+          p_variant_id: product.variantId ?? null,
           p_operator: operator,
           p_phone: phone,
           p_delivery_address: address,

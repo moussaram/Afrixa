@@ -1,4 +1,4 @@
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ShoppingCart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MarketplaceContent } from '@/components/marketplace/MarketplaceContent';
 
@@ -13,6 +13,9 @@ const Marketplace = () => {
             <ArrowLeft className="w-6 h-6 text-foreground" />
           </button>
           <h1 className="flex-1 text-lg font-bold text-foreground">🛍️ Marketplace</h1>
+          <button onClick={() => navigate('/cart')} className="p-2 rounded-xl hover:bg-muted" aria-label="Ouvrir le panier">
+            <ShoppingCart className="w-5 h-5 text-foreground" />
+          </button>
         </div>
       </header>
       <MarketplaceContent />

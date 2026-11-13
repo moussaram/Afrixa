@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Plus, Package, TrendingUp, Clock, DollarSign, Edit, Trash2, Flame, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { mockProducts } from '@/data/mockMarketplace';
 import { formatNumber } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
-import { CreateGroupBuyForm } from '@/components/groupbuy/CreateGroupBuyForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/useAuth';
 import { toast } from 'sonner';
@@ -24,18 +22,26 @@ interface ShopProduct {
   sales: number;
   city?: string | null;
   country?: string | null;
-  isLocal?: boolean;
+  variantId?: string | null;
+  variantName?: string | null;
+  variantPrice?: number | null;
+  variantStock?: number | null;
 }
 
 const MyShop = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [showAddForm, setShowAddForm] = useState(false);
-  const [groupBuyProduct, setGroupBuyProduct] = useState<{name: string; price: number; currency: string} | null>(null);
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ShopProduct | null>(null);
+  const [stats, setStats] = useState([
+    { label: 'Ventes', value: '0', icon: TrendingUp, color: 'text-green-400' },
+    { label: 'En attente', value: '0', icon: Clock, color: 'text-amber-400' },
+    { label: 'Revenus vendeur', value: '0 FCFA', icon: DollarSign, color: 'text-primary' },
+  ]);
 
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -45,52 +51,75 @@ const MyShop = () => {
     stock: '',
     city: '',
     country: '',
+    imageUrl: '',
+    variantName: '',
+    variantPrice: '',
+    variantStock: '',
   });
 
   const loadProducts = async () => {
+    if (!user?.id) {
+      setProducts([]);
+      setStats([
+        { label: 'Ventes', value: '0', icon: TrendingUp, color: 'text-green-400' },
+        { label: 'En attente', value: '0', icon: Clock, color: 'text-amber-400' },
+        { label: 'Revenus vendeur', value: '0 FCFA', icon: DollarSign, color: 'text-primary' },
+      ]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setLoadError(null);
     try {
-      if (user) {
-        const { data, error } = await supabase
-          .from('products')
-          .select('*')
+      const [{ data, error }, { data: statsRows, error: statsError }] = await Promise.all([
+        supabase.from('products')
+          .select('id, name, description, category, price, stock, images, sales_count, city, country')
           .eq('seller_id', user.id)
           .eq('is_active', true)
-          .order('created_at', { ascending: false });
-        if (error) throw error;
-        if (data && data.length > 0) {
-          setProducts(data.map(p => ({
-            id: p.id,
-            name: p.name,
-            description: p.description,
-            category: p.category,
-            price: p.price,
-            currency: 'FCFA',
-            stock: p.stock ?? 0,
-            imageUrl: (p.images && p.images[0]) || `https://picsum.photos/seed/${p.id}/200`,
-            sales: p.sales_count ?? 0,
-            city: p.city,
-            country: p.country,
-          })));
-          setLoading(false);
-          return;
-        }
-      }
-      // Fallback to mock for dev / empty state
-      setProducts(mockProducts.filter(p => p.sellerId === 's1').map(p => ({
-        id: p.id,
-        name: p.name,
-        category: p.category,
-        price: p.price,
-        currency: p.currency,
-        stock: p.stock,
-        imageUrl: p.imageUrl,
-        sales: p.sales,
-        city: p.city,
-        country: p.country,
-        isLocal: true,
-      })));
+          .order('created_at', { ascending: false }),
+        supabase.rpc('get_my_shop_stats'),
+      ]);
+      if (error) throw error;
+      if (statsError) throw statsError;
+      const productIds = (data ?? []).map(product => product.id);
+      const { data: variants, error: variantsError } = productIds.length
+        ? await supabase.from('product_variants')
+          .select('id, product_id, name, price, stock')
+          .in('product_id', productIds)
+          .eq('is_active', true)
+        : { data: [], error: null };
+      if (variantsError) throw variantsError;
+      const variantByProduct = new Map<string, { id: string; name: string; price: number | null; stock: number }>(
+        (variants ?? []).map(variant => [
+          variant.product_id, variant,
+        ]),
+      );
+      setProducts((data ?? []).map(product => {
+        const variant = variantByProduct.get(product.id);
+        return {
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          category: product.category,
+          price: product.price,
+          currency: 'FCFA',
+          stock: variant?.stock ?? product.stock ?? 0,
+          imageUrl: product.images?.[0] ?? '',
+          sales: product.sales_count ?? 0,
+          city: product.city,
+          country: product.country,
+          variantId: variant?.id ?? null,
+          variantName: variant?.name ?? null,
+          variantPrice: variant?.price ?? null,
+          variantStock: variant?.stock ?? null,
+        };
+      }));
+      const shopStats = statsRows?.[0] ?? { completed_sales: 0, orders_in_progress: 0, seller_amount_total: 0 };
+      setStats([
+        { label: 'Ventes confirmées', value: String(shopStats.completed_sales ?? 0), icon: TrendingUp, color: 'text-green-400' },
+        { label: 'En cours', value: String(shopStats.orders_in_progress ?? 0), icon: Clock, color: 'text-amber-400' },
+        { label: 'Montant vendeur', value: `${formatNumber(shopStats.seller_amount_total ?? 0)} FCFA`, icon: DollarSign, color: 'text-primary' },
+      ]);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'Erreur réseau');
     } finally {
@@ -104,85 +133,121 @@ const MyShop = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const stats = [
-    { label: 'Ventes du jour', value: '12', icon: TrendingUp, color: 'text-green-400' },
-    { label: 'En attente', value: '3', icon: Clock, color: 'text-amber-400' },
-    { label: 'Revenus total', value: '245K FCFA', icon: DollarSign, color: 'text-primary' },
-  ];
+
 
   const handleSubmit = async () => {
-    if (!newProduct.name.trim() || !newProduct.price) {
-      toast.error('Nom et prix sont obligatoires');
+    if (!user?.id) return toast.error('Connecte-toi pour gérer ta boutique.');
+    const price = Number.parseInt(newProduct.price, 10);
+    const stock = Number.parseInt(newProduct.stock || '0', 10);
+    if (!newProduct.name.trim() || !Number.isSafeInteger(price) || price <= 0
+      || !Number.isSafeInteger(stock) || stock < 0) {
+      toast.error('Vérifie le nom, le prix et le stock.');
+      return;
+    }
+    const shouldCreateVariant = Boolean(newProduct.variantName.trim());
+    const variantPrice = newProduct.variantPrice.trim() ? Number.parseInt(newProduct.variantPrice, 10) : null;
+    const variantStock = Number.parseInt(newProduct.variantStock || '0', 10);
+    if (shouldCreateVariant && (
+      (variantPrice !== null && (!Number.isSafeInteger(variantPrice) || variantPrice <= 0))
+      || !Number.isSafeInteger(variantStock) || variantStock < 0
+    )) {
+      toast.error('Prix ou stock de variante invalide.');
       return;
     }
     setSubmitting(true);
     try {
-      if (user) {
-        const { data, error } = await supabase.from('products').insert({
-          seller_id: user.id,
-          name: newProduct.name.trim(),
-          description: newProduct.description.trim() || null,
-          category: newProduct.category,
-          price: parseInt(newProduct.price, 10),
-          stock: parseInt(newProduct.stock || '0', 10),
-          city: newProduct.city || null,
-          country: newProduct.country || null,
-        }).select().single();
+      const productPayload = {
+        name: newProduct.name.trim(),
+        description: newProduct.description.trim() || null,
+        category: newProduct.category,
+        price,
+        stock,
+        city: newProduct.city.trim() || null,
+        country: newProduct.country.trim() || null,
+        images: newProduct.imageUrl.trim() ? [newProduct.imageUrl.trim()] : [],
+      };
+      if (editingProduct) {
+        // Product fields and its existing/first variant are updated atomically.
+        const { error } = await supabase.rpc('update_shop_product_with_variant', {
+          p_product_id: editingProduct.id,
+          p_name: productPayload.name,
+          p_description: productPayload.description,
+          p_category: productPayload.category,
+          p_price: productPayload.price,
+          p_stock: productPayload.stock,
+          p_city: productPayload.city,
+          p_country: productPayload.country,
+          p_images: productPayload.images,
+          p_variant_id: editingProduct.variantId ?? null,
+          p_variant_name: shouldCreateVariant ? newProduct.variantName.trim() : null,
+          p_variant_price: shouldCreateVariant ? variantPrice : null,
+          p_variant_stock: shouldCreateVariant ? variantStock : 0,
+        });
         if (error) throw error;
-        if (data) {
-          setProducts(prev => [{
-            id: data.id,
-            name: data.name,
-            category: data.category,
-            price: data.price,
-            currency: 'FCFA',
-            stock: data.stock ?? 0,
-            imageUrl: `https://picsum.photos/seed/${data.id}/200`,
-            sales: 0,
-            city: data.city,
-            country: data.country,
-          }, ...prev]);
-        }
       } else {
-        // Local optimistic add
-        setProducts(prev => [{
-          id: `local-${Date.now()}`,
-          name: newProduct.name,
-          category: newProduct.category,
-          price: parseInt(newProduct.price, 10),
-          currency: 'FCFA',
-          stock: parseInt(newProduct.stock || '0', 10),
-          imageUrl: `https://picsum.photos/seed/${Date.now()}/200`,
-          sales: 0,
-          city: newProduct.city,
-          country: newProduct.country,
-          isLocal: true,
-        }, ...prev]);
+        // Product and first variant are created in one database transaction.
+        const { data: createdProductId, error } = await supabase.rpc(
+          'create_shop_product_with_variant',
+          {
+            p_name: productPayload.name,
+            p_description: productPayload.description,
+            p_category: productPayload.category,
+            p_price: productPayload.price,
+            p_stock: productPayload.stock,
+            p_city: productPayload.city,
+            p_country: productPayload.country,
+            p_images: productPayload.images,
+            p_variant_name: shouldCreateVariant ? newProduct.variantName.trim() : null,
+            p_variant_price: shouldCreateVariant ? variantPrice : null,
+            p_variant_stock: shouldCreateVariant ? variantStock : 0,
+          },
+        );
+        if (error) throw error;
+        if (typeof createdProductId !== 'string') throw new Error('Création du produit impossible.');
       }
-      toast.success('✅ Produit publié !');
+
+      toast.success(editingProduct ? 'Produit modifié.' : 'Produit publié.');
       setShowAddForm(false);
-      setNewProduct({ name: '', description: '', price: '', category: 'Mode', stock: '', city: '', country: '' });
+      setEditingProduct(null);
+      setNewProduct({ name: '', description: '', price: '', category: 'Mode', stock: '', city: '', country: '', imageUrl: '', variantName: '', variantPrice: '', variantStock: '' });
+      await loadProducts();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Impossible de publier le produit");
+      toast.error(e instanceof Error ? e.message : 'Impossible d’enregistrer le produit.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (product: ShopProduct) => {
-    if (!confirm(`Supprimer "${product.name}" ?`)) return;
-    if (user && !product.isLocal) {
-      const { error } = await supabase
-        .from('products')
-        .update({ is_active: false })
-        .eq('id', product.id);
-      if (error) {
-        toast.error('Suppression impossible');
-        return;
-      }
+    if (!user?.id || !confirm(`Désactiver "${product.name}" ?`)) return;
+    const { error } = await supabase.from('products')
+      .update({ is_active: false })
+      .eq('id', product.id)
+      .eq('seller_id', user.id);
+    if (error) {
+      toast.error('Désactivation impossible.');
+      return;
     }
-    setProducts(prev => prev.filter(p => p.id !== product.id));
-    toast.success('Produit supprimé');
+    setProducts(prev => prev.filter(item => item.id !== product.id));
+    toast.success('Produit désactivé.');
+  };
+
+  const startEditing = (product: ShopProduct) => {
+    setEditingProduct(product);
+    setNewProduct({
+      name: product.name,
+      description: product.description ?? '',
+      price: String(product.price),
+      category: product.category,
+      stock: String(product.stock),
+      city: product.city ?? '',
+      country: product.country ?? '',
+      imageUrl: product.imageUrl,
+      variantName: product.variantName ?? '',
+      variantPrice: product.variantPrice != null ? String(product.variantPrice) : '',
+      variantStock: product.variantStock != null ? String(product.variantStock) : '',
+    });
+    setShowAddForm(true);
   };
 
   return (
@@ -195,7 +260,7 @@ const MyShop = () => {
           </button>
           <h1 className="flex-1 text-lg font-bold text-foreground">🏪 Ma Boutique</h1>
           <button
-            onClick={() => setShowAddForm(true)}
+            onClick={() => { setEditingProduct(null); setNewProduct({ name: '', description: '', price: '', category: 'Mode', stock: '', city: '', country: '', imageUrl: '', variantName: '', variantPrice: '', variantStock: '' }); setShowAddForm(true); }}
             className="p-2 rounded-xl gradient-primary"
           >
             <Plus className="w-5 h-5 text-primary-foreground" />
@@ -255,13 +320,13 @@ const MyShop = () => {
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <button className="p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                  <button onClick={() => startEditing(product)} className="p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors" title="Modifier le produit">
                     <Edit className="w-4 h-4 text-muted-foreground" />
                   </button>
                   <button
-                    onClick={() => setGroupBuyProduct({ name: product.name, price: product.price, currency: product.currency })}
+                    onClick={() => toast.info('Les achats groupés seront activés après la sécurisation du parcours de remboursement.')} 
                     className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors"
-                    title="Créer un Group Buy"
+                    title="Group Buy en préparation"
                   >
                     <Flame className="w-4 h-4 text-red-400" />
                   </button>
@@ -285,15 +350,15 @@ const MyShop = () => {
           <div className="fixed inset-x-0 bottom-0 z-50 bg-background rounded-t-3xl border-t border-border/30 max-h-[85vh] overflow-y-auto">
             <div className="w-12 h-1.5 bg-muted rounded-full mx-auto mt-3" />
             <div className="px-4 py-4">
-              <h2 className="text-lg font-bold text-foreground mb-4">Ajouter un produit</h2>
+              <h2 className="text-lg font-bold text-foreground mb-4">{editingProduct ? 'Modifier le produit' : 'Ajouter un produit'}</h2>
               <div className="space-y-4">
-                {/* Photo placeholder */}
-                <div className="w-full h-40 rounded-2xl border-2 border-dashed border-border/50 flex items-center justify-center bg-card/20">
-                  <div className="text-center">
-                    <Plus className="w-8 h-8 text-muted-foreground mx-auto mb-1" />
-                    <p className="text-xs text-muted-foreground">Ajouter une photo</p>
-                  </div>
-                </div>
+                <input
+                  type="url"
+                  placeholder="URL de la photo du produit (https://...)"
+                  value={newProduct.imageUrl}
+                  onChange={e => setNewProduct(p => ({ ...p, imageUrl: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl bg-card/30 border border-border/20 text-foreground placeholder:text-muted-foreground text-sm"
+                />
 
                 <input
                   type="text"
@@ -333,6 +398,22 @@ const MyShop = () => {
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
+                {!editingProduct && (
+                  <div className="rounded-xl border border-border/30 p-3 space-y-2">
+                    <p className="text-sm font-semibold text-foreground">Première variante (facultatif)</p>
+                    <input
+                      type="text"
+                      placeholder="Ex. Taille M / Couleur noire"
+                      value={newProduct.variantName}
+                      onChange={e => setNewProduct(p => ({ ...p, variantName: e.target.value }))}
+                      className="w-full px-4 py-3 rounded-xl bg-card/30 border border-border/20 text-foreground placeholder:text-muted-foreground text-sm"
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <input type="number" min="1" placeholder="Prix variante (facultatif)" value={newProduct.variantPrice} onChange={e => setNewProduct(p => ({ ...p, variantPrice: e.target.value }))} className="min-w-0 px-3 py-3 rounded-xl bg-card/30 border border-border/20 text-foreground text-sm" />
+                      <input type="number" min="0" placeholder="Stock variante" value={newProduct.variantStock} onChange={e => setNewProduct(p => ({ ...p, variantStock: e.target.value }))} className="min-w-0 px-3 py-3 rounded-xl bg-card/30 border border-border/20 text-foreground text-sm" />
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <input
                     type="text"
@@ -356,7 +437,7 @@ const MyShop = () => {
                   className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {submitting ? 'Publication...' : 'Publier le produit'}
+                  {submitting ? 'Enregistrement...' : editingProduct ? 'Enregistrer les modifications' : 'Publier le produit'}
                 </button>
               </div>
             </div>
@@ -364,15 +445,6 @@ const MyShop = () => {
         </>
       )}
 
-      {/* Group Buy creation form */}
-      {groupBuyProduct && (
-        <CreateGroupBuyForm
-          productName={groupBuyProduct.name}
-          productPrice={groupBuyProduct.price}
-          currency={groupBuyProduct.currency}
-          onClose={() => setGroupBuyProduct(null)}
-        />
-      )}
     </div>
   );
 };
