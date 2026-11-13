@@ -161,22 +161,25 @@ Deno.serve(async (req) => {
             .update({ status: 'payee' }).eq('id', order.id).eq('status', 'en_attente');
           if (updateOrderError) throw updateOrderError;
         }
-        const { data: split, error: splitReadError } = await admin.from('commission_splits')
-          .select('id').eq('transaction_id', tx.id).limit(1).maybeSingle();
-        if (splitReadError) throw splitReadError;
-        if (!split) {
-          const rate = Number(order.commission_rate);
-          const type = rate === 0.03 ? 'group_buy' : rate === 0.07 ? 'booste' : rate === 0.08 ? 'live' : 'normale';
-          const { error: splitInsertError } = await admin.from('commission_splits').insert({
-            transaction_id: tx.id,
-            afrixa_amount: Number(tx.commission_amount),
-            seller_amount: Number(tx.seller_amount),
-            split_type: type,
-            split_rate: rate,
-            status: 'pending',
+        if (!['initiated', 'creating', 'pending', 'successful'].includes(tx.status)) {
+          console.error('Ignoring approved FedaPay event for a terminal local transaction', {
+            transactionId: tx.id,
+            localStatus: tx.status,
           });
-          if (splitInsertError) throw splitInsertError;
+          return json({ received: true, rejected: true });
         }
+
+        const rate = Number(order.commission_rate);
+        const type = rate === 0.03 ? 'group_buy' : rate === 0.07 ? 'booste' : rate === 0.08 ? 'live' : 'normale';
+        const { error: splitInsertError } = await admin.from('commission_splits').upsert({
+          transaction_id: tx.id,
+          afrixa_amount: Number(tx.commission_amount),
+          seller_amount: Number(tx.seller_amount),
+          split_type: type,
+          split_rate: rate,
+          status: 'pending',
+        }, { onConflict: 'transaction_id', ignoreDuplicates: true });
+        if (splitInsertError) throw splitInsertError;
         return json({ received: true, processed: true });
       }
 
