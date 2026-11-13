@@ -9,6 +9,13 @@ CREATE TABLE IF NOT EXISTS public.checkout_idempotency (
   PRIMARY KEY (buyer_id, idempotency_key)
 );
 
+-- One payment intent per order and one commission split per successful payment.
+-- Existing production rows were checked for duplicates before adding these constraints.
+CREATE UNIQUE INDEX IF NOT EXISTS payment_transactions_order_id_unique
+  ON public.payment_transactions(order_id);
+CREATE UNIQUE INDEX IF NOT EXISTS commission_splits_transaction_id_unique
+  ON public.commission_splits(transaction_id);
+
 ALTER TABLE public.checkout_idempotency ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.checkout_idempotency FROM PUBLIC, anon, authenticated;
 
