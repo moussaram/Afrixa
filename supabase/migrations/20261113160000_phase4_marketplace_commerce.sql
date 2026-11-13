@@ -775,6 +775,73 @@ REVOKE ALL ON FUNCTION public.record_product_sale(uuid) FROM PUBLIC, anon, authe
 GRANT EXECUTE ON FUNCTION public.record_product_sale(uuid) TO service_role;
 
 
+CREATE OR REPLACE FUNCTION public.create_shop_product_with_variant(
+  p_name text,
+  p_description text,
+  p_category text,
+  p_price integer,
+  p_stock integer,
+  p_city text,
+  p_country text,
+  p_images text[],
+  p_variant_name text DEFAULT NULL,
+  p_variant_price integer DEFAULT NULL,
+  p_variant_stock integer DEFAULT 0
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $shop_product$
+DECLARE
+  v_seller uuid := auth.uid();
+  v_product_id uuid;
+BEGIN
+  IF v_seller IS NULL THEN RAISE EXCEPTION 'Connexion requise'; END IF;
+  IF length(btrim(coalesce(p_name, ''))) < 2 OR length(p_name) > 120
+    OR p_price IS NULL OR p_price <= 0
+    OR p_stock IS NULL OR p_stock < 0
+    OR length(btrim(coalesce(p_category, ''))) = 0
+    OR length(coalesce(p_description, '')) > 3000
+    OR length(coalesce(p_city, '')) > 120
+    OR length(coalesce(p_country, '')) > 120
+    OR coalesce(cardinality(p_images), 0) > 8 THEN
+    RAISE EXCEPTION 'Informations produit invalides';
+  END IF;
+  IF nullif(btrim(coalesce(p_variant_name, '')), '') IS NOT NULL
+    AND (length(btrim(p_variant_name)) > 80
+      OR (p_variant_price IS NOT NULL AND p_variant_price <= 0)
+      OR p_variant_stock IS NULL OR p_variant_stock < 0) THEN
+    RAISE EXCEPTION 'Informations variante invalides';
+  END IF;
+
+  INSERT INTO public.products (
+    seller_id, name, description, category, price, stock, city, country, images
+  ) VALUES (
+    v_seller, btrim(p_name), nullif(btrim(coalesce(p_description, '')), ''),
+    btrim(p_category), p_price, p_stock,
+    nullif(btrim(coalesce(p_city, '')), ''),
+    nullif(btrim(coalesce(p_country, '')), ''),
+    coalesce(p_images, '{}'::text[])
+  )
+  RETURNING id INTO v_product_id;
+
+  IF nullif(btrim(coalesce(p_variant_name, '')), '') IS NOT NULL THEN
+    INSERT INTO public.product_variants(product_id, name, price, stock)
+    VALUES (v_product_id, btrim(p_variant_name), p_variant_price, p_variant_stock);
+  END IF;
+
+  RETURN v_product_id;
+END;
+$shop_product$;
+REVOKE ALL ON FUNCTION public.create_shop_product_with_variant(
+  text, text, text, integer, integer, text, text, text[], text, integer, integer
+) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.create_shop_product_with_variant(
+  text, text, text, integer, integer, text, text, text[], text, integer, integer
+) TO authenticated;
+
+
 CREATE OR REPLACE FUNCTION public.get_product_rating_summary(p_product_ids uuid[])
 RETURNS TABLE (product_id uuid, average_rating numeric, review_count bigint)
 LANGUAGE plpgsql
