@@ -79,11 +79,11 @@ export const MarketplaceContent = () => {
       const sellerMap = new Map((sellerRows ?? []).map(seller => [seller.user_id, seller as PublicSeller]));
       const productIds = productRows.map(row => row.id);
       const { data: reviewSummaries, error: reviewsError } = productIds.length
-        ? await (supabase as any).rpc('get_product_rating_summary', { p_product_ids: productIds })
+        ? await supabase.rpc('get_product_rating_summary', { p_product_ids: productIds })
         : { data: [], error: null };
       if (reviewsError) throw reviewsError;
       const ratingTotals = new Map<string, number>(
-        (reviewSummaries ?? []).map((summary: { product_id: string; average_rating: number | string }) => [
+        (reviewSummaries ?? []).map(summary => [
           summary.product_id,
           Number(summary.average_rating) || 0,
         ]),
