@@ -273,14 +273,8 @@ BEGIN
   )
   RETURNING * INTO v_order;
 
-  IF NOT coalesce(v_product.unlimited_stock, false) THEN
-    UPDATE public.products
-    SET stock = stock - p_quantity, updated_at = now()
-    WHERE id = v_product.id AND stock >= p_quantity;
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'Stock insuffisant';
-    END IF;
-  END IF;
+  -- The BEFORE INSERT trigger reserves finite stock exactly once.
+  -- Do not decrement it again here.
 
   INSERT INTO public.payment_transactions (
     order_id, fedapay_ref, amount, commission_amount, seller_amount,
