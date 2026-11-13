@@ -1621,6 +1621,42 @@ export type Database = {
         }
         Relationships: []
       }
+      product_variants: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          price: number | null
+          product_id: string
+          sku: string | null
+          stock: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          price?: number | null
+          product_id: string
+          sku?: string | null
+          stock?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number | null
+          product_id?: string
+          sku?: string | null
+          stock?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profile_analytics: {
         Row: {
           followers_count: number | null
@@ -2788,6 +2824,56 @@ export type Database = {
       }
     }
     Functions: {
+      create_shop_product_with_variant: {
+        Args: {
+          p_name: string
+          p_description: string | null
+          p_category: string
+          p_price: number
+          p_stock: number
+          p_city: string | null
+          p_country: string | null
+          p_images: string[]
+          p_variant_name?: string | null
+          p_variant_price?: number | null
+          p_variant_stock?: number
+        }
+        Returns: string
+      }
+      update_shop_product_with_variant: {
+        Args: {
+          p_product_id: string
+          p_name: string
+          p_description: string | null
+          p_category: string
+          p_price: number
+          p_stock: number
+          p_city: string | null
+          p_country: string | null
+          p_images: string[]
+          p_variant_id?: string | null
+          p_variant_name?: string | null
+          p_variant_price?: number | null
+          p_variant_stock?: number
+        }
+        Returns: boolean
+      }
+      get_my_shop_stats: {
+        Args: Record<string, never>
+        Returns: {
+          completed_sales: number
+          orders_in_progress: number
+          seller_amount_total: number
+        }[]
+      }
+      get_product_rating_summary: {
+        Args: { p_product_ids: string[] }
+        Returns: {
+          product_id: string
+          average_rating: number
+          review_count: number
+        }[]
+      }
       refresh_video_scores_batch: {
         Args: {
           p_after_video_id?: string | null
