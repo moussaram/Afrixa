@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { X, ArrowLeft, Phone, Minus, Plus, MapPin, MessageSquare, ShieldCheck, Loader2, Check } from 'lucide-react';
+import { X, ArrowLeft, Phone, Minus, Plus, MapPin, MessageSquare, ShieldCheck, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { YangoDeliveryStep } from './YangoDeliveryStep';
-import { buildYangoDeepLink, type DeliveryMethod } from './yango';
 
 
 interface PaymentProduct {
@@ -38,24 +37,15 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
   const [buyerNote, setBuyerNote] = useState('');
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('yango');
-  const [yangoAddress, setYangoAddress] = useState('');
-  const sellerAddress = `Boutique ${product.sellerName}`;
 
   const unitPrice = customPrice ?? product.price;
   const totalPrice = unitPrice * quantity;
   const selectedPayment = paymentMethods.find(m => m.id === selectedMethod);
-  const yangoLink = buildYangoDeepLink(sellerAddress, yangoAddress || address);
 
   const goBack = () => {
     if (step === 2) setStep(1.5);
     else if (step === 1.5) setStep(1);
     else if (step === 3) setStep(2);
-  };
-
-  const openYango = () => {
-    window.open(yangoLink, '_blank', 'noopener,noreferrer');
   };
 
 
@@ -85,7 +75,7 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
               {step === 1.5 && 'Mode de livraison'}
               {step === 2 && 'Moyen de paiement'}
               {step === 3 && 'Récapitulatif final'}
-              {step === 4 && (isProcessing ? 'Traitement...' : 'Commande confirmée')}
+              {step === 4 && 'Paiement indisponible'}
             </h3>
           </div>
           <button onClick={onClose} className="p-1 rounded-full hover:bg-muted">
@@ -185,11 +175,7 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
           {step === 1.5 && (
             <YangoDeliveryStep
               defaultAddress={address}
-              onContinue={(method, addr) => {
-                setDeliveryMethod(method);
-                if (method === 'yango') setYangoAddress(addr);
-                setStep(2);
-              }}
+              onContinue={() => setStep(2)}
             />
           )}
 
@@ -302,66 +288,16 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
             </div>
           )}
 
-          {/* Step 4 - Processing & Success */}
+          {/* Step 4 is intentionally non-successful until this legacy demo flow is wired to server checkout. */}
           {step === 4 && (
-            <div className="flex flex-col items-center text-center space-y-4 py-6">
-              {isProcessing ? (
-                <>
-                  <Loader2 className="w-16 h-16 text-primary animate-spin" />
-                  <div>
-                    <h4 className="text-lg font-bold text-foreground">Traitement en cours...</h4>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Validez sur votre téléphone si une confirmation vous est demandée
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center animate-scale-in">
-                    <Check className="w-10 h-10 text-emerald-500" />
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-bold text-foreground">Commande confirmée ! 🎉</h4>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Numéro de commande : <span className="font-bold text-primary">{orderNumber}</span>
-                    </p>
-                    {deliveryMethod === 'yango' ? (
-                      <p className="text-xs text-[#FF6B00] mt-2">
-                        🛵 La livraison Yango a été initiée. Suivez votre commande dans l'app Yango.
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Le vendeur a été notifié et prépare votre commande
-                      </p>
-                    )}
-                  </div>
-                  <div className="w-full space-y-3 pt-4">
-                    {deliveryMethod === 'yango' && (
-                      <button
-                        onClick={openYango}
-                        className="w-full py-3.5 rounded-xl bg-[#FF6B00] text-white font-bold text-sm shadow-[0_0_20px_rgba(255,107,0,0.4)] hover:bg-[#ff7a1a] transition-colors"
-                      >
-                        🛵 Commander la livraison sur Yango
-                      </button>
-                    )}
-                    <button
-                      onClick={() => { onClose(); window.location.href = '/orders'; }}
-                      className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm"
-                    >
-                      📦 Voir ma commande
-                    </button>
-                    <button
-                      onClick={onClose}
-                      className="w-full py-3 rounded-xl bg-muted text-foreground font-semibold text-sm"
-                    >
-                      🏠 Retour à l'accueil
-                    </button>
-                  </div>
-
-                </>
-              )}
+            <div className="py-8 text-center space-y-3">
+              <h4 className="text-lg font-bold text-foreground">Paiement indisponible</h4>
+              <p className="text-sm text-muted-foreground">
+                Ce parcours de démonstration ne peut ni débiter un compte ni confirmer une commande.
+              </p>
             </div>
           )}
+
         </div>
       </div>
     </>
