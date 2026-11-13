@@ -278,6 +278,15 @@ $$;
 REVOKE ALL ON FUNCTION public.add_order_dispute_response(uuid, text, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.add_order_dispute_response(uuid, text, text) TO authenticated;
 
+-- Keep review details visible only to the buyer and seller; public ratings use
+-- the aggregate RPC below and never expose reviewer identities.
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Reviews are public" ON public.reviews;
+DROP POLICY IF EXISTS reviews_participant_read ON public.reviews;
+CREATE POLICY reviews_participant_read ON public.reviews
+  FOR SELECT TO authenticated
+  USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+
 -- Reviews are accepted only once, from the buyer, after delivery.
 CREATE UNIQUE INDEX IF NOT EXISTS reviews_one_per_order_unique ON public.reviews(order_id);
 
