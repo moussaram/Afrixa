@@ -118,7 +118,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
   }, [step]);
 
   const startPayment = async () => {
-    if (!operator || !phone.trim()) {
+    if (!selectedOp || !phone.trim()) {
       toast.error('Choisissez un opérateur et saisissez votre numéro');
       return;
     }
