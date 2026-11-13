@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, ArrowLeft, Phone, Minus, Plus, MapPin, MessageSquare, ShieldCheck, Loader2, Check, PartyPopper } from 'lucide-react';
+import { X, ArrowLeft, Phone, Minus, Plus, MapPin, MessageSquare, ShieldCheck, AlertCircle, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { YangoDeliveryStep } from './YangoDeliveryStep';
@@ -31,11 +31,6 @@ const paymentMethods = [
   { id: 'moov', name: 'Moov Money', color: 'bg-blue-600', emoji: '🔵' },
 ];
 
-const generateOrderNumber = () => {
-  const num = Math.floor(100000 + Math.random() * 900000);
-  return `#AFR-${num}`;
-};
-
 export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commissionType = 'normale' }: AfrixaPaySheetProps) => {
   const [step, setStep] = useState<number>(1);
   const [quantity, setQuantity] = useState(1);
@@ -44,7 +39,7 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [orderNumber, setOrderNumber] = useState('');
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('yango');
   const [yangoAddress, setYangoAddress] = useState('');
   const sellerAddress = `Boutique ${product.sellerName}`;
@@ -65,18 +60,12 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
   };
 
 
-  const handlePay = async () => {
+  const handlePay = () => {
+    // Ce composant est encore alimenté par des offres groupées de démonstration
+    // (identifiants produits non persistés). Ne jamais simuler un débit réussi.
+    setPaymentError('Les achats groupés ne sont pas encore reliés à une commande réelle. Aucun paiement n’a été effectué.');
+    setIsProcessing(false);
     setStep(4);
-    setIsProcessing(true);
-    // Simulate payment processing
-    setTimeout(() => {
-      setIsProcessing(false);
-      setOrderNumber(generateOrderNumber());
-      toast.success('Paiement confirmé !');
-      if (deliveryMethod === 'yango') {
-        toast(`📨 ${product.sellerName} notifié : "Le client a choisi Yango pour la livraison. Préparez la commande."`, { duration: 4000 });
-      }
-    }, 3000);
   };
 
   return (
@@ -315,64 +304,20 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
             </div>
           )}
 
-          {/* Step 4 - Processing & Success */}
+          {/* Step 4 - No fake success state */}
           {step === 4 && (
             <div className="flex flex-col items-center text-center space-y-4 py-6">
-              {isProcessing ? (
-                <>
-                  <Loader2 className="w-16 h-16 text-primary animate-spin" />
-                  <div>
-                    <h4 className="text-lg font-bold text-foreground">Traitement en cours...</h4>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Validez sur votre téléphone si une confirmation vous est demandée
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center animate-scale-in">
-                    <Check className="w-10 h-10 text-emerald-500" />
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-bold text-foreground">Commande confirmée ! 🎉</h4>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Numéro de commande : <span className="font-bold text-primary">{orderNumber}</span>
-                    </p>
-                    {deliveryMethod === 'yango' ? (
-                      <p className="text-xs text-[#FF6B00] mt-2">
-                        🛵 La livraison Yango a été initiée. Suivez votre commande dans l'app Yango.
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Le vendeur a été notifié et prépare votre commande
-                      </p>
-                    )}
-                  </div>
-                  <div className="w-full space-y-3 pt-4">
-                    {deliveryMethod === 'yango' && (
-                      <button
-                        onClick={openYango}
-                        className="w-full py-3.5 rounded-xl bg-[#FF6B00] text-white font-bold text-sm shadow-[0_0_20px_rgba(255,107,0,0.4)] hover:bg-[#ff7a1a] transition-colors"
-                      >
-                        🛵 Commander la livraison sur Yango
-                      </button>
-                    )}
-                    <button
-                      onClick={() => { onClose(); window.location.href = '/orders'; }}
-                      className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm"
-                    >
-                      📦 Voir ma commande
-                    </button>
-                    <button
-                      onClick={onClose}
-                      className="w-full py-3 rounded-xl bg-muted text-foreground font-semibold text-sm"
-                    >
-                      🏠 Retour à l'accueil
-                    </button>
-                  </div>
-
-                </>
-              )}
+              <AlertCircle className="w-14 h-14 text-amber-500" />
+              <div>
+                <h4 className="text-lg font-bold text-foreground">Paiement non disponible</h4>
+                <p className="text-sm text-muted-foreground mt-2">{paymentError}</p>
+              </div>
+              <button
+                onClick={() => { setPaymentError(null); setStep(3); }}
+                className="w-full py-3 rounded-xl bg-muted text-foreground font-semibold text-sm"
+              >
+                Retour au récapitulatif
+              </button>
             </div>
           )}
         </div>
