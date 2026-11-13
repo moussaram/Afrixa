@@ -2776,6 +2776,18 @@ export type Database = {
       }
     }
     Functions: {
+      refresh_video_scores_batch: {
+        Args: {
+          p_after_video_id?: string | null
+          p_batch_size?: number
+        }
+        Returns: {
+          processed_videos: number
+          scored_rows: number
+          next_after_video_id: string | null
+          has_more: boolean
+        }[]
+      }
       consume_rate_limit: {
         Args: {
           p_action: string
