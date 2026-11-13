@@ -32,10 +32,15 @@ interface AfrixaPaymentProps {
 }
 
 const operators = [
-  { id: 'orange_money', name: 'Orange Money', emoji: '🟠', bg: 'bg-orange-500/10', border: 'border-orange-500' },
-  { id: 'wave', name: 'Wave', emoji: '🔵', bg: 'bg-blue-500/10', border: 'border-blue-500' },
-  { id: 'mtn', name: 'MTN MoMo', emoji: '🟡', bg: 'bg-yellow-500/10', border: 'border-yellow-500' },
-  { id: 'moov', name: 'Moov Money', emoji: '🔵', bg: 'bg-blue-700/10', border: 'border-blue-700' },
+  { id: 'mtn_open', name: 'MTN MoMo · Bénin', emoji: '🟡', bg: 'bg-yellow-500/10', border: 'border-yellow-500' },
+  { id: 'moov', name: 'Moov Money · Bénin', emoji: '🔵', bg: 'bg-blue-700/10', border: 'border-blue-700' },
+  { id: 'sbin', name: 'Celtiis Cash · Bénin', emoji: '🟢', bg: 'bg-green-500/10', border: 'border-green-500' },
+  { id: 'mtn_ci', name: 'MTN Money · Côte d’Ivoire', emoji: '🟡', bg: 'bg-yellow-500/10', border: 'border-yellow-500' },
+  { id: 'moov_tg', name: 'Moov Money · Togo', emoji: '🔵', bg: 'bg-blue-700/10', border: 'border-blue-700' },
+  { id: 'togocel', name: 'TMoney · Togo', emoji: '🟣', bg: 'bg-purple-500/10', border: 'border-purple-500' },
+  { id: 'mtn_open_gn', name: 'MTN MoMo · Guinée', emoji: '🟡', bg: 'bg-yellow-500/10', border: 'border-yellow-500' },
+  { id: 'free_sn', name: 'Free Money · Sénégal', emoji: '🔵', bg: 'bg-blue-500/10', border: 'border-blue-500' },
+  { id: 'airtel_ne', name: 'Airtel Money · Niger', emoji: '🔴', bg: 'bg-red-500/10', border: 'border-red-500' },
 ];
 
 export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 'normale' }: AfrixaPaymentProps) => {
