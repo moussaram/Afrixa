@@ -11,7 +11,6 @@ interface GroupBuyDetailSheetProps {
 export const GroupBuyDetailSheet = ({ groupBuy, onClose }: GroupBuyDetailSheetProps) => {
   const { hours, minutes, seconds } = useCountdown(groupBuy.endsAt);
 
-  const currentPrice = getCurrentPrice(groupBuy);
   const progress = (groupBuy.currentMembers / groupBuy.maxMembers) * 100;
 
   return (
@@ -130,10 +129,3 @@ export const GroupBuyDetailSheet = ({ groupBuy, onClose }: GroupBuyDetailSheetPr
   );
 };
 
-function getCurrentPrice(gb: GroupBuy): number {
-  let price = gb.soloPrice;
-  for (const tier of gb.tiers) {
-    if (gb.currentMembers >= tier.minPeople) price = tier.price;
-  }
-  return price;
-}
