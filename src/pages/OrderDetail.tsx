@@ -58,6 +58,7 @@ const OrderDetail = () => {
   const [sellerResponse, setSellerResponse] = useState('');
   const [sellerEvidence, setSellerEvidence] = useState('');
   const [rating, setRating] = useState(0);
+  const [hasReviewed, setHasReviewed] = useState(false);
   const [reviewComment, setReviewComment] = useState('');
 
   const loadOrder = useCallback(async () => {
@@ -78,6 +79,12 @@ const OrderDetail = () => {
         throw new Error('Commande introuvable ou accès refusé.');
       }
       setOrder(orderData as OrderRecord);
+      if (orderData.buyer_id === user.id) {
+        const { data: existingReview, error: reviewReadError } = await supabase.from('reviews')
+          .select('id').eq('order_id', orderId).eq('buyer_id', user.id).maybeSingle();
+        if (reviewReadError) throw reviewReadError;
+        setHasReviewed(Boolean(existingReview));
+      }
 
       const [{ data: timelineRows, error: timelineError }, { data: disputeRows, error: disputeError }, { data: sellerProfile, error: sellerError }] = await Promise.all([
         supabase.from('order_timeline').select('id, status, message, created_at').eq('order_id', orderId).order('created_at', { ascending: true }),
@@ -204,6 +211,7 @@ const OrderDetail = () => {
       if (reviewError) throw reviewError;
       toast.success('Avis publié.');
       setReviewComment('');
+      setHasReviewed(true);
     } catch (reviewError) {
       toast.error(reviewError instanceof Error ? reviewError.message : 'Avis impossible à publier.');
     } finally {
@@ -341,7 +349,8 @@ const OrderDetail = () => {
           </section>
         )}
 
-        {isBuyer && ['livree', 'terminee'].includes(order.status) && (
+        {isBuyer && ['livree', 'terminee'].includes(order.status) && hasReviewed && <p className="text-xs text-emerald-500">Ton avis a déjà été publié pour cette commande.</p>}
+        {isBuyer && ['livree', 'terminee'].includes(order.status) && !hasReviewed && (
           <section className="p-4 rounded-2xl bg-card border border-border/20 space-y-3">
             <h3 className="text-sm font-semibold text-foreground">Évaluer le vendeur</h3>
             <div className="flex gap-2 justify-center">
