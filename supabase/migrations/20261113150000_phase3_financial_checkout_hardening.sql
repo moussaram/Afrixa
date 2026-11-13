@@ -179,7 +179,11 @@ BEGIN
       'orange_ci', 'wave_sn', 'orange_sn'
     )
     OR length(btrim(coalesce(p_delivery_address, ''))) < 5
-    OR length(coalesce(p_buyer_note, '')) > 1000 THEN
+    OR length(btrim(coalesce(p_delivery_address, ''))) > 500
+    OR length(coalesce(p_buyer_note, '')) > 1000
+    OR ((p_delivery_lat IS NULL) <> (p_delivery_lng IS NULL))
+    OR (p_delivery_lat IS NOT NULL AND (p_delivery_lat < -90 OR p_delivery_lat > 90))
+    OR (p_delivery_lng IS NOT NULL AND (p_delivery_lng < -180 OR p_delivery_lng > 180)) THEN
     RAISE EXCEPTION 'Parametres de commande invalides';
   END IF;
 
