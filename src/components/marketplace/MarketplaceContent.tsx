@@ -78,23 +78,16 @@ export const MarketplaceContent = () => {
 
       const sellerMap = new Map((sellerRows ?? []).map(seller => [seller.user_id, seller as PublicSeller]));
       const productIds = productRows.map(row => row.id);
-      const { data: relatedOrders, error: ordersError } = productIds.length
-        ? await supabase.from('orders').select('id, product_id').in('product_id', productIds)
-        : { data: [], error: null };
-      if (ordersError) throw ordersError;
-      const orderIds = (relatedOrders ?? []).map(order => order.id);
-      const { data: reviewRows, error: reviewsError } = orderIds.length
-        ? await supabase.from('reviews').select('order_id, rating').in('order_id', orderIds)
+      const { data: reviewSummaries, error: reviewsError } = productIds.length
+        ? await (supabase as any).rpc('get_product_rating_summary', { p_product_ids: productIds })
         : { data: [], error: null };
       if (reviewsError) throw reviewsError;
-      const orderProductMap = new Map((relatedOrders ?? []).map(order => [order.id, order.product_id]));
-      const ratingTotals = new Map<string, { total: number; count: number }>();
-      for (const review of reviewRows ?? []) {
-        const productId = orderProductMap.get(review.order_id);
-        if (!productId) continue;
-        const current = ratingTotals.get(productId) ?? { total: 0, count: 0 };
-        ratingTotals.set(productId, { total: current.total + review.rating, count: current.count + 1 });
-      }
+      const ratingTotals = new Map<string, number>(
+        (reviewSummaries ?? []).map((summary: { product_id: string; average_rating: number | string }) => [
+          summary.product_id,
+          Number(summary.average_rating) || 0,
+        ]),
+      );
       const mappedProducts: Product[] = productRows.map(row => {
         const seller = sellerMap.get(row.seller_id);
         return {
@@ -114,7 +107,7 @@ export const MarketplaceContent = () => {
           country: row.country ?? '',
           views: row.views_count ?? 0,
           sales: row.sales_count ?? 0,
-          rating: ratingTotals.has(row.id) ? Number((ratingTotals.get(row.id)!.total / ratingTotals.get(row.id)!.count).toFixed(1)) : 0,
+          rating: ratingTotals.get(row.id) ?? 0,
           createdAt: row.created_at,
         };
       });
