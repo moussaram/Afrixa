@@ -139,7 +139,9 @@ try {
     [variantCheckout.order_id,buyer,seller,'Très bon produit'],
   );
   await as('anon');
+  const privateReviews = await one('SELECT count(*)::integer AS count FROM public.reviews');
   const rating = await one('SELECT * FROM public.get_product_rating_summary($1)',[[variantProduct]]);
+  check('Les avis individuels restent privés pour les visiteurs', privateReviews?.count === 0);
   check('La note publique est calculée sans exposer les commandes privées', rating?.average_rating === '5.0' || Number(rating?.average_rating) === 5);
 
   await as('authenticated', buyer);
