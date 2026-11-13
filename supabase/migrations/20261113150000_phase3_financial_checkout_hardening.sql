@@ -630,11 +630,7 @@ BEGIN
     p_provider_response #>> '{v1/transaction,refund_amount}',
     p_provider_response ->> 'refund_amount'
   );
-  IF v_refund_text ~ '^[0-9]+
-REVOKE ALL ON FUNCTION public.fail_order_payment(uuid, text, jsonb) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.settle_order_payment(uuid, jsonb) TO service_role;
-GRANT EXECUTE ON FUNCTION public.fail_order_payment(uuid, text, jsonb) TO service_role;
- THEN
+  IF v_refund_text ~ '^[0-9]+$' THEN
     v_refund_amount := v_refund_text::integer;
   END IF;
 
