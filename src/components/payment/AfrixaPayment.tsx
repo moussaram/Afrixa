@@ -6,7 +6,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { createAddressAutocomplete } from '@/lib/googleMaps';
 import {
   calculateSplit,
-  generateOrderRef,
   createFedaPayCheckout,
   maskPhone,
   type CommissionType,
@@ -48,29 +47,13 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
   const [operator, setOperator] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
   const [processing, setProcessing] = useState(false);
-  const [orderId, setOrderId] = useState('');
-  const [orderRef, setOrderRef] = useState(() => generateOrderRef());
-  const [buyerEmail, setBuyerEmail] = useState('');
+  const [checkoutIdempotencyKey] = useState(() => crypto.randomUUID());
 
   const unit = customPrice ?? product.price;
   const total = unit * quantity;
-  const currency = product.currency ?? 'XOF';
+  const currency = 'XOF';
   const { commissionAmount, sellerAmount, rate } = calculateSplit(total, commissionType);
   const selectedOp = operators.find(o => o.id === operator);
-
-  useEffect(() => {
-    let active = true;
-    supabase.auth.getUser()
-      .then(({ data, error }) => {
-        if (!active) return;
-        if (error || !data.user) throw new Error('Session utilisateur indisponible');
-        setBuyerEmail(data.user.email ?? '');
-      })
-      .catch(() => {
-        if (active) toast.error('Connectez-vous pour poursuivre le paiement');
-      });
-    return () => { active = false; };
-  }, []);
 
   useEffect(() => {
     if (step !== 1 || !addressAutocompleteRef.current) return;
@@ -98,69 +81,41 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
       toast.error('Choisissez un opérateur et saisissez votre numéro');
       return;
     }
+    if (!product.id || !product.sellerId) {
+      toast.error('Les informations du produit ou du vendeur sont indisponibles');
+      return;
+    }
+
     setProcessing(true);
     setStep(4);
 
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) throw new Error('Connectez-vous pour effectuer le paiement');
-      if (!product.id || !product.sellerId) {
-        throw new Error('Les informations du produit ou du vendeur sont indisponibles');
-      }
-      if (user.email && buyerEmail && user.email !== buyerEmail) {
-        throw new Error('La session utilisateur a changé. Fermez puis rouvrez le paiement.');
-      }
 
-      // 1. Create order
-      const { data: order, error: orderErr } = await supabase
-        .from('orders')
-        .insert({
-          buyer_id: user.id,
-          seller_id: product.sellerId,
-          product_id: product.id,
-          product_name: product.name,
-          product_image: product.imageUrl,
-          quantity,
-          unit_price: unit,
-          total_price: total,
-          commission_rate: rate,
-          commission_amount: commissionAmount,
-          seller_amount: sellerAmount,
-          payment_operator: operator,
-          buyer_phone: phone,
-          delivery_address: address,
-          delivery_lat: deliveryCoordinates?.lat ?? null,
-          delivery_lng: deliveryCoordinates?.lng ?? null,
-          buyer_note: buyerNote,
-          status: 'en_attente',
-          payment_reference: orderRef,
-        })
-        .select()
-        .single();
-
-      if (orderErr) throw orderErr;
-      setOrderId(order.id);
-
-      // 2. Create payment_transactions row
-      const { error: transactionError } = await supabase.from('payment_transactions').insert({
-        order_id: order.id,
-        fedapay_ref: orderRef,
-        amount: total,
-        commission_amount: commissionAmount,
-        seller_amount: sellerAmount,
-        currency,
-        operator,
-        buyer_phone: phone,
-        status: 'initiated',
-        escrow_status: 'held',
+      // Le serveur relit le produit, recalcule les montants et cree commande + transaction atomiquement.
+      const { data: checkout, error: checkoutError } = await supabase.rpc('create_my_order_payment', {
+        p_product_id: product.id,
+        p_quantity: quantity,
+        p_operator: operator,
+        p_phone: phone,
+        p_delivery_address: address,
+        p_buyer_note: buyerNote || null,
+        p_delivery_lat: deliveryCoordinates?.lat ?? null,
+        p_delivery_lng: deliveryCoordinates?.lng ?? null,
+        p_idempotency_key: checkoutIdempotencyKey,
       });
-      if (transactionError) throw transactionError;
+      if (checkoutError) throw checkoutError;
+      const orderId = checkout && typeof checkout === 'object' && 'order_id' in checkout
+        ? String(checkout.order_id)
+        : '';
+      if (!orderId) throw new Error('La commande n’a pas pu être créée');
 
-      const checkout = await createFedaPayCheckout(order.id);
-      window.location.assign(checkout.checkoutUrl);
-    } catch (e) {
-      console.error(e);
-      toast.error(getFriendlyTransactionError(e));
+      const payment = await createFedaPayCheckout(orderId);
+      window.location.assign(payment.checkoutUrl);
+    } catch (error) {
+      console.error('Afrixa checkout failed', error);
+      toast.error(getFriendlyTransactionError(error));
       setProcessing(false);
       setStep(3);
     }
