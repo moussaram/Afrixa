@@ -23,6 +23,7 @@ interface ProductBottomSheetProps {
     sellerName: string;
     sellerId: string;
     sellerVerified?: boolean;
+    stock?: number;
   };
   onClose: () => void;
 }
@@ -88,7 +89,8 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
   };
 
   const displayPrice = selectedVariant?.price ?? product.price;
-  const noStock = selectedVariant ? selectedVariant.stock <= 0 : false;
+  const unlimitedStock = product.stock === -1;
+  const noStock = selectedVariant ? selectedVariant.stock <= 0 && !unlimitedStock : false;
 
   return (
     <>
@@ -124,7 +126,7 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
                 {variants.map(variant => (
                   <button
                     key={variant.id}
-                    disabled={variant.stock <= 0}
+                    disabled={variant.stock <= 0 && !unlimitedStock}
                     onClick={() => setSelectedVariant(variant)}
                     className={`rounded-xl border p-3 text-left text-sm transition-colors ${selectedVariant?.id === variant.id ? 'border-primary bg-primary/10 text-foreground' : 'border-border/30 text-muted-foreground'} disabled:opacity-40`}
                   >
@@ -133,7 +135,7 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
                       <span key={key} className="block text-xs">{key}: {value}</span>
                     ))}
                     <span className="block mt-1 text-xs">{variant.price ? `${variant.price.toLocaleString()} FCFA` : 'Prix standard'}</span>
-                    <span className="block text-xs">{variant.stock > 0 ? `Stock : ${variant.stock}` : 'Rupture de stock'}</span>
+                    <span className="block text-xs">{unlimitedStock ? 'Stock illimité' : variant.stock > 0 ? `Stock : ${variant.stock}` : 'Rupture de stock'}</span>
                   </button>
                 ))}
               </div>
