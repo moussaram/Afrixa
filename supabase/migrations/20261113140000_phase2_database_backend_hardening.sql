@@ -75,7 +75,7 @@ REVOKE ALL PRIVILEGES ON TABLE public.video_comments FROM PUBLIC, anon, authenti
 
 -- A comment and a comment-like must always belong to a real authenticated
 -- user and a real parent record. Stop rather than silently discard legacy rows.
-DO $
+DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM public.comments WHERE user_id IS NULL OR video_id IS NULL)
     OR EXISTS (SELECT 1 FROM public.comment_likes WHERE user_id IS NULL OR comment_id IS NULL) THEN
@@ -90,7 +90,7 @@ BEGIN
     ALTER COLUMN user_id SET NOT NULL,
     ALTER COLUMN comment_id SET NOT NULL;
 END;
-$;
+$$;
 
 -- Comments inherit the visibility of their parent video. The old permissive
 -- policy exposed comments even when the corresponding video was private,
@@ -155,7 +155,7 @@ CREATE INDEX IF NOT EXISTS comment_likes_user_comment_idx
 
 -- Complete the foreign-key index gaps reported by the Supabase performance
 -- advisor. Existing primary/composite indexes are intentionally not duplicated.
-DO $
+DO $$
 DECLARE
   index_spec text[];
 BEGIN
@@ -224,7 +224,7 @@ BEGIN
     );
   END LOOP;
 END;
-$;
+$$;
 
 -- Both existing indexes cover the same messages lookup; keep the DESC index
 -- used by conversation history queries.
