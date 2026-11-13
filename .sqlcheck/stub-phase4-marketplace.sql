@@ -47,3 +47,16 @@ GRANT SELECT ON public.reviews TO anon;
 CREATE POLICY "Buyers can create reviews" ON public.reviews
   FOR INSERT TO authenticated
   WITH CHECK (auth.uid() = buyer_id);
+
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT, UPDATE ON public.orders TO authenticated;
+CREATE POLICY orders_participant_select ON public.orders
+  FOR SELECT TO authenticated
+  USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+CREATE POLICY orders_buyer_insert ON public.orders
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = buyer_id);
+CREATE POLICY orders_participant_update ON public.orders
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = buyer_id OR auth.uid() = seller_id)
+  WITH CHECK (auth.uid() = buyer_id OR auth.uid() = seller_id);
