@@ -394,7 +394,7 @@ BEGIN
 
   SELECT count(*) INTO v_pending
   FROM public.seller_payouts
-  WHERE seller_id = v_user AND status IN ('demande', 'processing');
+  WHERE seller_id = v_user AND status IN ('demande', 'creating', 'processing');
   IF v_pending > 0 THEN
     RAISE EXCEPTION 'Un retrait est deja en cours de traitement';
   END IF;
