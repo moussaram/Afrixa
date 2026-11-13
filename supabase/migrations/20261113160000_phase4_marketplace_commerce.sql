@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS public.product_variants (
 
 CREATE INDEX IF NOT EXISTS product_variants_product_active_idx
   ON public.product_variants(product_id, is_active);
+CREATE UNIQUE INDEX IF NOT EXISTS product_variants_product_sku_unique
+  ON public.product_variants(product_id, sku) WHERE sku IS NOT NULL;
 
 ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS product_variants_public_read ON public.product_variants;
@@ -335,7 +337,10 @@ BEGIN
       IF NOT coalesce(v_product.unlimited_stock, false) AND v_variant.stock < NEW.quantity THEN
         RAISE EXCEPTION 'Insufficient variant stock';
       END IF;
-      v_unit_price := coalesce(v_variant.price, v_product.promo_price, v_product.price);
+      v_unit_price := coalesce(v_variant.price, CASE
+      WHEN v_product.promo_price > 0 AND v_product.promo_price < v_product.price THEN v_product.promo_price
+      ELSE v_product.price
+    END);
     ELSE
       IF EXISTS (SELECT 1 FROM public.product_variants WHERE product_id = NEW.product_id AND is_active = true) THEN
         RAISE EXCEPTION 'A product variant must be selected';
@@ -544,6 +549,7 @@ SET search_path = ''
 AS $$
 DECLARE
   v_order public.orders%ROWTYPE;
+  v_product public.products%ROWTYPE;
 BEGIN
   IF coalesce(auth.role(), '') <> 'service_role' THEN
     RAISE EXCEPTION 'service_role required';
@@ -554,14 +560,17 @@ BEGIN
     RETURN jsonb_build_object('released', false, 'duplicate', true, 'status', v_order.stock_reservation_status);
   END IF;
 
-  IF v_order.variant_id IS NOT NULL THEN
-    UPDATE public.product_variants
-    SET stock = stock + v_order.quantity, updated_at = now()
-    WHERE id = v_order.variant_id;
-  ELSE
-    UPDATE public.products
-    SET stock = coalesce(stock, 0) + v_order.quantity, updated_at = now()
-    WHERE id = v_order.product_id AND coalesce(unlimited_stock, false) = false;
+  SELECT * INTO v_product FROM public.products WHERE id = v_order.product_id FOR UPDATE;
+  IF FOUND AND NOT coalesce(v_product.unlimited_stock, false) THEN
+    IF v_order.variant_id IS NOT NULL THEN
+      UPDATE public.product_variants
+      SET stock = stock + v_order.quantity, updated_at = now()
+      WHERE id = v_order.variant_id;
+    ELSE
+      UPDATE public.products
+      SET stock = coalesce(stock, 0) + v_order.quantity, updated_at = now()
+      WHERE id = v_order.product_id;
+    END IF;
   END IF;
   UPDATE public.orders SET stock_reservation_status = 'released' WHERE id = p_order_id;
   RETURN jsonb_build_object('released', true, 'status', 'released');
