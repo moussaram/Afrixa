@@ -26,6 +26,7 @@ type OrderRecord = {
 };
 type TimelineEntry = { id: string; status: string; message: string | null; created_at: string };
 type DisputeRecord = { id: string; status: string; reason: string; buyer_evidence: string | null; seller_evidence: string | null };
+type DisputeEvent = { id: string; event_type: string; message: string | null; evidence_url: string | null; created_at: string };
 
 const statusConfig: Record<OrderStatus, { label: string; color: string; emoji: string }> = {
   en_attente: { label: 'En attente de paiement', color: 'text-amber-400', emoji: '🟡' },
@@ -46,6 +47,7 @@ const OrderDetail = () => {
   const [order, setOrder] = useState<OrderRecord | null>(null);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const [dispute, setDispute] = useState<DisputeRecord | null>(null);
+  const [disputeEvents, setDisputeEvents] = useState<DisputeEvent[]>([]);
   const [sellerName, setSellerName] = useState('Vendeur Afrixa');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -86,7 +88,19 @@ const OrderDetail = () => {
       if (disputeError) throw disputeError;
       if (sellerError) throw sellerError;
       setTimeline((timelineRows ?? []) as TimelineEntry[]);
-      setDispute((disputeRows?.[0] ?? null) as DisputeRecord | null);
+      const currentDispute = (disputeRows?.[0] ?? null) as DisputeRecord | null;
+      setDispute(currentDispute);
+      if (currentDispute) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: events, error: eventsError } = await (supabase as any).from('dispute_events')
+          .select('id, event_type, message, evidence_url, created_at')
+          .eq('dispute_id', currentDispute.id)
+          .order('created_at', { ascending: true });
+        if (eventsError) throw eventsError;
+        setDisputeEvents((events ?? []) as DisputeEvent[]);
+      } else {
+        setDisputeEvents([]);
+      }
       setSellerName(sellerProfile?.username || [sellerProfile?.prenom, sellerProfile?.nom].filter(Boolean).join(' ') || 'Vendeur Afrixa');
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Impossible de charger cette commande.');
@@ -304,6 +318,19 @@ const OrderDetail = () => {
             <p className="text-xs text-muted-foreground">Motif : {dispute.reason}</p>
             {dispute.buyer_evidence && <p className="text-xs text-muted-foreground">Éléments acheteur : {dispute.buyer_evidence}</p>}
             {dispute.seller_evidence && <p className="text-xs text-muted-foreground">Réponse vendeur : {dispute.seller_evidence}</p>}
+            {disputeEvents.length > 0 && (
+              <div className="border-t border-border/30 pt-3 space-y-2">
+                <p className="text-xs font-semibold text-foreground">Historique du litige</p>
+                {disputeEvents.map(event => (
+                  <div key={event.id} className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">{event.event_type === 'opened' ? 'Ouverture' : event.event_type === 'seller_response' ? 'Réponse vendeur' : event.event_type}</span>
+                    <span> · {new Date(event.created_at).toLocaleString('fr-FR')}</span>
+                    {event.message && <p className="mt-1">{event.message}</p>}
+                    {event.evidence_url && <a href={event.evidence_url} target="_blank" rel="noreferrer" className="text-primary underline">Voir la preuve</a>}
+                  </div>
+                ))}
+              </div>
+            )}
             {isSeller && !['resolu', 'rejete', 'ferme'].includes(dispute.status) && (
               <>
                 <textarea value={sellerResponse} onChange={event => setSellerResponse(event.target.value)} placeholder="Répondre au litige..." className="w-full rounded-xl bg-background border border-border p-3 text-sm text-foreground min-h-20" />
