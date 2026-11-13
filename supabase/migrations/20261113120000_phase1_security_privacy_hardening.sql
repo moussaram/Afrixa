@@ -128,4 +128,38 @@ $$;
 REVOKE ALL ON FUNCTION public.can_view_creator_content(uuid, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.can_view_creator_content(uuid, text) TO anon, authenticated;
 
+-- These SECURITY DEFINER routines are internal trigger/server helpers, not RPC
+-- endpoints for browser clients. Trigger execution does not require client
+-- EXECUTE privileges on the trigger function.
+DO $
+DECLARE
+  function_name text;
+BEGIN
+  FOREACH function_name IN ARRAY ARRAY[
+    'calculate_order_commission',
+    'enforce_creator_program_integrity',
+    'handle_new_user',
+    'record_order_creation',
+    'record_order_status_change',
+    'rls_auto_enable',
+    'set_profile_verification_from_auth',
+    'sync_comment_counts',
+    'sync_comment_like_counts',
+    'sync_profile_verification_from_auth',
+    'sync_video_engagement_counts',
+    'update_conversation_on_message'
+  ]
+  LOOP
+    EXECUTE format(
+      'REVOKE EXECUTE ON FUNCTION public.%I() FROM PUBLIC, anon, authenticated',
+      function_name
+    );
+    EXECUTE format(
+      'GRANT EXECUTE ON FUNCTION public.%I() TO service_role',
+      function_name
+    );
+  END LOOP;
+END;
+$;
+
 COMMIT;
