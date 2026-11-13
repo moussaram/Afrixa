@@ -69,7 +69,41 @@ try {
   check('La transaction est créée dans la même opération', tx?.amount === 16000 && tx?.fedapay_ref === order?.payment_reference);
   check('La référence retournée correspond à la commande', created.order_ref === order?.payment_reference);
   check('Le checkout conserve l opérateur FedaPay valide', order?.payment_operator === 'mtn_open');
+  check('Le stock est réservé dans la même transaction', order?.stock_reserved === true
+    && (await adminOne('SELECT stock FROM public.products WHERE id=$1',[product])).stock === 18);
 
+  await as('service_role');
+  const settled = await one('SELECT public.settle_order_payment($1,$2) AS result',
+    [tx.id, '{"provider":"FedaPay","status":"approved"}']).then((row) => row.result);
+  check('Un paiement approuvé passe la commande à payée et valide le split',
+    settled === true
+      && (await adminOne('SELECT status,stock_reserved FROM public.orders WHERE id=$1',[created.order_id])).status === 'payee'
+      && (await adminOne('SELECT count(*)::int AS n FROM public.commission_splits WHERE transaction_id=$1',[tx.id])).n === 1);
+  const settledAgain = await one('SELECT public.settle_order_payment($1,$2) AS result',
+    [tx.id, '{"provider":"FedaPay","status":"approved"}']).then((row) => row.result);
+  check('Un webhook de succès répété ne crée pas de deuxième split', settledAgain === false
+    && (await adminOne('SELECT count(*)::int AS n FROM public.commission_splits WHERE transaction_id=$1',[tx.id])).n === 1);
+
+  await as('authenticated', buyer);
+  const failedCheckout = await one(
+    'SELECT public.create_order_payment_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9) AS result',
+    [product, 1, 'mtn_open', '97000000', 'Cotonou, Benin', null, null, null, 'checkout-key-fail'],
+  ).then((row) => row.result);
+  const failedTx = await adminOne('SELECT id FROM public.payment_transactions WHERE order_id=$1',[failedCheckout.order_id]);
+  check('Une deuxième commande réserve une unité', (await adminOne('SELECT stock FROM public.products WHERE id=$1',[product])).stock === 17);
+  await as('service_role');
+  const failedPayment = await one('SELECT public.fail_order_payment($1,$2,$3) AS result',
+    [failedTx.id, 'failed', '{"provider":"FedaPay","status":"declined"}']).then((row) => row.result);
+  check('Un paiement refusé annule la commande et restitue le stock',
+    failedPayment === true
+      && (await adminOne('SELECT status,stock_reserved FROM public.orders WHERE id=$1',[failedCheckout.order_id])).status === 'annulee'
+      && (await adminOne('SELECT stock FROM public.products WHERE id=$1',[product])).stock === 18);
+  const failedAgain = await one('SELECT public.fail_order_payment($1,$2,$3) AS result',
+    [failedTx.id, 'failed', '{"provider":"FedaPay","status":"declined"}']).then((row) => row.result);
+  check('Un webhook d échec répété ne restitue pas le stock deux fois', failedAgain === false
+    && (await adminOne('SELECT stock FROM public.products WHERE id=$1',[product])).stock === 18);
+
+  await as('authenticated', buyer);
   const replay = await one(
     'SELECT public.create_order_payment_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9) AS result',
     [product, 2, 'mtn_open', '97000000', 'Cotonou, Benin', null, 6.37, 2.39, 'checkout-key-1'],
