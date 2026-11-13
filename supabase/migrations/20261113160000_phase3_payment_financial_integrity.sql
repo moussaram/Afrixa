@@ -416,7 +416,7 @@ BEGIN
   IF v_user IS NULL THEN
     RAISE EXCEPTION 'Connexion requise pour retirer';
   END IF;
-  IF p_amount IS NULL OR p_amount <= 0
+  IF p_amount IS NULL OR p_amount <= 0 OR p_phone IS NULL OR v_operator IS NULL
     OR v_operator NOT IN (
       'mtn_open', 'moov', 'sbin', 'mtn_ci', 'moov_ci', 'wave_ci', 'orange_ci',
       'moov_tg', 'togocel', 'orange-bf', 'moov_bf', 'mtn_open_gn', 'wave_sn', 'orange_sn'
