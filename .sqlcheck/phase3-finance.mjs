@@ -165,11 +165,11 @@ try {
   check('Le test de modification s’exécute avec le rôle acheteur', roleBeforeUpdate.role === 'authenticated' && roleBeforeUpdate.user_id === buyer, JSON.stringify(roleBeforeUpdate));
   const directUpdate = await db.query(
     'UPDATE public.orders SET total_price=1 WHERE id=$1 RETURNING id',
-    [direct.rows[0].id],
+    [created.order_id],
   );
-  const afterDirectUpdate = await adminOne('SELECT total_price FROM public.orders WHERE id=$1', [direct.rows[0].id]);
+  const afterDirectUpdate = await adminOne('SELECT total_price FROM public.orders WHERE id=$1', [created.order_id]);
   check('Un client ne peut pas modifier le montant après création',
-    directUpdate.rows.length === 0 && afterDirectUpdate?.total_price === 8000,
+    directUpdate.rows.length === 0 && afterDirectUpdate?.total_price === 16000,
     JSON.stringify({ affected: directUpdate.rows.length, totalPrice: afterDirectUpdate?.total_price }));
 
   const withdrawal = await one(
