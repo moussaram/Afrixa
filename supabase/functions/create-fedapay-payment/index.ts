@@ -121,7 +121,6 @@ Deno.serve(async (req) => {
           description: `Afrixa - ${String(order.product_name).slice(0, 100)}`,
           amount: Number(order.total_price),
           currency: { iso: 'XOF' },
-          mode: order.payment_operator,
           callback_url: callbackUrl.toString(),
           customer: {
             firstname: customerName.firstname,
