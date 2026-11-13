@@ -18,6 +18,15 @@ const getCustomerName = (metadata: Record<string, unknown>) => {
   return { firstname: pieces[0], lastname: pieces.slice(1).join(' ') };
 };
 
+const operatorCountries: Record<string, string> = {
+  mtn_open: 'BJ', moov: 'BJ', sbin: 'BJ',
+  mtn_ci: 'CI',
+  moov_tg: 'TG', togocel: 'TG',
+  mtn_open_gn: 'GN',
+  free_sn: 'SN',
+  airtel_ne: 'NE',
+};
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
@@ -54,7 +63,7 @@ Deno.serve(async (req) => {
     });
     const { data: order, error: orderError } = await admin
       .from('orders')
-      .select('id, buyer_id, total_price, product_name, payment_reference, buyer_phone, status')
+      .select('id, buyer_id, total_price, product_name, payment_reference, buyer_phone, payment_operator, status')
       .eq('id', orderId)
       .maybeSingle();
     if (orderError) throw orderError;
@@ -70,6 +79,8 @@ Deno.serve(async (req) => {
     const customerName = profile?.prenom?.trim() && profile?.nom?.trim()
       ? { firstname: profile.prenom.trim(), lastname: profile.nom.trim() }
       : getCustomerName(user.user_metadata ?? {});
+    const paymentCountry = operatorCountries[String(order.payment_operator ?? '')];
+    if (!paymentCountry) return json({ error: 'unsupported_payment_operator' }, 422);
     if (!customerName || !user.email || !order.buyer_phone) {
       return json({ error: 'complete_payment_profile' }, 422);
     }
@@ -97,10 +108,6 @@ Deno.serve(async (req) => {
       if (claimError) throw claimError;
       if (!claim) return json({ error: 'payment_creation_in_progress' }, 409);
 
-      const metadata = user.user_metadata ?? {};
-      const country = typeof metadata.country === 'string' && /^[A-Za-z]{2}$/.test(metadata.country)
-        ? metadata.country.toUpperCase()
-        : 'BJ';
       const publicUrl = new URL(appUrl);
       if (publicUrl.protocol !== 'https:' && publicUrl.hostname !== 'localhost') {
         return json({ error: 'payment_configuration_invalid' }, 503);
@@ -119,7 +126,7 @@ Deno.serve(async (req) => {
             firstname: customerName.firstname,
             lastname: customerName.lastname,
             email: user.email,
-            phone_number: { number: order.buyer_phone, country },
+            phone_number: { number: order.buyer_phone, country: paymentCountry },
           },
           custom_metadata: { order_id: order.id, payment_reference: tx.fedapay_ref },
         }),

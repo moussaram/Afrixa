@@ -6,7 +6,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { createAddressAutocomplete } from '@/lib/googleMaps';
 import {
   calculateSplit,
-  generateOrderRef,
   createFedaPayCheckout,
   maskPhone,
   type CommissionType,
@@ -30,12 +29,29 @@ interface AfrixaPaymentProps {
   commissionType?: CommissionType;
 }
 
-const operators = [
-  { id: 'orange_money', name: 'Orange Money', emoji: '🟠', bg: 'bg-orange-500/10', border: 'border-orange-500' },
-  { id: 'wave', name: 'Wave', emoji: '🔵', bg: 'bg-blue-500/10', border: 'border-blue-500' },
-  { id: 'mtn', name: 'MTN MoMo', emoji: '🟡', bg: 'bg-yellow-500/10', border: 'border-yellow-500' },
-  { id: 'moov', name: 'Moov Money', emoji: '🔵', bg: 'bg-blue-700/10', border: 'border-blue-700' },
-];
+const operatorsByCountry: Record<string, Array<{ id: string; name: string; emoji: string; bg: string; border: string }>> = {
+  BJ: [
+    { id: 'mtn_open', name: 'MTN MoMo', emoji: '🟡', bg: 'bg-yellow-500/10', border: 'border-yellow-500' },
+    { id: 'moov', name: 'Moov Money', emoji: '🔵', bg: 'bg-blue-700/10', border: 'border-blue-700' },
+    { id: 'sbin', name: 'Celtiis Cash', emoji: '🟣', bg: 'bg-violet-500/10', border: 'border-violet-500' },
+  ],
+  CI: [
+    { id: 'mtn_ci', name: 'MTN MoMo', emoji: '🟡', bg: 'bg-yellow-500/10', border: 'border-yellow-500' },
+  ],
+  TG: [
+    { id: 'moov_tg', name: 'Moov Money', emoji: '🔵', bg: 'bg-blue-700/10', border: 'border-blue-700' },
+    { id: 'togocel', name: 'TMoney', emoji: '🔴', bg: 'bg-red-500/10', border: 'border-red-500' },
+  ],
+  GN: [
+    { id: 'mtn_open_gn', name: 'MTN MoMo', emoji: '🟡', bg: 'bg-yellow-500/10', border: 'border-yellow-500' },
+  ],
+  SN: [
+    { id: 'free_sn', name: 'Free Money', emoji: '🟢', bg: 'bg-green-500/10', border: 'border-green-500' },
+  ],
+  NE: [
+    { id: 'airtel_ne', name: 'Airtel Money', emoji: '🔴', bg: 'bg-red-500/10', border: 'border-red-500' },
+  ],
+};
 
 export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 'normale' }: AfrixaPaymentProps) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -48,9 +64,10 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
   const [operator, setOperator] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
   const [processing, setProcessing] = useState(false);
-  const [orderId, setOrderId] = useState('');
-  const [orderRef, setOrderRef] = useState(() => generateOrderRef());
+  const [checkoutKey] = useState(() => crypto.randomUUID());
   const [buyerEmail, setBuyerEmail] = useState('');
+  const [country, setCountry] = useState('BJ');
+  const operators = operatorsByCountry[country] ?? [];
 
   const unit = customPrice ?? product.price;
   const total = unit * quantity;
@@ -65,6 +82,10 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
         if (!active) return;
         if (error || !data.user) throw new Error('Session utilisateur indisponible');
         setBuyerEmail(data.user.email ?? '');
+        const metadataCountry = data.user.user_metadata?.country;
+        setCountry(typeof metadataCountry === 'string' && /^[A-Za-z]{2}$/.test(metadataCountry)
+          ? metadataCountry.toUpperCase()
+          : 'BJ');
       })
       .catch(() => {
         if (active) toast.error('Connectez-vous pour poursuivre le paiement');
@@ -104,59 +125,37 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) throw new Error('Connectez-vous pour effectuer le paiement');
-      if (!product.id || !product.sellerId) {
+      if (!product.id) {
         throw new Error('Les informations du produit ou du vendeur sont indisponibles');
       }
       if (user.email && buyerEmail && user.email !== buyerEmail) {
         throw new Error('La session utilisateur a changé. Fermez puis rouvrez le paiement.');
       }
 
-      // 1. Create order
-      const { data: order, error: orderErr } = await supabase
-        .from('orders')
-        .insert({
-          buyer_id: user.id,
-          seller_id: product.sellerId,
-          product_id: product.id,
-          product_name: product.name,
-          product_image: product.imageUrl,
-          quantity,
-          unit_price: unit,
-          total_price: total,
-          commission_rate: rate,
-          commission_amount: commissionAmount,
-          seller_amount: sellerAmount,
-          payment_operator: operator,
-          buyer_phone: phone,
-          delivery_address: address,
-          delivery_lat: deliveryCoordinates?.lat ?? null,
-          delivery_lng: deliveryCoordinates?.lng ?? null,
-          buyer_note: buyerNote,
-          status: 'en_attente',
-          payment_reference: orderRef,
-        })
-        .select()
-        .single();
+      // Le serveur relit le produit, son prix et le vendeur puis crée
+      // la commande et son intention de paiement dans une seule transaction.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: checkoutOrder, error: checkoutOrderError } = await (supabase as any).rpc(
+        'create_order_payment_atomic',
+        {
+          p_product_id: product.id,
+          p_quantity: quantity,
+          p_operator: operator,
+          p_phone: phone,
+          p_delivery_address: address,
+          p_buyer_note: buyerNote || null,
+          p_delivery_lat: deliveryCoordinates?.lat ?? null,
+          p_delivery_lng: deliveryCoordinates?.lng ?? null,
+          p_idempotency_key: checkoutKey,
+        },
+      );
+      if (checkoutOrderError) throw checkoutOrderError;
+      const createdOrderId = checkoutOrder?.order_id;
+      if (typeof createdOrderId !== 'string') {
+        throw new Error('Création de commande impossible');
+      }
 
-      if (orderErr) throw orderErr;
-      setOrderId(order.id);
-
-      // 2. Create payment_transactions row
-      const { error: transactionError } = await supabase.from('payment_transactions').insert({
-        order_id: order.id,
-        fedapay_ref: orderRef,
-        amount: total,
-        commission_amount: commissionAmount,
-        seller_amount: sellerAmount,
-        currency,
-        operator,
-        buyer_phone: phone,
-        status: 'initiated',
-        escrow_status: 'held',
-      });
-      if (transactionError) throw transactionError;
-
-      const checkout = await createFedaPayCheckout(order.id);
+      const checkout = await createFedaPayCheckout(createdOrderId);
       window.location.assign(checkout.checkoutUrl);
     } catch (e) {
       console.error(e);
@@ -267,7 +266,9 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
           {/* STEP 2 */}
           {step === 2 && (
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground mb-2">Choisir votre opérateur Mobile Money</p>
+              <p className="text-sm text-muted-foreground mb-2">Choisir l’opérateur lié à votre numéro ({country})</p>
+              {operators.length === 0 && <p className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-300">Aucun opérateur Mobile Money FedaPay documenté pour ce pays dans Afrixa. Vérifiez le pays de votre compte.</p>}
+              <p className="text-xs text-muted-foreground">FedaPay confirmera les moyens de paiement disponibles sur sa page sécurisée.</p>
               {operators.map(op => (
                 <button key={op.id} onClick={() => setOperator(op.id)}
                   className={cn('w-full p-4 rounded-2xl border-2 text-left transition-all flex items-center gap-3',

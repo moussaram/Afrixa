@@ -150,49 +150,34 @@ Deno.serve(async (req) => {
 
       const providerStatus = String(payment?.status ?? '').toLowerCase();
       if (providerStatus === 'approved') {
-        if (['initiated', 'creating', 'pending'].includes(tx.status)) {
-          const { error: updateTxError } = await admin.from('payment_transactions')
-            .update({ status: 'successful', fedapay_response: providerResponse })
-            .eq('id', tx.id).in('status', ['initiated', 'creating', 'pending']);
-          if (updateTxError) throw updateTxError;
-        }
-        if (order.status === 'en_attente') {
-          const { error: updateOrderError } = await admin.from('orders')
-            .update({ status: 'payee' }).eq('id', order.id).eq('status', 'en_attente');
-          if (updateOrderError) throw updateOrderError;
-        }
-        const { data: split, error: splitReadError } = await admin.from('commission_splits')
-          .select('id').eq('transaction_id', tx.id).limit(1).maybeSingle();
-        if (splitReadError) throw splitReadError;
-        if (!split) {
-          const rate = Number(order.commission_rate);
-          const type = rate === 0.03 ? 'group_buy' : rate === 0.07 ? 'booste' : rate === 0.08 ? 'live' : 'normale';
-          const { error: splitInsertError } = await admin.from('commission_splits').insert({
-            transaction_id: tx.id,
-            afrixa_amount: Number(tx.commission_amount),
-            seller_amount: Number(tx.seller_amount),
-            split_type: type,
-            split_rate: rate,
-            status: 'pending',
-          });
-          if (splitInsertError) throw splitInsertError;
-        }
-        return json({ received: true, processed: true });
+        const { data: settled, error: settleError } = await admin.rpc('settle_order_payment', {
+          p_transaction_id: tx.id,
+          p_provider_response: providerResponse,
+        });
+        if (settleError) throw settleError;
+        return json({ received: true, processed: true, changed: settled === true });
       }
 
-      if (['declined', 'canceled', 'cancelled'].includes(providerStatus)
-        && ['initiated', 'creating', 'pending'].includes(tx.status)) {
-        const status = providerStatus === 'canceled' || providerStatus === 'cancelled' ? 'cancelled' : 'failed';
-        const { error: txUpdateError } = await admin.from('payment_transactions')
-          .update({ status, fedapay_response: providerResponse }).eq('id', tx.id);
-        if (txUpdateError) throw txUpdateError;
-        if (order.status === 'en_attente') {
-          const { error: orderUpdateError } = await admin.from('orders')
-            .update({ status: 'annulee' }).eq('id', order.id).eq('status', 'en_attente');
-          if (orderUpdateError) throw orderUpdateError;
-        }
+      if (['declined', 'canceled', 'cancelled'].includes(providerStatus)) {
+        const status = providerStatus === 'declined' ? 'failed' : 'cancelled';
+        const { data: failed, error: failError } = await admin.rpc('fail_order_payment', {
+          p_transaction_id: tx.id,
+          p_final_status: status,
+          p_provider_response: providerResponse,
+        });
+        if (failError) throw failError;
+        return json({ received: true, processed: true, changed: failed === true });
       }
-      return json({ received: true, ignored: true });
+
+      if (providerStatus === 'refunded') {
+        const { data: refund, error: refundError } = await admin.rpc('reconcile_fedapay_refund', {
+          p_transaction_id: tx.id,
+          p_provider_response: providerResponse,
+        });
+        if (refundError) throw refundError;
+        return json({ received: true, processed: true, refund });
+      }
+
     }
 
     if (eventName.startsWith('payout.')) {

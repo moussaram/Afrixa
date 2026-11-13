@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { calculateSplit, CommissionType, generateOrderRef, verifyFedaPayPayment } from '@/lib/fedapay';
+import { CommissionType, verifyFedaPayPayment } from '@/lib/fedapay';
 import { getFriendlyTransactionError } from '@/lib/transactionErrors';
 
 export type PaymentStatus = 'idle' | 'processing' | 'success' | 'failed';
@@ -29,6 +29,7 @@ export const useAfrixaPayment = () => {
   const [orderRef, setOrderRef] = useState<string>('');
   const [selectedOperator, setSelectedOperator] = useState<string>('');
   const [buyerPhone, setBuyerPhone] = useState<string>('');
+  const [checkoutKey, setCheckoutKey] = useState(() => crypto.randomUUID());
 
   const initPayment = async (data: InitPaymentData) => {
     setIsLoading(true);
@@ -38,61 +39,36 @@ export const useAfrixaPayment = () => {
       const buyerId = userData?.user?.id;
       if (!buyerId) throw new Error('Vous devez être connecté');
 
-      const totalPrice = data.unitPrice * data.quantity;
-      const { commissionAmount, sellerAmount, rate } = calculateSplit(
-        totalPrice,
-        data.commissionType ?? 'normale',
+      if (!data.productId) throw new Error('Produit indisponible pour le paiement');
+
+      // Le serveur utilise le prix et le vendeur du produit en base.
+      // La commande et sa transaction sont créées atomiquement et de façon idempotente.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: checkout, error: checkoutError } = await (supabase as any).rpc(
+        'create_order_payment_atomic',
+        {
+          p_product_id: data.productId,
+          p_quantity: data.quantity,
+          p_operator: selectedOperator,
+          p_phone: buyerPhone,
+          p_delivery_address: data.deliveryAddress,
+          p_buyer_note: data.buyerNote ?? null,
+          p_delivery_lat: null,
+          p_delivery_lng: null,
+          p_idempotency_key: checkoutKey,
+        },
       );
-      const ref = generateOrderRef();
+      if (checkoutError) throw checkoutError;
+      if (typeof checkout?.order_id !== 'string' || typeof checkout?.order_ref !== 'string') {
+        throw new Error('Création de commande échouée');
+      }
 
-      // 1. Create order
-      const { data: order, error: orderErr } = await supabase
-        .from('orders')
-        .insert({
-          buyer_id: buyerId,
-          seller_id: data.sellerId,
-          product_id: data.productId ?? null,
-          product_name: data.productName,
-          product_image: data.productImage ?? null,
-          quantity: data.quantity,
-          unit_price: data.unitPrice,
-          total_price: totalPrice,
-          commission_rate: rate,
-          commission_amount: commissionAmount,
-          seller_amount: sellerAmount,
-          payment_operator: selectedOperator,
-          buyer_phone: buyerPhone,
-          delivery_address: data.deliveryAddress,
-          buyer_note: data.buyerNote ?? null,
-          status: 'en_attente',
-          payment_reference: ref,
-        })
-        .select()
-        .single();
-      if (orderErr || !order) throw orderErr ?? new Error('Création commande échouée');
-
-      // 2. Create payment transaction
-      const { data: tx, error: txErr } = await supabase
-        .from('payment_transactions')
-        .insert({
-          order_id: order.id,
-          fedapay_ref: ref,
-          amount: totalPrice,
-          commission_amount: commissionAmount,
-          seller_amount: sellerAmount,
-          currency: 'XOF',
-          operator: selectedOperator,
-          buyer_phone: buyerPhone,
-          status: 'initiated',
-          escrow_status: 'held',
-        })
-        .select()
-        .single();
-      if (txErr || !tx) throw txErr ?? new Error('Transaction non créée');
-
-      setOrderId(order.id);
-      setOrderRef(ref);
-      return { orderId: order.id, orderRef: ref, totalPrice };
+      const createdOrderId = checkout.order_id as string;
+      const createdOrderRef = checkout.order_ref as string;
+      const totalPrice = Number(checkout.total_price);
+      setOrderId(createdOrderId);
+      setOrderRef(createdOrderRef);
+      return { orderId: createdOrderId, orderRef: createdOrderRef, totalPrice };
     } catch (e) {
       setPaymentStatus('failed');
       toast.error(getFriendlyTransactionError(e));
@@ -132,6 +108,7 @@ export const useAfrixaPayment = () => {
     setOrderRef('');
     setSelectedOperator('');
     setBuyerPhone('');
+    setCheckoutKey(crypto.randomUUID());
   };
 
   return {

@@ -1,9 +1,7 @@
-import { useState } from 'react';
 import { X, Users, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCountdown } from '@/hooks/useCountdown';
 import { GroupBuy } from '@/data/mockGroupBuy';
-import { AfrixaPaySheet } from '@/components/payment/AfrixaPaySheet';
 
 interface GroupBuyDetailSheetProps {
   groupBuy: GroupBuy;
@@ -11,29 +9,9 @@ interface GroupBuyDetailSheetProps {
 }
 
 export const GroupBuyDetailSheet = ({ groupBuy, onClose }: GroupBuyDetailSheetProps) => {
-  const [showPayment, setShowPayment] = useState(false);
   const { hours, minutes, seconds } = useCountdown(groupBuy.endsAt);
 
-  const currentPrice = getCurrentPrice(groupBuy);
   const progress = (groupBuy.currentMembers / groupBuy.maxMembers) * 100;
-
-  if (showPayment) {
-    return (
-      <AfrixaPaySheet
-        product={{
-          name: groupBuy.productName,
-          price: groupBuy.soloPrice,
-          currency: groupBuy.currency,
-          imageUrl: groupBuy.productImage,
-          sellerName: groupBuy.sellerName,
-          sellerVerified: groupBuy.sellerVerified,
-        }}
-        customPrice={currentPrice}
-        subtitle="Vous ne serez débité que si le groupe atteint le palier minimum avant la fin du délai"
-        onClose={onClose}
-      />
-    );
-  }
 
   return (
     <>
@@ -133,22 +111,21 @@ export const GroupBuyDetailSheet = ({ groupBuy, onClose }: GroupBuyDetailSheetPr
           </div>
 
           {/* Join button */}
-          <button
-            onClick={() => setShowPayment(true)}
-            className="w-full py-3.5 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm"
-          >
-            Rejoindre pour {currentPrice.toLocaleString()} {groupBuy.currency}
-          </button>
+          <div className="space-y-2">
+            <button
+              type="button"
+              disabled
+              className="w-full py-3.5 rounded-xl bg-muted text-muted-foreground font-semibold text-sm cursor-not-allowed"
+            >
+              Achats groupés temporairement indisponibles
+            </button>
+            <p className="text-xs text-muted-foreground text-center">
+              Le paiement et le remboursement conditionnel ne sont pas encore sécurisés. Aucun débit ne sera effectué.
+            </p>
+          </div>
         </div>
       </div>
     </>
   );
 };
 
-function getCurrentPrice(gb: GroupBuy): number {
-  let price = gb.soloPrice;
-  for (const tier of gb.tiers) {
-    if (gb.currentMembers >= tier.minPeople) price = tier.price;
-  }
-  return price;
-}
