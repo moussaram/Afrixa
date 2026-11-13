@@ -184,6 +184,7 @@ try {
 } catch (error) {
   console.error('HARNESS ERROR:', error?.message ?? error);
   if (error?.code) console.error('HARNESS CODE:', error.code);
+  if (error?.position) console.error('HARNESS POSITION:', error.position);
   if (error?.query) console.error('HARNESS QUERY:', String(error.query).slice(0, 500));
   process.exitCode = 1;
 } finally {
