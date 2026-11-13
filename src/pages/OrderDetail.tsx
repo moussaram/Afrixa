@@ -12,6 +12,7 @@ type OrderRecord = {
   buyer_id: string;
   seller_id: string;
   product_name: string;
+  variant_name: string | null;
   product_image: string | null;
   quantity: number;
   unit_price: number;
@@ -71,7 +72,7 @@ const OrderDetail = () => {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: orderData, error: orderError } = await (supabase as any).from('orders')
-        .select('id, buyer_id, seller_id, product_name, product_image, quantity, unit_price, total_price, payment_operator, buyer_phone, delivery_address, buyer_note, payment_reference, status, created_at')
+        .select('id, buyer_id, seller_id, product_name, variant_name, product_image, quantity, unit_price, total_price, payment_operator, buyer_phone, delivery_address, buyer_note, payment_reference, status, created_at')
         .eq('id', orderId)
         .maybeSingle();
       if (orderError) throw orderError;
@@ -277,6 +278,7 @@ const OrderDetail = () => {
             {order.product_image ? <img src={order.product_image} alt={order.product_name} className="w-20 h-20 rounded-xl object-cover" /> : <div className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center"><Package /></div>}
             <div className="flex-1">
               <p className="text-sm font-semibold text-foreground">{order.product_name}</p>
+              {order.variant_name && <p className="text-xs text-muted-foreground">Option : {order.variant_name}</p>}
               <p className="text-xs text-muted-foreground">Quantité : {order.quantity}</p>
               <p className="text-sm font-bold text-primary mt-2">{order.total_price.toLocaleString('fr-FR')} FCFA</p>
             </div>
