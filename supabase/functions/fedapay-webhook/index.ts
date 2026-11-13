@@ -169,6 +169,10 @@ Deno.serve(async (req) => {
             .update({ status: 'payee' }).eq('id', order.id).eq('status', 'en_attente');
           if (updateOrderError) throw updateOrderError;
         }
+        const { error: stockConsumeError } = await admin.rpc('consume_order_stock_reservation', {
+          p_order_id: order.id,
+        });
+        if (stockConsumeError) throw stockConsumeError;
         const rate = Number(order.commission_rate);
         const type = rate === 0.03 ? 'group_buy' : rate === 0.07 ? 'booste' : rate === 0.08 ? 'live' : 'normale';
         const { error: splitInsertError } = await admin.from('commission_splits').upsert({
@@ -194,6 +198,10 @@ Deno.serve(async (req) => {
             .update({ status: 'annulee' }).eq('id', order.id).eq('status', 'en_attente');
           if (orderUpdateError) throw orderUpdateError;
         }
+        const { error: stockReleaseError } = await admin.rpc('release_order_stock_reservation', {
+          p_order_id: order.id,
+        });
+        if (stockReleaseError) throw stockReleaseError;
       }
       return json({ received: true, ignored: true });
     }
