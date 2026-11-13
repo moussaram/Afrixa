@@ -681,3 +681,25 @@ $$;
 REVOKE ALL ON FUNCTION public.add_cart_item(uuid, integer, uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.add_cart_item(uuid, integer, uuid) TO authenticated;
 
+
+
+CREATE OR REPLACE FUNCTION public.get_my_shop_stats()
+RETURNS TABLE (
+  completed_sales bigint,
+  orders_in_progress bigint,
+  seller_amount_total bigint
+)
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT
+    count(*) FILTER (WHERE o.status IN ('payee', 'en_preparation', 'expediee', 'livree', 'terminee')),
+    count(*) FILTER (WHERE o.status IN ('en_attente', 'payee', 'en_preparation', 'expediee')),
+    coalesce(sum(o.seller_amount) FILTER (WHERE o.status IN ('payee', 'en_preparation', 'expediee', 'livree', 'terminee')), 0)
+  FROM public.orders AS o
+  WHERE o.seller_id = auth.uid();
+$$;
+REVOKE ALL ON FUNCTION public.get_my_shop_stats() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_my_shop_stats() TO authenticated;
