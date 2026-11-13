@@ -6,7 +6,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { createAddressAutocomplete } from '@/lib/googleMaps';
 import {
   calculateSplit,
-  generateOrderRef,
   createFedaPayCheckout,
   maskPhone,
   type CommissionType,
@@ -48,8 +47,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
   const [operator, setOperator] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
   const [processing, setProcessing] = useState(false);
-  const [orderId, setOrderId] = useState('');
-  const [orderRef, setOrderRef] = useState(() => generateOrderRef());
+  const [checkoutKey] = useState(() => crypto.randomUUID());
   const [buyerEmail, setBuyerEmail] = useState('');
 
   const unit = customPrice ?? product.price;
@@ -111,52 +109,30 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
         throw new Error('La session utilisateur a changé. Fermez puis rouvrez le paiement.');
       }
 
-      // 1. Create order
-      const { data: order, error: orderErr } = await supabase
-        .from('orders')
-        .insert({
-          buyer_id: user.id,
-          seller_id: product.sellerId,
-          product_id: product.id,
-          product_name: product.name,
-          product_image: product.imageUrl,
-          quantity,
-          unit_price: unit,
-          total_price: total,
-          commission_rate: rate,
-          commission_amount: commissionAmount,
-          seller_amount: sellerAmount,
-          payment_operator: operator,
-          buyer_phone: phone,
-          delivery_address: address,
-          delivery_lat: deliveryCoordinates?.lat ?? null,
-          delivery_lng: deliveryCoordinates?.lng ?? null,
-          buyer_note: buyerNote,
-          status: 'en_attente',
-          payment_reference: orderRef,
-        })
-        .select()
-        .single();
+      // Le serveur relit le produit, son prix et le vendeur puis crée
+      // la commande et son intention de paiement dans une seule transaction.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: checkoutOrder, error: checkoutOrderError } = await (supabase as any).rpc(
+        'create_order_payment_atomic',
+        {
+          p_product_id: product.id,
+          p_quantity: quantity,
+          p_operator: operator,
+          p_phone: phone,
+          p_delivery_address: address,
+          p_buyer_note: buyerNote || null,
+          p_delivery_lat: deliveryCoordinates?.lat ?? null,
+          p_delivery_lng: deliveryCoordinates?.lng ?? null,
+          p_idempotency_key: checkoutKey,
+        },
+      );
+      if (checkoutOrderError) throw checkoutOrderError;
+      const createdOrderId = checkoutOrder?.order_id;
+      if (typeof createdOrderId !== 'string') {
+        throw new Error('Création de commande impossible');
+      }
 
-      if (orderErr) throw orderErr;
-      setOrderId(order.id);
-
-      // 2. Create payment_transactions row
-      const { error: transactionError } = await supabase.from('payment_transactions').insert({
-        order_id: order.id,
-        fedapay_ref: orderRef,
-        amount: total,
-        commission_amount: commissionAmount,
-        seller_amount: sellerAmount,
-        currency,
-        operator,
-        buyer_phone: phone,
-        status: 'initiated',
-        escrow_status: 'held',
-      });
-      if (transactionError) throw transactionError;
-
-      const checkout = await createFedaPayCheckout(order.id);
+      const checkout = await createFedaPayCheckout(createdOrderId);
       window.location.assign(checkout.checkoutUrl);
     } catch (e) {
       console.error(e);
