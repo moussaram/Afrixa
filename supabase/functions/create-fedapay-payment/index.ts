@@ -20,11 +20,11 @@ const getCustomerName = (metadata: Record<string, unknown>) => {
 
 const operatorCountries: Record<string, string> = {
   mtn_open: 'BJ', moov: 'BJ', sbin: 'BJ',
-  mtn_ci: 'CI', moov_ci: 'CI', wave_ci: 'CI', orange_ci: 'CI',
+  mtn_ci: 'CI',
   moov_tg: 'TG', togocel: 'TG',
-  'orange-bf': 'BF', moov_bf: 'BF',
   mtn_open_gn: 'GN',
-  wave_sn: 'SN', orange_sn: 'SN',
+  free_sn: 'SN',
+  airtel_ne: 'NE',
 };
 
 Deno.serve(async (req) => {
