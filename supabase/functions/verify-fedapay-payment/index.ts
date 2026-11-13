@@ -99,6 +99,10 @@ Deno.serve(async (req) => {
             .update({ status: 'annulee' }).eq('id', order.id).eq('status', 'en_attente');
           if (orderUpdateError) throw orderUpdateError;
         }
+        const { error: releaseError } = await admin.rpc('release_order_stock_reservation', {
+          p_order_id: order.id,
+        });
+        if (releaseError) throw releaseError;
       }
       return json({ verified: false, status: providerStatus });
     }
@@ -139,6 +143,10 @@ Deno.serve(async (req) => {
       status: 'pending',
     }, { onConflict: 'transaction_id', ignoreDuplicates: true });
     if (splitInsertError) throw splitInsertError;
+    const { error: consumeError } = await admin.rpc('consume_order_stock_reservation', {
+      p_order_id: order.id,
+    });
+    if (consumeError) throw consumeError;
 
     return json({ verified: true, status: 'approved', order_id: order.id });
   } catch (error) {
