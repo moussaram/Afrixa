@@ -60,9 +60,8 @@ BEGIN
       RAISE EXCEPTION 'Group purchases are temporarily unavailable';
     END IF;
     IF NEW.payment_operator IS NULL OR NEW.payment_operator NOT IN (
-      'mtn_open', 'moov', 'sbin', 'mtn_ci', 'moov_tg', 'togocel',
-      'orange-bf', 'moov_bf', 'mtn_open_gn', 'moov_ci', 'wave_ci',
-      'orange_ci', 'wave_sn', 'orange_sn'
+      'mtn_open', 'moov', 'sbin', 'mtn_ci', 'moov_tg',
+      'togocel', 'mtn_open_gn', 'free_sn', 'airtel_ne'
     ) THEN
       RAISE EXCEPTION 'Unsupported payment operator';
     END IF;
@@ -187,9 +186,8 @@ BEGIN
     OR v_key IS NULL OR length(v_key) > 120
     OR length(v_phone) < 8 OR length(v_phone) > 15
     OR p_operator IS NULL OR p_operator NOT IN (
-      'mtn_open', 'moov', 'sbin', 'mtn_ci', 'moov_tg', 'togocel',
-      'orange-bf', 'moov_bf', 'mtn_open_gn', 'moov_ci', 'wave_ci',
-      'orange_ci', 'wave_sn', 'orange_sn'
+      'mtn_open', 'moov', 'sbin', 'mtn_ci', 'moov_tg',
+      'togocel', 'mtn_open_gn', 'free_sn', 'airtel_ne'
     )
     OR length(btrim(coalesce(p_delivery_address, ''))) < 5
     OR length(btrim(coalesce(p_delivery_address, ''))) > 500
