@@ -545,6 +545,168 @@ BEGIN
 END;
 $$;
 
+-- FedaPay refunds are performed manually in its merchant dashboard.
+-- This function only reconciles a refund after the provider's authoritative
+-- transaction status has changed to "refunded"; it never initiates a refund.
+CREATE TABLE IF NOT EXISTS public.payment_refund_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  transaction_id uuid NOT NULL UNIQUE REFERENCES public.payment_transactions(id),
+  order_id uuid NOT NULL REFERENCES public.orders(id),
+  transaction_amount integer NOT NULL CHECK (transaction_amount > 0),
+  refund_amount integer CHECK (refund_amount > 0),
+  status text NOT NULL CHECK (status IN ('recorded', 'manual_reconciliation_required')),
+  provider_response jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.payment_refund_events ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.payment_refund_events FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT ON TABLE public.payment_refund_events TO service_role;
+
+CREATE OR REPLACE FUNCTION public.reconcile_fedapay_refund(
+  p_transaction_id uuid,
+  p_provider_response jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $
+DECLARE
+  v_tx public.payment_transactions%ROWTYPE;
+  v_order public.orders%ROWTYPE;
+  v_existing public.payment_refund_events%ROWTYPE;
+  v_refund_text text;
+  v_refund_amount integer;
+  v_manual boolean;
+  v_provider_status text;
+BEGIN
+  IF coalesce(auth.role(), '') <> 'service_role' THEN
+    RAISE EXCEPTION 'Remboursement reserve au serveur';
+  END IF;
+  IF p_transaction_id IS NULL OR p_provider_response IS NULL THEN
+    RAISE EXCEPTION 'Evenement de remboursement invalide';
+  END IF;
+
+  SELECT * INTO v_tx
+  FROM public.payment_transactions
+  WHERE id = p_transaction_id
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Transaction introuvable'; END IF;
+
+  SELECT * INTO v_order
+  FROM public.orders
+  WHERE id = v_tx.order_id
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Commande introuvable'; END IF;
+
+  SELECT * INTO v_existing
+  FROM public.payment_refund_events
+  WHERE transaction_id = v_tx.id;
+  IF FOUND THEN
+    RETURN jsonb_build_object(
+      'duplicate', true,
+      'status', v_existing.status,
+      'manual_reconciliation_required', v_existing.status = 'manual_reconciliation_required'
+    );
+  END IF;
+
+  v_provider_status := lower(coalesce(
+    p_provider_response #>> '{data,status}',
+    p_provider_response #>> '{transaction,status}',
+    p_provider_response #>> '{v1/transaction,status}',
+    p_provider_response ->> 'status',
+    ''
+  ));
+  IF v_provider_status <> 'refunded' THEN
+    RAISE EXCEPTION 'FedaPay ne confirme pas le remboursement';
+  END IF;
+  IF v_tx.status <> 'successful' THEN
+    RAISE EXCEPTION 'Seul un paiement confirme peut etre rapproche comme rembourse';
+  END IF;
+
+  v_refund_text := coalesce(
+    p_provider_response #>> '{data,refund_amount}',
+    p_provider_response #>> '{data,refunded_amount}',
+    p_provider_response #>> '{transaction,refund_amount}',
+    p_provider_response #>> '{v1/transaction,refund_amount}',
+    p_provider_response ->> 'refund_amount'
+  );
+  IF v_refund_text ~ '^[0-9]+
+REVOKE ALL ON FUNCTION public.fail_order_payment(uuid, text, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.settle_order_payment(uuid, jsonb) TO service_role;
+GRANT EXECUTE ON FUNCTION public.fail_order_payment(uuid, text, jsonb) TO service_role;
+ THEN
+    v_refund_amount := v_refund_text::integer;
+  END IF;
+
+  SELECT
+    coalesce(v_order.escrow_released, false)
+    OR EXISTS (
+      SELECT 1 FROM public.seller_payouts AS payout
+      WHERE payout.order_id = v_order.id
+        AND payout.status IN ('demande', 'processing', 'envoye')
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.commission_splits AS split
+      WHERE split.transaction_id = v_tx.id AND split.status = 'percue'
+    )
+  INTO v_manual;
+
+  v_manual := coalesce(v_manual, false)
+    OR v_refund_amount IS NULL
+    OR v_refund_amount <> v_tx.amount;
+
+  INSERT INTO public.payment_refund_events (
+    transaction_id, order_id, transaction_amount, refund_amount,
+    status, provider_response
+  ) VALUES (
+    v_tx.id, v_order.id, v_tx.amount, v_refund_amount,
+    CASE WHEN v_manual THEN 'manual_reconciliation_required' ELSE 'recorded' END,
+    p_provider_response
+  );
+
+  UPDATE public.payment_transactions
+  SET status = 'refunded',
+      escrow_status = 'refunded',
+      fedapay_response = p_provider_response,
+      updated_at = now()
+  WHERE id = v_tx.id;
+
+  IF v_manual THEN
+    UPDATE public.orders
+    SET dispute_reason = concat_ws(
+      E'\\n',
+      nullif(dispute_reason, ''),
+      'Remboursement FedaPay confirmé : rapprochement manuel vendeur/Afrixa requis.'
+    ),
+    updated_at = now()
+    WHERE id = v_order.id;
+  ELSE
+    UPDATE public.orders
+    SET status = 'remboursee',
+        escrow_released = false,
+        stock_reserved = false,
+        updated_at = now()
+    WHERE id = v_order.id;
+
+    UPDATE public.commission_splits
+    SET status = 'remboursee'
+    WHERE transaction_id = v_tx.id AND status = 'pending';
+  END IF;
+
+  RETURN jsonb_build_object(
+    'duplicate', false,
+    'status', CASE WHEN v_manual THEN 'manual_reconciliation_required' ELSE 'recorded' END,
+    'manual_reconciliation_required', v_manual,
+    'refund_amount', v_refund_amount
+  );
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.reconcile_fedapay_refund(uuid, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reconcile_fedapay_refund(uuid, jsonb) TO service_role;
+
 REVOKE ALL ON FUNCTION public.settle_order_payment(uuid, jsonb) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.fail_order_payment(uuid, text, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.settle_order_payment(uuid, jsonb) TO service_role;
