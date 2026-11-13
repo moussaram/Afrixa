@@ -50,19 +50,19 @@ try {
   const cleanupProduct = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 
   await db.exec('RESET ROLE;');
-  await db.exec(\`
+  await db.exec(`
     INSERT INTO auth.users(id,email) VALUES
-      ('\${buyer}','buyer@afrixa.test'), ('\${seller}','seller@afrixa.test');
+      ('${buyer}','buyer@afrixa.test'), ('${seller}','seller@afrixa.test');
     INSERT INTO public.products(id,seller_id,name,images,price,promo_price,stock,is_active)
       VALUES
-        ('\${variantProduct}','\${seller}','Produit avec variantes',ARRAY['https://cdn.test/variant.jpg'],5000,6000,20,true),
-        ('\${fallbackProduct}','\${seller}','Promo invalide',ARRAY['https://cdn.test/fallback.jpg'],5000,6000,5,true),
-        ('\${groupProduct}','\${seller}','Produit groupe',ARRAY['https://cdn.test/group.jpg'],5000,4000,10,true),
-        ('\${cleanupProduct}','\${seller}','Produit cleanup',ARRAY['https://cdn.test/cleanup.jpg'],3000,NULL,2,true);
-    UPDATE public.products SET is_group_buy=true WHERE id='\${groupProduct}';
+        ('${variantProduct}','${seller}','Produit avec variantes',ARRAY['https://cdn.test/variant.jpg'],5000,6000,20,true),
+        ('${fallbackProduct}','${seller}','Promo invalide',ARRAY['https://cdn.test/fallback.jpg'],5000,6000,5,true),
+        ('${groupProduct}','${seller}','Produit groupe',ARRAY['https://cdn.test/group.jpg'],5000,4000,10,true),
+        ('${cleanupProduct}','${seller}','Produit cleanup',ARRAY['https://cdn.test/cleanup.jpg'],3000,NULL,2,true);
+    UPDATE public.products SET is_group_buy=true WHERE id='${groupProduct}';
     INSERT INTO public.product_variants(id,product_id,name,price,stock)
-      VALUES ('\${variantId}','\${variantProduct}','Taille M',4500,5);
-  \`);
+      VALUES ('${variantId}','${variantProduct}','Taille M',4500,5);
+  `);
 
   await as('authenticated', buyer);
   const variantCheckout = await one(
@@ -77,10 +77,10 @@ try {
   check('La référence FedaPay reste liée à la commande', Boolean(variantCheckout.order_ref && variantOrder?.payment_reference === variantCheckout.order_ref));
 
   await expectError('Un client ne peut pas créer une commande hors checkout sécurisé', () =>
-    db.query(\`INSERT INTO public.orders(
+    db.query(`INSERT INTO public.orders(
       buyer_id,seller_id,product_id,product_name,quantity,unit_price,total_price,
       commission_rate,commission_amount,seller_amount,payment_operator
-    ) VALUES ($1,$2,$3,'commande directe',1,1,1,0,0,1,'mtn_open')\`,[buyer,seller,variantProduct]),
+    ) VALUES ($1,$2,$3,'commande directe',1,1,1,0,0,1,'mtn_open')`,[buyer,seller,variantProduct]),
     /secure checkout/i);
 
   await expectError('Les anciens opérateurs non FedaPay sont refusés', () =>
@@ -139,7 +139,7 @@ try {
     cleaned?.count === 1 && cleanupState?.status === 'annulee'
       && cleanupState?.stock_reservation_status === 'released' && cleanupStock?.stock === 2);
 
-  console.log(\`\\nPhase 4 : \${passed} vérifications réussies, \${failed} échec(s).\`);
+  console.log(`\\nPhase 4 : ${passed} vérifications réussies, ${failed} échec(s).`);
   if (failed > 0) throw new Error('Phase 4 SQL checks failed');
 } catch (error) {
   console.error('PHASE 4 SQL HARNESS ERROR:', error);
