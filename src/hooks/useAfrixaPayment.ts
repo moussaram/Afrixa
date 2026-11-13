@@ -68,7 +68,6 @@ export const useAfrixaPayment = () => {
       const totalPrice = Number(checkout.total_price);
       setOrderId(createdOrderId);
       setOrderRef(createdOrderRef);
-      setCheckoutKey(crypto.randomUUID());
       return { orderId: createdOrderId, orderRef: createdOrderRef, totalPrice };
     } catch (e) {
       setPaymentStatus('failed');
