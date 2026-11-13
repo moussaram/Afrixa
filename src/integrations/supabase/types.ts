@@ -2278,21 +2278,21 @@ export type Database = {
           id: string
           not_interested: string[] | null
           updated_at: string | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           categories?: string[] | null
           id?: string
           not_interested?: string[] | null
           updated_at?: string | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           categories?: string[] | null
           id?: string
           not_interested?: string[] | null
           updated_at?: string | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -2532,22 +2532,22 @@ export type Database = {
           id: string
           last_calculated: string | null
           score: number | null
-          user_id: string | null
-          video_id: string | null
+          user_id: string
+          video_id: string
         }
         Insert: {
           id?: string
           last_calculated?: string | null
           score?: number | null
-          user_id?: string | null
-          video_id?: string | null
+          user_id: string
+          video_id: string
         }
         Update: {
           id?: string
           last_calculated?: string | null
           score?: number | null
-          user_id?: string | null
-          video_id?: string | null
+          user_id?: string
+          video_id?: string
         }
         Relationships: [
           {
