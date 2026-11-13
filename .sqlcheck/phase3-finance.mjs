@@ -149,20 +149,17 @@ try {
       [selfProduct,1,'mtn_open','97000000','Cotonou',null,null,null,'checkout-self']),
     /propre produit/i);
 
-  // A direct authenticated insert is still normalized by the database trigger.
-  const direct = await db.query(`
-    INSERT INTO public.orders(
-      buyer_id,seller_id,product_id,product_name,quantity,unit_price,total_price,
-      commission_rate,commission_amount,seller_amount,payment_operator
-    ) VALUES ($1,$2,$3,'prix falsifié',1,1,1,0,0,1,'moov')
-    RETURNING id
-  `, [buyer, groupSeller, product]);
-  const normalized = await adminOne('SELECT * FROM public.orders WHERE id=$1', [direct.rows[0].id]);
-  check('Le trigger remplace les montants et le vendeur fournis par le client',
-    normalized?.seller_id === seller && normalized?.product_name === 'Produit promo'
-      && normalized?.unit_price === 8000 && normalized?.total_price === 8000
-      && normalized?.commission_amount === 400 && normalized?.seller_amount === 7600
-      && normalized?.payment_reference?.startsWith('AFR-'));
+  await expectError(
+    'Un client ne peut pas créer une commande sans checkout atomique',
+    () => db.query(`
+      INSERT INTO public.orders(
+        buyer_id,seller_id,product_id,product_name,quantity,unit_price,total_price,
+        commission_rate,commission_amount,seller_amount,payment_operator
+      ) VALUES ($1,$2,$3,'prix falsifié',1,1,1,0,0,1,'moov')
+      RETURNING id
+    `, [buyer, groupSeller, product]),
+    /secure checkout/i,
+  );
   await as('authenticated', buyer);
   const roleBeforeUpdate = await one('SELECT auth.role() AS role, auth.uid() AS user_id');
   check('Le test de modification s’exécute avec le rôle acheteur', roleBeforeUpdate.role === 'authenticated' && roleBeforeUpdate.user_id === buyer, JSON.stringify(roleBeforeUpdate));
