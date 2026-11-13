@@ -14,11 +14,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (authUser: User): Promise<void> => {
-    let { data, error } = await supabase
+    const { data: initialData, error } = await supabase
       .from('profiles')
       .select(PROFILE_COLUMNS)
       .eq('user_id', authUser.id)
       .maybeSingle();
+    let data = initialData;
 
     if (error) throw error;
 
