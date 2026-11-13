@@ -28,6 +28,7 @@ serve(async request => {
   const supabase = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any).rpc('cleanup_expired_checkout_reservations', {
     p_older_than: '30 minutes',
   });
