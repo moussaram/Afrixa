@@ -92,6 +92,15 @@ BEGIN
     NEW.payment_reference := 'AFR-' || replace(gen_random_uuid()::text, '-', '');
     NEW.status := 'en_attente';
     NEW.escrow_released := false;
+    IF coalesce(product_row.unlimited_stock, false) THEN
+      NEW.stock_reserved := false;
+    ELSE
+      UPDATE public.products
+      SET stock = coalesce(stock, 0) - NEW.quantity,
+          updated_at = now()
+      WHERE id = product_row.id;
+      NEW.stock_reserved := true;
+    END IF;
     RETURN NEW;
   END IF;
 
@@ -109,7 +118,7 @@ BEGIN
     OR NEW.payment_operator IS DISTINCT FROM OLD.payment_operator
     OR NEW.buyer_phone IS DISTINCT FROM OLD.buyer_phone
     OR NEW.payment_reference IS DISTINCT FROM OLD.payment_reference
-    OR NEW.escrow_released IS DISTINCT FROM OLD.escrow_released THEN
+    OR NEW.escrow_released IS DISTINCT FROM OLD.escrow_released\n    OR NEW.stock_reserved IS DISTINCT FROM OLD.stock_reserved THEN
     RAISE EXCEPTION 'Checkout and escrow fields cannot be changed by a client';
   END IF;
 
@@ -464,9 +473,7 @@ BEGIN
   SET status = 'successful', fedapay_response = p_provider_response, updated_at = now()
   WHERE id = v_tx.id;
 
-  UPDATE public.orders
-  SET status = 'payee', updated_at = now()
-  WHERE id = v_order.id AND status = 'en_attente';
+  UPDATE public.orders\n  SET status = 'payee', stock_reserved = false, updated_at = now()\n  WHERE id = v_order.id AND status = 'en_attente';
 
   v_type := CASE
     WHEN v_order.commission_rate = 0.03 THEN 'group_buy'
@@ -527,9 +534,7 @@ BEGIN
     WHERE id = v_order.product_id;
   END IF;
 
-  UPDATE public.orders
-  SET status = 'annulee', stock_reserved = false, updated_at = now()
-  WHERE id = v_order.id AND status = 'en_attente';
+  UPDATE public.orders\n  SET status = 'annulee', stock_reserved = false, updated_at = now()\n  WHERE id = v_order.id AND status = 'en_attente';
 
   RETURN true;
 END;
