@@ -788,6 +788,95 @@ REVOKE ALL ON FUNCTION public.record_product_sale(uuid) FROM PUBLIC, anon, authe
 GRANT EXECUTE ON FUNCTION public.record_product_sale(uuid) TO service_role;
 
 
+CREATE OR REPLACE FUNCTION public.update_shop_product_with_variant(
+  p_product_id uuid,
+  p_name text,
+  p_description text,
+  p_category text,
+  p_price integer,
+  p_stock integer,
+  p_city text,
+  p_country text,
+  p_images text[],
+  p_variant_id uuid DEFAULT NULL,
+  p_variant_name text DEFAULT NULL,
+  p_variant_price integer DEFAULT NULL,
+  p_variant_stock integer DEFAULT 0
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $update_shop$
+DECLARE
+  v_seller uuid := auth.uid();
+  v_product public.products%ROWTYPE;
+  v_variant public.product_variants%ROWTYPE;
+  v_has_variant boolean := nullif(btrim(coalesce(p_variant_name, '')), '') IS NOT NULL;
+BEGIN
+  IF v_seller IS NULL THEN RAISE EXCEPTION 'Connexion requise'; END IF;
+  IF p_product_id IS NULL
+    OR length(btrim(coalesce(p_name, ''))) < 2 OR length(p_name) > 120
+    OR p_price IS NULL OR p_price <= 0
+    OR p_stock IS NULL OR p_stock < 0
+    OR length(btrim(coalesce(p_category, ''))) = 0
+    OR length(coalesce(p_description, '')) > 3000
+    OR length(coalesce(p_city, '')) > 120
+    OR length(coalesce(p_country, '')) > 120
+    OR coalesce(cardinality(p_images), 0) > 8 THEN
+    RAISE EXCEPTION 'Informations produit invalides';
+  END IF;
+  IF v_has_variant AND (length(btrim(p_variant_name)) > 80
+    OR (p_variant_price IS NOT NULL AND p_variant_price <= 0)
+    OR p_variant_stock IS NULL OR p_variant_stock < 0) THEN
+    RAISE EXCEPTION 'Informations variante invalides';
+  END IF;
+
+  SELECT * INTO v_product FROM public.products
+  WHERE id = p_product_id AND seller_id = v_seller FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Produit introuvable'; END IF;
+
+  IF p_variant_id IS NOT NULL THEN
+    SELECT * INTO v_variant FROM public.product_variants
+    WHERE id = p_variant_id AND product_id = p_product_id FOR UPDATE;
+    IF NOT FOUND OR NOT v_has_variant THEN
+      RAISE EXCEPTION 'Variante introuvable ou nom manquant';
+    END IF;
+  ELSIF EXISTS (SELECT 1 FROM public.product_variants WHERE product_id = p_product_id AND is_active = true)
+    AND NOT v_has_variant THEN
+    RAISE EXCEPTION 'Une variante doit être conservée ou remplacée';
+  END IF;
+
+  UPDATE public.products
+  SET name = btrim(p_name),
+      description = nullif(btrim(coalesce(p_description, '')), ''),
+      category = btrim(p_category),
+      price = p_price,
+      stock = CASE WHEN v_has_variant THEN p_variant_stock ELSE p_stock END,
+      city = nullif(btrim(coalesce(p_city, '')), ''),
+      country = nullif(btrim(coalesce(p_country, '')), ''),
+      images = coalesce(p_images, '{}'::text[])
+  WHERE id = p_product_id AND seller_id = v_seller;
+
+  IF p_variant_id IS NOT NULL THEN
+    UPDATE public.product_variants
+    SET name = btrim(p_variant_name), price = p_variant_price, stock = p_variant_stock
+    WHERE id = p_variant_id AND product_id = p_product_id;
+  ELSIF v_has_variant THEN
+    INSERT INTO public.product_variants(product_id, name, price, stock)
+    VALUES (p_product_id, btrim(p_variant_name), p_variant_price, p_variant_stock);
+  END IF;
+  RETURN true;
+END;
+$update_shop$;
+REVOKE ALL ON FUNCTION public.update_shop_product_with_variant(
+  uuid, text, text, text, integer, integer, text, text, text[], uuid, text, integer, integer
+) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.update_shop_product_with_variant(
+  uuid, text, text, text, integer, integer, text, text, text[], uuid, text, integer, integer
+) TO authenticated;
+
+
 CREATE OR REPLACE FUNCTION public.create_shop_product_with_variant(
   p_name text,
   p_description text,
