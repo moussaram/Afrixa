@@ -8,6 +8,7 @@ export type PaymentStatus = 'idle' | 'processing' | 'success' | 'failed';
 
 export interface InitPaymentData {
   productId?: string;
+  variantId?: string;
   productName: string;
   productImage?: string;
   quantity: number;
@@ -49,6 +50,7 @@ export const useAfrixaPayment = () => {
         {
           p_product_id: data.productId,
           p_quantity: data.quantity,
+          p_variant_id: data.variantId ?? null,
           p_operator: selectedOperator,
           p_phone: buyerPhone,
           p_delivery_address: data.deliveryAddress,
