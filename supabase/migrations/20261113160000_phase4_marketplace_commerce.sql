@@ -706,3 +706,44 @@ AS $$
 $$;
 REVOKE ALL ON FUNCTION public.get_my_shop_stats() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_my_shop_stats() TO authenticated;
+
+
+CREATE OR REPLACE FUNCTION public.cleanup_expired_checkout_reservations(
+  p_older_than interval DEFAULT interval '30 minutes'
+)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_order public.orders%ROWTYPE;
+  v_cleaned integer := 0;
+BEGIN
+  IF coalesce(auth.role(), '') <> 'service_role' THEN RAISE EXCEPTION 'service_role required'; END IF;
+  IF p_older_than < interval '10 minutes' OR p_older_than > interval '7 days' THEN
+    RAISE EXCEPTION 'Invalid checkout expiration interval';
+  END IF;
+
+  FOR v_order IN
+    SELECT o.*
+    FROM public.orders o
+    JOIN public.payment_transactions tx ON tx.order_id = o.id
+    WHERE o.status = 'en_attente'
+      AND o.stock_reservation_status = 'reserved'
+      AND o.created_at < now() - p_older_than
+      AND tx.status IN ('initiated', 'failed', 'cancelled')
+    FOR UPDATE OF o SKIP LOCKED
+  LOOP
+    UPDATE public.payment_transactions
+    SET status = 'failed'
+    WHERE order_id = v_order.id AND status IN ('initiated', 'failed', 'cancelled');
+    UPDATE public.orders SET status = 'annulee' WHERE id = v_order.id AND status = 'en_attente';
+    PERFORM public.release_order_stock_reservation(v_order.id);
+    v_cleaned := v_cleaned + 1;
+  END LOOP;
+  RETURN v_cleaned;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.cleanup_expired_checkout_reservations(interval) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.cleanup_expired_checkout_reservations(interval) TO service_role;
