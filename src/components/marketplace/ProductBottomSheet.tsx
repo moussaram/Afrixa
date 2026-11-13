@@ -32,6 +32,7 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [loadingVariants, setLoadingVariants] = useState(true);
+  const [addingToCart, setAddingToCart] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -59,6 +60,28 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
   if (showPayment) {
     return <AfrixaPayment product={{ ...product, variantId: selectedVariant?.id }} onClose={onClose} />;
   }
+
+  const addToCart = async () => {
+    if (loadingVariants) return;
+    if (variants.length > 0 && !selectedVariant) return toast.error('Choisis une variante.');
+    setAddingToCart(true);
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData.user) throw new Error('Connecte-toi pour utiliser ton panier.');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc('add_cart_item', {
+        p_product_id: product.id,
+        p_quantity: 1,
+        p_variant_id: selectedVariant?.id ?? null,
+      });
+      if (error) throw error;
+      toast.success('Produit ajouté au panier.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Ajout au panier impossible.');
+    } finally {
+      setAddingToCart(false);
+    }
+  };
 
   const displayPrice = selectedVariant?.price ?? product.price;
   const noStock = selectedVariant ? selectedVariant.stock <= 0 : false;
@@ -128,7 +151,15 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
             className="w-full mt-4 py-3 rounded-xl gradient-primary text-primary-foreground font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <ShoppingCart className="w-5 h-5" />
-            Acheter
+            Acheter maintenant
+          </button>
+          <button
+            onClick={() => void addToCart()}
+            disabled={loadingVariants || addingToCart || noStock}
+            className="w-full mt-2 py-3 rounded-xl border border-border/40 text-foreground font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {addingToCart ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+            {addingToCart ? 'Ajout...' : 'Ajouter au panier'}
           </button>
         </div>
       </div>
