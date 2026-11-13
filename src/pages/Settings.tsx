@@ -78,7 +78,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { africanCountries, type AfricanCountry } from '@/data/africanCountries';
-import { disableWebPush, enableWebPush } from '@/lib/firebase/messaging';
+import { disableWebPush, enableWebPush, hasWebPushToken } from '@/lib/firebase/messaging';
 import { getAnalyticsConsent, setAnalyticsConsent } from '@/lib/firebase/analytics';
 import { usePersistedSettings, type BooleanSettings } from '@/hooks/usePersistedSettings';
 
@@ -188,10 +188,13 @@ const Settings = () => {
   useEffect(() => {
     if (!user) { setPushEnabled(false); return; }
     let active = true;
-    (supabase as any).from('user_fcm_tokens').select('id')
-      .eq('user_id', user.id).eq('platform', 'web_fid').limit(1)
-      .then(({ data, error }: { data: unknown[] | null; error: unknown }) => {
-        if (active && !error) setPushEnabled(Boolean(data?.length));
+    void hasWebPushToken(user.id)
+      .then((hasToken) => { if (active) setPushEnabled(hasToken); })
+      .catch((error: unknown) => {
+        if (active) {
+          console.error('Unable to read push notification status', error);
+          setPushEnabled(false);
+        }
       });
     return () => { active = false; };
   }, [user]);
