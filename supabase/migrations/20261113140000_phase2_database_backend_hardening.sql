@@ -89,6 +89,79 @@ CREATE INDEX IF NOT EXISTS comments_parent_created_idx
 CREATE INDEX IF NOT EXISTS comment_likes_user_comment_idx
   ON public.comment_likes (user_id, comment_id);
 
+-- Complete the foreign-key index gaps reported by the Supabase performance
+-- advisor. Existing primary/composite indexes are intentionally not duplicated.
+DO $
+DECLARE
+  index_spec text[];
+BEGIN
+  FOREACH index_spec SLICE 1 IN ARRAY ARRAY[
+    ARRAY['ad_impressions', 'campaign_id'],
+    ARRAY['ad_impressions', 'user_id'],
+    ARRAY['challenge_submissions', 'challenge_id'],
+    ARRAY['challenge_submissions', 'user_id'],
+    ARRAY['challenge_submissions', 'video_id'],
+    ARRAY['coin_purchases', 'user_id'],
+    ARRAY['coin_transactions', 'user_id'],
+    ARRAY['collab_requests', 'receiver_id'],
+    ARRAY['collab_requests', 'sender_id'],
+    ARRAY['collab_requests', 'video_id'],
+    ARRAY['collab_videos', 'creator_1'],
+    ARRAY['collab_videos', 'creator_2'],
+    ARRAY['collab_videos', 'video_id'],
+    ARRAY['comment_mentions', 'comment_id'],
+    ARRAY['comment_mentions', 'mentioned_user_id'],
+    ARRAY['comments', 'user_id'],
+    ARRAY['commissions', 'order_id'],
+    ARRAY['content_reports', 'reporter_id'],
+    ARRAY['content_reports', 'reviewed_by'],
+    ARRAY['conversations', 'last_sender_id'],
+    ARRAY['conversations', 'participant_2'],
+    ARRAY['creator_earnings', 'video_id'],
+    ARRAY['disputes', 'order_id'],
+    ARRAY['fan_club_memberships', 'fan_club_id'],
+    ARRAY['fan_club_memberships', 'user_id'],
+    ARRAY['gift_transactions', 'gift_id'],
+    ARRAY['gift_transactions', 'receiver_id'],
+    ARRAY['gift_transactions', 'sender_id'],
+    ARRAY['live_sessions', 'pinned_product_id'],
+    ARRAY['live_sessions', 'replay_video_id'],
+    ARRAY['messages', 'product_id'],
+    ARRAY['messages', 'sender_id'],
+    ARRAY['moderation_actions', 'admin_id'],
+    ARRAY['notifications', 'order_id'],
+    ARRAY['order_timeline', 'order_id'],
+    ARRAY['reviews', 'order_id'],
+    ARRAY['seller_payouts', 'order_id'],
+    ARRAY['series_episodes', 'series_id'],
+    ARRAY['series_episodes', 'video_id'],
+    ARRAY['series_subscriptions', 'user_id'],
+    ARRAY['sounds', 'creator_id'],
+    ARRAY['spotlights', 'user_id'],
+    ARRAY['spotlights', 'video_id'],
+    ARRAY['story_views', 'viewer_id'],
+    ARRAY['typing_indicators', 'user_id'],
+    ARRAY['user_blocks', 'blocked_id'],
+    ARRAY['video_analytics', 'video_id'],
+    ARRAY['video_comments', 'parent_id'],
+    ARRAY['video_comments', 'user_id'],
+    ARRAY['video_likes', 'user_id'],
+    ARRAY['video_saves', 'user_id'],
+    ARRAY['video_watch_history', 'video_id'],
+    ARRAY['videos', 'series_id'],
+    ARRAY['videos', 'sound_id']
+  ]
+  LOOP
+    EXECUTE format(
+      'CREATE INDEX IF NOT EXISTS %I ON public.%I (%I)',
+      index_spec[1] || '_' || index_spec[2] || '_idx',
+      index_spec[1],
+      index_spec[2]
+    );
+  END LOOP;
+END;
+$;
+
 -- Both existing indexes cover the same messages lookup; keep the DESC index
 -- used by conversation history queries.
 DROP INDEX IF EXISTS public.idx_messages_conversation_id;
