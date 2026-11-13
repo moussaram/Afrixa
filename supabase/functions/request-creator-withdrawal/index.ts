@@ -52,6 +52,7 @@ Deno.serve(async (req) => {
   if (!authorization) return json({ error: 'unauthorized' }, 401);
 
   let payoutId: string | null = null;
+  let providerRequestStarted = false;
 
   try {
     const userClient = createClient(supabaseUrl, anonKey, {
@@ -122,11 +123,26 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (payoutError) throw payoutError;
     if (!payout) throw new Error('Reserved payout not found');
-    if (payout.fedapay_transfer_id) {
-      return json({ success: true, pending: true, status: 'processing', payout_id: payout.id });
+    if (payout.fedapay_transfer_id || payout.status !== 'demande') {
+      return json({ success: true, pending: true, status: payout.status, payout_id: payout.id }, 202);
     }
 
-    const reference = payout.payout_reference ?? `AFR-WD-${payout.id.replaceAll('-', '')}`;
+    // Claim the local payout before contacting FedaPay. A retry with the same
+    // idempotency key must never create a second provider transfer.
+    const { data: claimed, error: claimError } = await admin.from('seller_payouts')
+      .update({ status: 'creating' })
+      .eq('id', payout.id)
+      .eq('status', 'demande')
+      .is('fedapay_transfer_id', null)
+      .select('id, amount, payout_reference')
+      .maybeSingle();
+    if (claimError) throw claimError;
+    if (!claimed) {
+      return json({ success: true, pending: true, status: 'processing', payout_id: payout.id }, 202);
+    }
+
+    const reference = claimed.payout_reference ?? `AFR-WD-${claimed.id.replaceAll('-', '')}`;
+    providerRequestStarted = true;
     const providerResponse = await fedapayRequest('/payouts', {
       method: 'POST',
       body: JSON.stringify({
@@ -148,10 +164,12 @@ Deno.serve(async (req) => {
     });
     const providerPayout = getFedaPayEntity(providerResponse);
     const transferId = String(providerPayout?.id ?? '');
-    if (!/^\d{1,32}$/.test(transferId) || Number(providerPayout?.amount) !== Number(payout.amount)) {
-      console.error('FedaPay returned an invalid creator payout', { payoutId: payout.id });
-      await admin.rpc('fail_creator_withdrawal', { p_payout_id: payout.id, p_reason: 'invalid_provider_response' });
-      return json({ error: 'payout_status_unknown' }, 202);
+    if (!/^\d{1,32}$/.test(transferId) || Number(providerPayout?.amount) !== Number(claimed.amount)) {
+      console.error('FedaPay returned an invalid creator payout; manual reconciliation required', { payoutId: payout.id });
+      await admin.from('seller_payouts')
+        .update({ status: 'processing', fedapay_response: { reconciliation_required: true } })
+        .eq('id', payout.id);
+      return json({ success: true, pending: true, status: 'processing', payout_id: payout.id }, 202);
     }
 
     const { error: saveError } = await admin.from('seller_payouts').update({
@@ -179,6 +197,15 @@ Deno.serve(async (req) => {
       const admin = createClient(supabaseUrl, serviceRole, {
         auth: { persistSession: false, autoRefreshToken: false },
       });
+      if (providerRequestStarted) {
+        // The provider may have accepted the transfer even if its response was
+        // lost. Keep funds reserved and require reconciliation; never refund
+        // automatically after an ambiguous external request.
+        await admin.from('seller_payouts')
+          .update({ status: 'processing', fedapay_response: { reconciliation_required: true } })
+          .eq('id', payoutId);
+        return json({ success: true, pending: true, status: 'processing', payout_id: payoutId }, 202);
+      }
       await admin.rpc('fail_creator_withdrawal', { p_payout_id: payoutId, p_reason: 'payout_processing_failed' })
         .then(({ error: failError }) => {
           if (failError) console.error('Unable to refund failed withdrawal', failError);
