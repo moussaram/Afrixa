@@ -170,6 +170,10 @@ DROP INDEX IF EXISTS public.idx_messages_conversation_id;
 -- video lookups, so the standalone index is redundant.
 DROP INDEX IF EXISTS public.idx_videos_user_id;
 
+-- Remove identical indexes identified by the Supabase performance advisor.
+DROP INDEX IF EXISTS public.idx_notifications_user_id;
+DROP INDEX IF EXISTS public.idx_products_seller_id;
+
 -- ---------------------------------------------------------------------------
 -- PERF-01 / PERF-02: calculate scores in set-based video batches.
 -- The browser/Edge Function no longer builds a users x videos array in memory,
