@@ -37,24 +37,19 @@ const operatorsByCountry: Record<string, Array<{ id: string; name: string; emoji
   ],
   CI: [
     { id: 'mtn_ci', name: 'MTN MoMo', emoji: '🟡', bg: 'bg-yellow-500/10', border: 'border-yellow-500' },
-    { id: 'moov_ci', name: 'Moov Money', emoji: '🔵', bg: 'bg-blue-700/10', border: 'border-blue-700' },
-    { id: 'wave_ci', name: 'Wave', emoji: '🔵', bg: 'bg-blue-500/10', border: 'border-blue-500' },
-    { id: 'orange_ci', name: 'Orange Money', emoji: '🟠', bg: 'bg-orange-500/10', border: 'border-orange-500' },
   ],
   TG: [
     { id: 'moov_tg', name: 'Moov Money', emoji: '🔵', bg: 'bg-blue-700/10', border: 'border-blue-700' },
     { id: 'togocel', name: 'TMoney', emoji: '🔴', bg: 'bg-red-500/10', border: 'border-red-500' },
   ],
-  BF: [
-    { id: 'orange-bf', name: 'Orange Money', emoji: '🟠', bg: 'bg-orange-500/10', border: 'border-orange-500' },
-    { id: 'moov_bf', name: 'Moov Money', emoji: '🔵', bg: 'bg-blue-700/10', border: 'border-blue-700' },
-  ],
   GN: [
     { id: 'mtn_open_gn', name: 'MTN MoMo', emoji: '🟡', bg: 'bg-yellow-500/10', border: 'border-yellow-500' },
   ],
   SN: [
-    { id: 'wave_sn', name: 'Wave', emoji: '🔵', bg: 'bg-blue-500/10', border: 'border-blue-500' },
-    { id: 'orange_sn', name: 'Orange Money', emoji: '🟠', bg: 'bg-orange-500/10', border: 'border-orange-500' },
+    { id: 'free_sn', name: 'Free Money', emoji: '🟢', bg: 'bg-green-500/10', border: 'border-green-500' },
+  ],
+  NE: [
+    { id: 'airtel_ne', name: 'Airtel Money', emoji: '🔴', bg: 'bg-red-500/10', border: 'border-red-500' },
   ],
 };
 
@@ -271,8 +266,9 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
           {/* STEP 2 */}
           {step === 2 && (
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground mb-2">Choisir votre opérateur Mobile Money ({country})</p>
-              {operators.length === 0 && <p className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-300">Aucun opérateur FedaPay configuré pour ce pays. Vérifiez le pays de votre compte.</p>}
+              <p className="text-sm text-muted-foreground mb-2">Choisir l’opérateur lié à votre numéro ({country})</p>
+              {operators.length === 0 && <p className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-300">Aucun opérateur Mobile Money FedaPay documenté pour ce pays dans Afrixa. Vérifiez le pays de votre compte.</p>}
+              <p className="text-xs text-muted-foreground">FedaPay confirmera les moyens de paiement disponibles sur sa page sécurisée.</p>
               {operators.map(op => (
                 <button key={op.id} onClick={() => setOperator(op.id)}
                   className={cn('w-full p-4 rounded-2xl border-2 text-left transition-all flex items-center gap-3',
