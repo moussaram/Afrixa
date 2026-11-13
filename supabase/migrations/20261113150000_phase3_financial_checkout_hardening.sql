@@ -53,7 +53,7 @@ BEGIN
   IF p_product_id IS NULL OR p_quantity IS NULL OR p_quantity < 1 OR p_quantity > 50
     OR v_key IS NULL OR length(v_key) > 120
     OR length(v_phone) < 8 OR length(v_phone) > 15
-    OR p_operator NOT IN ('orange_money', 'wave', 'mtn', 'moov')
+    OR p_operator IS NULL OR p_operator NOT IN ('orange_money', 'wave', 'mtn', 'moov')
     OR length(btrim(coalesce(p_delivery_address, ''))) < 5
     OR length(coalesce(p_buyer_note, '')) > 1000 THEN
     RAISE EXCEPTION 'Parametres de commande invalides';
