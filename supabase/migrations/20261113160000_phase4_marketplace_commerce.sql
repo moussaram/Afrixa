@@ -604,6 +604,9 @@ BEGIN
   IF v_order.stock_reservation_status = 'consumed' THEN
     RETURN jsonb_build_object('consumed', true, 'duplicate', true);
   END IF;
+  IF v_order.stock_reservation_status = 'none' THEN
+    RETURN jsonb_build_object('consumed', false, 'legacy_order', true);
+  END IF;
   IF v_order.stock_reservation_status <> 'reserved' THEN
     RAISE EXCEPTION 'Reservation de stock indisponible';
   END IF;
