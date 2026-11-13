@@ -1378,6 +1378,10 @@ export type Database = {
           total_price: number
           unit_price: number
           updated_at: string
+          variant_id: string | null
+          variant_name: string | null
+          stock_reservation_status: string
+          sales_count_recorded_at: string | null
         }
         Insert: {
           auto_confirm_date?: string | null
@@ -1405,6 +1409,10 @@ export type Database = {
           total_price: number
           unit_price: number
           updated_at?: string
+          variant_id?: string | null
+          variant_name?: string | null
+          stock_reservation_status?: string
+          sales_count_recorded_at?: string | null
         }
         Update: {
           auto_confirm_date?: string | null
@@ -1432,6 +1440,10 @@ export type Database = {
           total_price?: number
           unit_price?: number
           updated_at?: string
+          variant_id?: string | null
+          variant_name?: string | null
+          stock_reservation_status?: string
+          sales_count_recorded_at?: string | null
         }
         Relationships: []
       }
