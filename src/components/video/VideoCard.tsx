@@ -380,7 +380,7 @@ export const VideoCard = ({
               )}
             </div>
             {/* Inline follow button */}
-            {video.user.id !== user?.id && (
+            {user?.id && video.user.id !== user.id && (
               <button
                 onClick={toggleFollow}
                 className={cn(
