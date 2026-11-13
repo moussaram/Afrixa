@@ -22,6 +22,21 @@ BEGIN
       'Phase 2 migration stopped: legacy video_comments contains content longer than the canonical 500-character limit';
   END IF;
 
+  IF EXISTS (
+    SELECT 1
+    FROM public.video_comments AS legacy
+    JOIN public.comments AS current ON current.id = legacy.id
+    WHERE current.video_id IS DISTINCT FROM legacy.video_id
+       OR current.user_id IS DISTINCT FROM legacy.user_id
+       OR current.parent_id IS DISTINCT FROM legacy.parent_id
+       OR current.content IS DISTINCT FROM legacy.content
+       OR current.is_deleted IS DISTINCT FROM legacy.is_deleted
+       OR current.created_at IS DISTINCT FROM legacy.created_at
+  ) THEN
+    RAISE EXCEPTION
+      'Phase 2 migration stopped: a legacy comment ID conflicts with different canonical comment data';
+  END IF;
+
   INSERT INTO public.comments (
     id, video_id, user_id, parent_id, content, is_deleted, created_at
   )
