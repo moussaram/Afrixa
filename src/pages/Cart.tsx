@@ -71,7 +71,7 @@ export default function Cart() {
       if (sellersError) throw sellersError;
 
       const productMap = new Map((products ?? []).map(product => [product.id, product]));
-      const variantMap = new Map((variants ?? []).map((variant: { id: string }) => [variant.id, variant]));
+      const variantMap = new Map((variants ?? []).map((variant: { id: string; name: string; price: number | null; stock: number; is_active: boolean }) => [variant.id, variant]));
       const sellerMap = new Map((sellers ?? []).map(seller => [seller.user_id, seller]));
       setItems(rows.flatMap((row: { id: string; product_id: string; variant_id: string | null; quantity: number }) => {
         const product = productMap.get(row.product_id);
