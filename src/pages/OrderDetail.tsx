@@ -1,338 +1,334 @@
-import { useState } from 'react';
-import { ArrowLeft, MessageCircle, Check, X, Star, AlertTriangle } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { ArrowLeft, Check, Package, AlertTriangle, Star, Loader2, MessageCircle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/useAuth';
 
 type OrderStatus = 'en_attente' | 'payee' | 'en_preparation' | 'expediee' | 'livree' | 'terminee' | 'litige' | 'annulee';
+type OrderRecord = {
+  id: string;
+  buyer_id: string;
+  seller_id: string;
+  product_name: string;
+  product_image: string | null;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  payment_operator: string | null;
+  buyer_phone: string | null;
+  delivery_address: string | null;
+  buyer_note: string | null;
+  payment_reference: string | null;
+  status: OrderStatus;
+  created_at: string;
+};
+type TimelineEntry = { id: string; status: string; message: string | null; created_at: string };
+type DisputeRecord = { id: string; status: string; reason: string; buyer_evidence: string | null; seller_evidence: string | null };
 
 const statusConfig: Record<OrderStatus, { label: string; color: string; emoji: string }> = {
-  en_attente: { label: 'En attente', color: 'text-[#F59E0B]', emoji: '🟡' },
-  payee: { label: 'Payée', color: 'text-[#3B82F6]', emoji: '🔵' },
-  en_preparation: { label: 'En préparation', color: 'text-[#3B82F6]', emoji: '🔵' },
-  expediee: { label: 'Expédiée', color: 'text-[#7C3AED]', emoji: '🟣' },
-  livree: { label: 'Livrée', color: 'text-[#34D399]', emoji: '🟢' },
-  terminee: { label: 'Terminée', color: 'text-[#10B981]', emoji: '✅' },
-  litige: { label: 'Litige', color: 'text-[#EF4444]', emoji: '🔴' },
-  annulee: { label: 'Annulée', color: 'text-[#6B7280]', emoji: '⚫' },
+  en_attente: { label: 'En attente de paiement', color: 'text-amber-400', emoji: '🟡' },
+  payee: { label: 'Payée', color: 'text-blue-400', emoji: '🔵' },
+  en_preparation: { label: 'En préparation', color: 'text-blue-400', emoji: '🔵' },
+  expediee: { label: 'Expédiée', color: 'text-violet-400', emoji: '🟣' },
+  livree: { label: 'Livrée', color: 'text-emerald-400', emoji: '🟢' },
+  terminee: { label: 'Terminée', color: 'text-emerald-400', emoji: '✅' },
+  litige: { label: 'Litige ouvert', color: 'text-red-400', emoji: '🔴' },
+  annulee: { label: 'Annulée', color: 'text-muted-foreground', emoji: '⚫' },
 };
-
-const allSteps: OrderStatus[] = ['en_attente', 'payee', 'en_preparation', 'expediee', 'livree', 'terminee'];
-
-const mockOrder = {
-  id: '1',
-  orderNumber: '#AFR-847291',
-  productName: 'Robe Wax Ankara Premium',
-  productImage: 'https://images.unsplash.com/photo-1590735213920-68192a487bc2?w=400&h=500&fit=crop',
-  sellerName: '@afrifashion',
-  sellerAvatar: 'https://i.pravatar.cc/100?img=1',
-  quantity: 1,
-  unitPrice: 15000,
-  totalPrice: 15000,
-  currency: 'FCFA',
-  paymentOperator: 'Orange Money',
-  paymentReference: 'TXN-OM-20240115-8472',
-  buyerPhone: '07XXXXXXXX',
-  deliveryAddress: 'Cocody, Abidjan, Côte d\'Ivoire',
-  deliveryMethod: 'yango' as 'yango' | 'pickup',
-  sellerAddress: 'Boutique AfriFashion, Plateau, Abidjan',
-  buyerNote: 'Taille M s\'il vous plaît',
-  status: 'expediee' as OrderStatus,
-  createdAt: '2024-01-15T10:30:00Z',
-  timeline: [
-    { status: 'en_attente', message: 'Commande créée', date: '15 Jan 2024 · 10:30' },
-    { status: 'payee', message: 'Paiement confirmé', date: '15 Jan 2024 · 10:31' },
-    { status: 'en_preparation', message: 'Le vendeur prépare votre commande', date: '15 Jan 2024 · 14:00' },
-    { status: 'expediee', message: 'Commande expédiée', date: '16 Jan 2024 · 09:00' },
-  ],
-};
+const progressStatuses: OrderStatus[] = ['en_attente', 'payee', 'en_preparation', 'expediee', 'livree', 'terminee'];
 
 const OrderDetail = () => {
   const navigate = useNavigate();
   const { orderId } = useParams();
-  const [order, setOrder] = useState(mockOrder);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showDisputeModal, setShowDisputeModal] = useState(false);
-  const [showReviewModal, setShowReviewModal] = useState(false);
+  const { user } = useAuth();
+  const [order, setOrder] = useState<OrderRecord | null>(null);
+  const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
+  const [dispute, setDispute] = useState<DisputeRecord | null>(null);
+  const [sellerName, setSellerName] = useState('Vendeur Afrixa');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [disputeReason, setDisputeReason] = useState('');
-  const [disputeDesc, setDisputeDesc] = useState('');
+  const [disputeDescription, setDisputeDescription] = useState('');
+  const [disputeEvidence, setDisputeEvidence] = useState('');
+  const [sellerResponse, setSellerResponse] = useState('');
+  const [sellerEvidence, setSellerEvidence] = useState('');
   const [rating, setRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
 
-  const currentStepIdx = allSteps.indexOf(order.status);
+  const loadOrder = useCallback(async () => {
+    if (!orderId || !user?.id) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: orderData, error: orderError } = await (supabase as any).from('orders')
+        .select('id, buyer_id, seller_id, product_name, product_image, quantity, unit_price, total_price, payment_operator, buyer_phone, delivery_address, buyer_note, payment_reference, status, created_at')
+        .eq('id', orderId)
+        .maybeSingle();
+      if (orderError) throw orderError;
+      if (!orderData || (orderData.buyer_id !== user.id && orderData.seller_id !== user.id)) {
+        throw new Error('Commande introuvable ou accès refusé.');
+      }
+      setOrder(orderData as OrderRecord);
 
-  const handleConfirmReceived = () => {
-    setOrder(prev => ({ ...prev, status: 'livree' }));
-    setShowConfirmModal(false);
-    toast.success('Réception confirmée ! Merci 🎉');
-    setTimeout(() => setShowReviewModal(true), 500);
+      const [{ data: timelineRows, error: timelineError }, { data: disputeRows, error: disputeError }, { data: sellerProfile, error: sellerError }] = await Promise.all([
+        supabase.from('order_timeline').select('id, status, message, created_at').eq('order_id', orderId).order('created_at', { ascending: true }),
+        supabase.from('disputes').select('id, status, reason, buyer_evidence, seller_evidence').eq('order_id', orderId).order('created_at', { ascending: false }).limit(1),
+        supabase.from('public_profiles').select('user_id, username, prenom, nom').eq('user_id', orderData.seller_id).maybeSingle(),
+      ]);
+      if (timelineError) throw timelineError;
+      if (disputeError) throw disputeError;
+      if (sellerError) throw sellerError;
+      setTimeline((timelineRows ?? []) as TimelineEntry[]);
+      setDispute((disputeRows?.[0] ?? null) as DisputeRecord | null);
+      setSellerName(sellerProfile?.username || [sellerProfile?.prenom, sellerProfile?.nom].filter(Boolean).join(' ') || 'Vendeur Afrixa');
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Impossible de charger cette commande.');
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId, user?.id]);
+
+  useEffect(() => { void loadOrder(); }, [loadOrder]);
+
+  const confirmReceived = async () => {
+    if (!orderId) return;
+    setBusy(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: actionError } = await (supabase as any).rpc('confirm_order_received', { p_order_id: orderId });
+      if (actionError) throw actionError;
+      toast.success('Réception enregistrée. Le séquestre reste protégé jusqu’au règlement autorisé.');
+      await loadOrder();
+    } catch (actionError) {
+      toast.error(actionError instanceof Error ? actionError.message : 'Confirmation impossible.');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleDispute = () => {
-    if (!disputeReason) return toast.error('Choisissez une raison');
-    setOrder(prev => ({ ...prev, status: 'litige' }));
-    setShowDisputeModal(false);
-    toast.success('Litige ouvert. Notre équipe vous contactera sous 24h.');
+  const updateSellerStatus = async (nextStatus: 'en_preparation' | 'expediee') => {
+    if (!orderId || !user?.id) return;
+    setBusy(true);
+    try {
+      const { error: actionError } = await supabase.from('orders')
+        .update({ status: nextStatus })
+        .eq('id', orderId)
+        .eq('seller_id', user.id);
+      if (actionError) throw actionError;
+      toast.success(nextStatus === 'en_preparation' ? 'Commande mise en préparation.' : 'Commande marquée comme expédiée.');
+      await loadOrder();
+    } catch (actionError) {
+      toast.error(actionError instanceof Error ? actionError.message : 'Mise à jour impossible.');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleReview = () => {
-    if (rating === 0) return toast.error('Sélectionnez une note');
-    setShowReviewModal(false);
-    toast.success('Merci pour votre avis ! ⭐');
+  const openDispute = async () => {
+    if (!orderId || !disputeReason) return toast.error('Choisis le motif du litige.');
+    setBusy(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: actionError } = await (supabase as any).rpc('open_order_dispute', {
+        p_order_id: orderId,
+        p_reason: disputeReason,
+        p_description: disputeDescription,
+        p_evidence_url: disputeEvidence || null,
+      });
+      if (actionError) throw actionError;
+      toast.success('Litige enregistré. Les échanges seront conservés dans son historique.');
+      setDisputeDescription('');
+      setDisputeEvidence('');
+      await loadOrder();
+    } catch (actionError) {
+      toast.error(actionError instanceof Error ? actionError.message : 'Impossible d’ouvrir le litige.');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const sc = statusConfig[order.status];
+  const respondToDispute = async () => {
+    if (!dispute || !sellerResponse.trim()) return toast.error('Ajoute une réponse.');
+    setBusy(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: actionError } = await (supabase as any).rpc('add_order_dispute_response', {
+        p_dispute_id: dispute.id,
+        p_message: sellerResponse,
+        p_evidence_url: sellerEvidence || null,
+      });
+      if (actionError) throw actionError;
+      toast.success('Réponse du vendeur enregistrée.');
+      setSellerResponse('');
+      setSellerEvidence('');
+      await loadOrder();
+    } catch (actionError) {
+      toast.error(actionError instanceof Error ? actionError.message : 'Réponse impossible.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitReview = async () => {
+    if (!order || rating < 1) return toast.error('Sélectionne une note.');
+    setBusy(true);
+    try {
+      const { error: reviewError } = await supabase.from('reviews').insert({
+        order_id: order.id,
+        buyer_id: order.buyer_id,
+        seller_id: order.seller_id,
+        rating,
+        comment: reviewComment.trim() || null,
+      });
+      if (reviewError) throw reviewError;
+      toast.success('Avis publié.');
+      setReviewComment('');
+    } catch (reviewError) {
+      toast.error(reviewError instanceof Error ? reviewError.message : 'Avis impossible à publier.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;
+  if (error || !order) return (
+    <div className="min-h-screen bg-background p-6">
+      <button onClick={() => navigate(-1)} className="mb-6"><ArrowLeft className="w-6 h-6" /></button>
+      <p className="text-sm text-destructive">{error ?? 'Commande introuvable.'}</p>
+    </div>
+  );
+
+  const isBuyer = user?.id === order.buyer_id;
+  const isSeller = user?.id === order.seller_id;
+  const currentStep = progressStatuses.indexOf(order.status);
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pb-20">
+    <div className="min-h-screen bg-background pb-20">
       <header className="sticky top-0 z-40 glass border-b border-border/30">
         <div className="flex items-center gap-3 px-4 py-4">
-          <button onClick={() => navigate(-1)} className="p-1">
-            <ArrowLeft className="w-6 h-6 text-foreground" />
-          </button>
+          <button onClick={() => navigate(-1)} className="p-1" aria-label="Retour"><ArrowLeft className="w-6 h-6 text-foreground" /></button>
           <div className="flex-1">
-            <h1 className="text-sm font-bold text-foreground">{order.orderNumber}</h1>
-            <p className={cn('text-xs font-semibold', sc.color)}>{sc.emoji} {sc.label}</p>
+            <h1 className="text-sm font-bold text-foreground">Commande {order.id.slice(0, 8).toUpperCase()}</h1>
+            <p className={cn('text-xs font-semibold', statusConfig[order.status].color)}>{statusConfig[order.status].emoji} {statusConfig[order.status].label}</p>
           </div>
+          <button onClick={() => void loadOrder()} className="text-xs text-primary">Actualiser</button>
         </div>
       </header>
 
       <div className="px-4 py-4 space-y-4">
-        {/* Timeline */}
-        <div className="p-4 rounded-2xl bg-[#1A1A2E] border border-border/20">
+        <section className="p-4 rounded-2xl bg-card border border-border/20">
           <h3 className="text-sm font-semibold text-foreground mb-4">Suivi de commande</h3>
-          <div className="space-y-0">
-            {allSteps.map((step, i) => {
-              const isPast = i <= currentStepIdx;
-              const isCurrent = i === currentStepIdx;
-              const timelineEntry = order.timeline.find(t => t.status === step);
-              const stepLabel = statusConfig[step];
+          <div className="space-y-3">
+            {progressStatuses.map((step, index) => {
+              const reached = currentStep >= 0 && index <= currentStep;
               return (
                 <div key={step} className="flex gap-3">
                   <div className="flex flex-col items-center">
-                    <div className={cn(
-                      'w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-all',
-                      isPast ? 'bg-[#7C3AED]' : 'border-2 border-muted bg-transparent'
-                    )}>
-                      {isPast && <Check className="w-3 h-3 text-white" />}
+                    <div className={cn('w-6 h-6 rounded-full flex items-center justify-center', reached ? 'bg-primary' : 'border border-muted')}>
+                      {reached && <Check className="w-3 h-3 text-primary-foreground" />}
                     </div>
-                    {i < allSteps.length - 1 && (
-                      <div className={cn('w-0.5 h-8', isPast ? 'bg-[#7C3AED]' : 'bg-muted')} />
-                    )}
+                    {index < progressStatuses.length - 1 && <div className={cn('w-0.5 h-5', reached ? 'bg-primary' : 'bg-muted')} />}
                   </div>
-                  <div className="pb-6">
-                    <p className={cn('text-sm font-medium', isPast ? 'text-foreground' : 'text-muted-foreground')}>
-                      {stepLabel.label}
-                    </p>
-                    {timelineEntry && (
-                      <p className="text-xs text-muted-foreground">{timelineEntry.date}</p>
-                    )}
-                    {isCurrent && !isPast && (
-                      <p className="text-xs text-muted-foreground italic">En attente</p>
-                    )}
+                  <div className="pb-2">
+                    <p className={cn('text-sm', reached ? 'text-foreground' : 'text-muted-foreground')}>{statusConfig[step].label}</p>
+                    {timeline.filter(item => item.status === step).map(item => (
+                      <p key={item.id} className="text-xs text-muted-foreground">{item.message} · {new Date(item.created_at).toLocaleString('fr-FR')}</p>
+                    ))}
                   </div>
                 </div>
               );
             })}
           </div>
-        </div>
+          {order.status === 'litige' && <p className="mt-2 text-sm text-red-400">Cette commande est en litige.</p>}
+        </section>
 
-        {/* Product */}
-        <div className="p-4 rounded-2xl bg-[#1A1A2E] border border-border/20">
+        <section className="p-4 rounded-2xl bg-card border border-border/20">
           <h3 className="text-sm font-semibold text-foreground mb-3">Produit</h3>
           <div className="flex gap-3">
-            <img loading="lazy" src={order.productImage} alt={order.productName} className="w-16 h-16 rounded-xl object-cover" />
-            <div>
-              <p className="text-sm font-semibold text-foreground">{order.productName}</p>
-              <p className="text-xs text-muted-foreground">Qté: {order.quantity}</p>
-              <p className="text-sm font-bold text-primary mt-1">{order.totalPrice.toLocaleString()} {order.currency}</p>
+            {order.product_image ? <img src={order.product_image} alt={order.product_name} className="w-20 h-20 rounded-xl object-cover" /> : <div className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center"><Package /></div>}
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-foreground">{order.product_name}</p>
+              <p className="text-xs text-muted-foreground">Quantité : {order.quantity}</p>
+              <p className="text-sm font-bold text-primary mt-2">{order.total_price.toLocaleString('fr-FR')} FCFA</p>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Seller */}
-        <div className="p-4 rounded-2xl bg-[#1A1A2E] border border-border/20">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Vendeur</h3>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img loading="lazy" src={order.sellerAvatar} alt="" className="w-10 h-10 rounded-full" />
-              <span className="text-sm font-medium text-foreground">{order.sellerName}</span>
-            </div>
-            <button className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-semibold flex items-center gap-1">
-              <MessageCircle className="w-3 h-3" /> Contacter
-            </button>
+        <section className="p-4 rounded-2xl bg-card border border-border/20 space-y-2">
+          <h3 className="text-sm font-semibold text-foreground mb-2">Détails</h3>
+          <div className="flex justify-between text-xs"><span className="text-muted-foreground">{isBuyer ? 'Vendeur' : 'Acheteur'}</span><span className="text-foreground">{isBuyer ? sellerName : 'Client Afrixa'}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-muted-foreground">Paiement</span><span className="text-foreground">{order.payment_operator ?? 'Non renseigné'}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-muted-foreground">Référence</span><span className="text-foreground font-mono">{order.payment_reference ?? '—'}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-muted-foreground">Adresse</span><span className="text-foreground text-right max-w-[65%]">{order.delivery_address ?? 'Non renseignée'}</span></div>
+          {order.buyer_note && <p className="text-xs text-muted-foreground">Note : {order.buyer_note}</p>}
+        </section>
+
+        {isSeller && order.status === 'payee' && (
+          <button disabled={busy} onClick={() => void updateSellerStatus('en_preparation')} className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">Démarrer la préparation</button>
+        )}
+        {isSeller && order.status === 'en_preparation' && (
+          <button disabled={busy} onClick={() => void updateSellerStatus('expediee')} className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">Marquer comme expédiée</button>
+        )}
+        {isBuyer && order.status === 'expediee' && (
+          <div className="space-y-2">
+            <button disabled={busy} onClick={() => void confirmReceived()} className="w-full py-3 rounded-xl bg-emerald-500 text-white text-sm font-semibold disabled:opacity-50">J’ai reçu ma commande</button>
+            <p className="text-xs text-muted-foreground">La confirmation est enregistrée côté serveur. Le séquestre n’est pas libéré automatiquement sans validation du versement.</p>
           </div>
-        </div>
+        )}
+        {isBuyer && ['payee', 'en_preparation', 'expediee', 'livree'].includes(order.status) && !dispute && (
+          <section className="p-4 rounded-2xl border border-red-500/20 bg-red-500/5 space-y-3">
+            <div className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-red-400" /><h3 className="text-sm font-semibold text-foreground">Signaler un problème</h3></div>
+            <select value={disputeReason} onChange={event => setDisputeReason(event.target.value)} className="w-full rounded-xl bg-background border border-border p-3 text-sm text-foreground">
+              <option value="">Choisir un motif</option>
+              <option value="Colis non reçu">Colis non reçu</option>
+              <option value="Produit endommagé">Produit endommagé</option>
+              <option value="Produit différent">Produit différent de la commande</option>
+              <option value="Autre">Autre</option>
+            </select>
+            <textarea value={disputeDescription} onChange={event => setDisputeDescription(event.target.value)} placeholder="Décris le problème..." className="w-full rounded-xl bg-background border border-border p-3 text-sm text-foreground min-h-20" />
+            <input value={disputeEvidence} onChange={event => setDisputeEvidence(event.target.value)} placeholder="Lien vers une preuve (facultatif)" className="w-full rounded-xl bg-background border border-border p-3 text-sm text-foreground" />
+            <button disabled={busy} onClick={() => void openDispute()} className="w-full py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold disabled:opacity-50">Ouvrir un litige</button>
+          </section>
+        )}
 
-        {/* Delivery & Payment */}
-        <div className="p-4 rounded-2xl bg-[#1A1A2E] border border-border/20 space-y-2">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-foreground">Détails</h3>
-            {order.deliveryMethod === 'yango' && (
-              <span className="px-2 py-0.5 rounded-full bg-[#FF6B00] text-[10px] font-bold text-white">
-                🛵 Yango
-              </span>
+        {dispute && (
+          <section className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 space-y-3">
+            <h3 className="text-sm font-semibold text-foreground">Litige · {dispute.status}</h3>
+            <p className="text-xs text-muted-foreground">Motif : {dispute.reason}</p>
+            {dispute.buyer_evidence && <p className="text-xs text-muted-foreground">Éléments acheteur : {dispute.buyer_evidence}</p>}
+            {dispute.seller_evidence && <p className="text-xs text-muted-foreground">Réponse vendeur : {dispute.seller_evidence}</p>}
+            {isSeller && !['resolu', 'rejete', 'ferme'].includes(dispute.status) && (
+              <>
+                <textarea value={sellerResponse} onChange={event => setSellerResponse(event.target.value)} placeholder="Répondre au litige..." className="w-full rounded-xl bg-background border border-border p-3 text-sm text-foreground min-h-20" />
+                <input value={sellerEvidence} onChange={event => setSellerEvidence(event.target.value)} placeholder="Lien vers une preuve (facultatif)" className="w-full rounded-xl bg-background border border-border p-3 text-sm text-foreground" />
+                <button disabled={busy} onClick={() => void respondToDispute()} className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">Envoyer la réponse</button>
+              </>
             )}
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Livraison</span>
-            <span className="text-foreground">
-              {order.deliveryMethod === 'yango' ? '🛵 Yango Livraison' : '🤝 Retrait en main propre'}
-            </span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Adresse</span>
-            <span className="text-foreground text-right max-w-[60%]">{order.deliveryAddress}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Paiement</span>
-            <span className="text-foreground">{order.paymentOperator}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Référence</span>
-            <span className="text-foreground font-mono">{order.paymentReference}</span>
-          </div>
-          {order.deliveryMethod === 'yango' && (
-            <a
-              href={`https://ya.cc/maps/?rtext=${encodeURIComponent(order.sellerAddress)}~${encodeURIComponent(order.deliveryAddress)}&rtt=auto`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 w-full py-2.5 rounded-xl bg-[#FF6B00] text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#ff7a1a] transition-colors"
-            >
-              🛵 Ouvrir Yango
-            </a>
-          )}
-        </div>
-
-        {/* Escrow info */}
-        {['payee', 'en_preparation', 'expediee'].includes(order.status) && (
-          <div className="p-4 rounded-2xl bg-[#0c1a2e] border border-[#3B82F6]/30">
-            <p className="text-xs text-[#3B82F6]">
-              🔒 Votre argent est sécurisé. Il sera versé au vendeur après votre confirmation de réception.
-            </p>
-          </div>
+          </section>
         )}
 
-        {/* Action buttons */}
-        {order.status === 'expediee' && (
-          <div className="space-y-3">
-            <button
-              onClick={() => setShowConfirmModal(true)}
-              className="w-full py-3 rounded-xl bg-emerald-500 text-white font-semibold text-sm"
-            >
-              ✅ J'ai reçu ma commande
-            </button>
-            <button
-              onClick={() => setShowDisputeModal(true)}
-              className="w-full py-3 rounded-xl bg-[#EF4444]/10 text-[#EF4444] font-semibold text-sm border border-[#EF4444]/20"
-            >
-              ❌ Je n'ai pas reçu
-            </button>
-          </div>
-        )}
-
-        {order.status === 'livree' && (
-          <button
-            onClick={() => setShowReviewModal(true)}
-            className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm"
-          >
-            ⭐ Laisser un avis
-          </button>
+        {isBuyer && ['livree', 'terminee'].includes(order.status) && (
+          <section className="p-4 rounded-2xl bg-card border border-border/20 space-y-3">
+            <h3 className="text-sm font-semibold text-foreground">Évaluer le vendeur</h3>
+            <div className="flex gap-2 justify-center">
+              {[1, 2, 3, 4, 5].map(value => (
+                <button key={value} onClick={() => setRating(value)} aria-label={`Note ${value}`}>
+                  <Star className={cn('w-7 h-7', value <= rating ? 'text-amber-400 fill-amber-400' : 'text-muted')} />
+                </button>
+              ))}
+            </div>
+            <textarea value={reviewComment} onChange={event => setReviewComment(event.target.value)} placeholder="Ton avis (facultatif)..." className="w-full rounded-xl bg-background border border-border p-3 text-sm text-foreground min-h-20" />
+            <button disabled={busy || rating === 0} onClick={() => void submitReview()} className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">Publier mon avis</button>
+          </section>
         )}
       </div>
-
-      {/* Confirm received modal */}
-      {showConfirmModal && (
-        <>
-          <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setShowConfirmModal(false)} />
-          <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 bg-[#1A1A2E] rounded-2xl p-6 space-y-4">
-            <h3 className="text-lg font-bold text-foreground text-center">Confirmer la réception</h3>
-            <p className="text-sm text-muted-foreground text-center">
-              Confirmez-vous avoir reçu votre commande en bon état ?
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-3 rounded-xl bg-muted text-foreground font-semibold text-sm">
-                Annuler
-              </button>
-              <button onClick={handleConfirmReceived} className="flex-1 py-3 rounded-xl bg-emerald-500 text-white font-semibold text-sm">
-                Oui, confirmer
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Dispute modal */}
-      {showDisputeModal && (
-        <>
-          <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setShowDisputeModal(false)} />
-          <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 bg-[#1A1A2E] rounded-2xl p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-[#EF4444]" />
-              <h3 className="text-lg font-bold text-foreground">Ouvrir un litige</h3>
-            </div>
-            <div className="space-y-2">
-              {['Colis non reçu', 'Produit endommagé', 'Produit différent', 'Autre'].map(r => (
-                <button
-                  key={r}
-                  onClick={() => setDisputeReason(r)}
-                  className={cn(
-                    'w-full p-3 rounded-xl border text-left text-sm transition-all',
-                    disputeReason === r ? 'border-[#EF4444] bg-[#EF4444]/5 text-foreground' : 'border-border/20 text-muted-foreground'
-                  )}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-            <textarea
-              placeholder="Décrivez le problème..."
-              value={disputeDesc}
-              onChange={e => setDisputeDesc(e.target.value)}
-              className="w-full p-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground placeholder:text-muted-foreground text-sm min-h-[80px] resize-none"
-            />
-            <button
-              onClick={handleDispute}
-              className="w-full py-3 rounded-xl bg-[#EF4444] text-white font-semibold text-sm"
-            >
-              Ouvrir un litige
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* Review modal */}
-      {showReviewModal && (
-        <>
-          <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setShowReviewModal(false)} />
-          <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 bg-[#1A1A2E] rounded-2xl p-6 space-y-4">
-            <h3 className="text-lg font-bold text-foreground text-center">Comment s'est passée votre commande ?</h3>
-            <div className="flex gap-3 p-3 rounded-xl bg-[#0A0A0F]">
-              <img loading="lazy" src={order.productImage} alt="" className="w-12 h-12 rounded-lg object-cover" />
-              <div>
-                <p className="text-sm font-semibold text-foreground">{order.productName}</p>
-                <p className="text-xs text-muted-foreground">{order.sellerName}</p>
-              </div>
-            </div>
-            <div className="flex justify-center gap-2">
-              {[1, 2, 3, 4, 5].map(s => (
-                <button key={s} onClick={() => setRating(s)}>
-                  <Star className={cn('w-8 h-8 transition-all', s <= rating ? 'text-[#F59E0B] fill-[#F59E0B]' : 'text-muted')} />
-                </button>
-              ))}
-            </div>
-            <textarea
-              placeholder="Partagez votre expérience..."
-              value={reviewComment}
-              onChange={e => setReviewComment(e.target.value)}
-              className="w-full p-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground placeholder:text-muted-foreground text-sm min-h-[80px] resize-none"
-            />
-            <button onClick={handleReview} className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm">
-              Publier l'avis
-            </button>
-          </div>
-        </>
-      )}
     </div>
   );
 };
