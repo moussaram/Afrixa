@@ -187,6 +187,10 @@ try {
   await expectError('Un deuxième retrait est bloqué tant que le premier est en cours', () =>
     db.query('SELECT public.request_my_withdrawal($1,$2,$3,$4)', [5000,'mtn_open','97000000','withdrawal-key-2']),
     /deja en cours/i);
+  await adminOne("UPDATE public.seller_payouts SET status='creating' WHERE id=$1", [withdrawal.payout_id]);
+  await expectError('Un retrait en cours de création bloque une seconde demande', () =>
+    db.query('SELECT public.request_my_withdrawal($1,$2,$3,$4)', [5000,'mtn_open','97000000','withdrawal-key-3']),
+    /deja en cours/i);
 
   for (const result of results) {
     console.log(`${result.ok ? 'PASS' : 'FAIL'}  ${result.name}${result.ok || !result.detail ? '' : ` -> ${result.detail}`}`);
