@@ -178,7 +178,9 @@ BEGIN
   IF NOT FOUND OR v_payment.escrow_status <> 'held' THEN
     RAISE EXCEPTION 'Paiement vérifié ou séquestre indisponible';
   END IF;
+  PERFORM set_config('afrixa.order_status_writer', 'on', true);
   UPDATE public.orders SET status = 'livree' WHERE id = p_order_id;
+  PERFORM set_config('afrixa.order_status_writer', 'off', true);
   RETURN jsonb_build_object('success', true, 'duplicate', false, 'status', 'livree', 'escrow_status', 'held');
 END;
 $$;
@@ -232,7 +234,9 @@ BEGIN
   INSERT INTO public.dispute_events (dispute_id, actor_id, event_type, message, evidence_url)
   VALUES (v_dispute.id, v_user, 'opened', nullif(btrim(coalesce(p_description, '')), ''), nullif(btrim(coalesce(p_evidence_url, '')), ''));
 
+  PERFORM set_config('afrixa.order_status_writer', 'on', true);
   UPDATE public.orders SET status = 'litige', dispute_reason = btrim(p_reason) WHERE id = p_order_id;
+  PERFORM set_config('afrixa.order_status_writer', 'off', true);
   RETURN jsonb_build_object('success', true, 'duplicate', false, 'dispute_id', v_dispute.id);
 END;
 $$;
@@ -414,17 +418,31 @@ BEGIN
     OR NEW.payment_operator IS DISTINCT FROM OLD.payment_operator
     OR NEW.buyer_phone IS DISTINCT FROM OLD.buyer_phone
     OR NEW.payment_reference IS DISTINCT FROM OLD.payment_reference
+    OR NEW.delivery_address IS DISTINCT FROM OLD.delivery_address
+    OR NEW.delivery_lat IS DISTINCT FROM OLD.delivery_lat
+    OR NEW.delivery_lng IS DISTINCT FROM OLD.delivery_lng
+    OR NEW.buyer_note IS DISTINCT FROM OLD.buyer_note
+    OR NEW.created_at IS DISTINCT FROM OLD.created_at
+    OR NEW.updated_at IS DISTINCT FROM OLD.updated_at
+    OR NEW.auto_confirm_date IS DISTINCT FROM OLD.auto_confirm_date
+    OR NEW.id IS DISTINCT FROM OLD.id
+    OR (NEW.dispute_reason IS DISTINCT FROM OLD.dispute_reason
+      AND NOT (auth.uid() = OLD.buyer_id
+        AND NEW.status = 'litige'
+        AND current_setting('afrixa.order_status_writer', true) = 'on'))
     OR NEW.escrow_released IS DISTINCT FROM OLD.escrow_released THEN
     RAISE EXCEPTION 'Checkout, inventory and escrow fields cannot be changed by a client';
   END IF;
 
   IF NEW.status IS DISTINCT FROM OLD.status THEN
-    IF auth.uid() = OLD.buyer_id AND NEW.status = 'livree' AND OLD.status = 'expediee' THEN RETURN NEW; END IF;
+    IF auth.uid() = OLD.buyer_id AND NEW.status = 'livree' AND OLD.status = 'expediee'
+      AND current_setting('afrixa.order_status_writer', true) = 'on' THEN RETURN NEW; END IF;
     IF auth.uid() = OLD.seller_id
       AND ((OLD.status = 'payee' AND NEW.status = 'en_preparation')
         OR (OLD.status = 'en_preparation' AND NEW.status = 'expediee')) THEN RETURN NEW; END IF;
     IF auth.uid() = OLD.buyer_id AND NEW.status = 'litige'
-      AND OLD.status IN ('payee', 'en_preparation', 'expediee', 'livree') THEN RETURN NEW; END IF;
+      AND OLD.status IN ('payee', 'en_preparation', 'expediee', 'livree')
+      AND current_setting('afrixa.order_status_writer', true) = 'on' THEN RETURN NEW; END IF;
     RAISE EXCEPTION 'This order status transition must be performed through the authorized flow';
   END IF;
   RETURN NEW;
