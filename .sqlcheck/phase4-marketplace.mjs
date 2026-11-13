@@ -147,10 +147,21 @@ try {
   const sale2 = await one('SELECT public.record_product_sale($1) AS result',[variantCheckout.order_id]);
   const saleCount = await adminOne('SELECT sales_count FROM public.products WHERE id=$1',[variantProduct]);
   check('Les ventes produits sont comptées une seule fois', sale1?.result?.duplicate === false && sale2?.result?.duplicate === true && saleCount?.sales_count === 2);
+  await db.query("UPDATE public.orders SET status='expediee' WHERE id=$1",[variantCheckout.order_id]);
 
-  await db.exec('RESET ROLE;');
-  await db.query("UPDATE public.orders SET status='livree' WHERE id=$1",[variantCheckout.order_id]);
   await as('authenticated', buyer);
+  await expectError('Un acheteur ne peut pas modifier directement son adresse de livraison', () =>
+    db.query("UPDATE public.orders SET delivery_address='Adresse falsifiée' WHERE id=$1",[variantCheckout.order_id]),
+    /cannot be changed by a client/i);
+  await expectError('Un acheteur ne peut pas antidater sa commande', () =>
+    db.query("UPDATE public.orders SET created_at=now()-interval '2 hours' WHERE id=$1",[variantCheckout.order_id]),
+    /cannot be changed by a client/i);
+  await expectError('La confirmation de livraison doit passer par le RPC', () =>
+    db.query("UPDATE public.orders SET status='livree' WHERE id=$1",[variantCheckout.order_id]),
+    /authorized flow/i);
+  const confirmation = await one('SELECT public.confirm_order_received($1) AS result',[variantCheckout.order_id]);
+  check('Le RPC confirme la livraison après paiement vérifié', confirmation?.result?.success === true);
+
   await db.query(
     'INSERT INTO public.reviews(order_id,buyer_id,seller_id,rating,comment) VALUES ($1,$2,$3,5,$4)',
     [variantCheckout.order_id,buyer,seller,'Très bon produit'],
@@ -166,9 +177,8 @@ try {
     'SELECT public.create_order_payment_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) AS result',
     [cleanupProduct,1,'mtn_open','97000000','Cotonou, Bénin',null,null,null,null,'cleanup-key'],
   ).then(row => row.result);
-  await db.exec('RESET ROLE;');
-  await db.query("UPDATE public.orders SET created_at=now()-interval '2 hours' WHERE id=$1",[cleanupCheckout.order_id]);
   await as('service_role');
+  await db.query("UPDATE public.orders SET created_at=now()-interval '2 hours' WHERE id=$1",[cleanupCheckout.order_id]);
   const cleaned = await one("SELECT public.cleanup_expired_checkout_reservations(interval '30 minutes') AS count");
   const cleanupState = await adminOne('SELECT status,stock_reservation_status FROM public.orders WHERE id=$1',[cleanupCheckout.order_id]);
   const cleanupStock = await adminOne('SELECT stock FROM public.products WHERE id=$1',[cleanupProduct]);
