@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
       const providerResponse = await fedapayRequest(`/transactions/${encodeURIComponent(objectId)}`);
       const payment = getFedaPayEntity(providerResponse);
       const { data: order, error: orderError } = await admin.from('orders')
-        .select('id, buyer_id, seller_id, product_id, variant_id, total_price, commission_rate, status')
+        .select('id, buyer_id, seller_id, product_id, variant_id, quantity, total_price, commission_rate, status')
         .eq('id', tx.order_id)
         .maybeSingle();
       if (orderError) throw orderError;
@@ -174,6 +174,10 @@ Deno.serve(async (req) => {
           p_order_id: order.id,
         });
         if (stockConsumeError) throw stockConsumeError;
+        const { error: saleError } = await (admin as any).rpc('record_product_sale', {
+          p_order_id: order.id,
+        });
+        if (saleError) throw saleError;
         if (order.product_id) {
           let cartCleanup = admin.from('cart_items').delete()
             .eq('buyer_id', order.buyer_id)
