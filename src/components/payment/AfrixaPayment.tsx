@@ -29,12 +29,34 @@ interface AfrixaPaymentProps {
   commissionType?: CommissionType;
 }
 
-const operators = [
-  { id: 'orange_money', name: 'Orange Money', emoji: '🟠', bg: 'bg-orange-500/10', border: 'border-orange-500' },
-  { id: 'wave', name: 'Wave', emoji: '🔵', bg: 'bg-blue-500/10', border: 'border-blue-500' },
-  { id: 'mtn', name: 'MTN MoMo', emoji: '🟡', bg: 'bg-yellow-500/10', border: 'border-yellow-500' },
-  { id: 'moov', name: 'Moov Money', emoji: '🔵', bg: 'bg-blue-700/10', border: 'border-blue-700' },
-];
+const operatorsByCountry: Record<string, Array<{ id: string; name: string; emoji: string; bg: string; border: string }>> = {
+  BJ: [
+    { id: 'mtn_open', name: 'MTN MoMo', emoji: '🟡', bg: 'bg-yellow-500/10', border: 'border-yellow-500' },
+    { id: 'moov', name: 'Moov Money', emoji: '🔵', bg: 'bg-blue-700/10', border: 'border-blue-700' },
+    { id: 'sbin', name: 'Celtiis Cash', emoji: '🟣', bg: 'bg-violet-500/10', border: 'border-violet-500' },
+  ],
+  CI: [
+    { id: 'mtn_ci', name: 'MTN MoMo', emoji: '🟡', bg: 'bg-yellow-500/10', border: 'border-yellow-500' },
+    { id: 'moov_ci', name: 'Moov Money', emoji: '🔵', bg: 'bg-blue-700/10', border: 'border-blue-700' },
+    { id: 'wave_ci', name: 'Wave', emoji: '🔵', bg: 'bg-blue-500/10', border: 'border-blue-500' },
+    { id: 'orange_ci', name: 'Orange Money', emoji: '🟠', bg: 'bg-orange-500/10', border: 'border-orange-500' },
+  ],
+  TG: [
+    { id: 'moov_tg', name: 'Moov Money', emoji: '🔵', bg: 'bg-blue-700/10', border: 'border-blue-700' },
+    { id: 'togocel', name: 'TMoney', emoji: '🔴', bg: 'bg-red-500/10', border: 'border-red-500' },
+  ],
+  BF: [
+    { id: 'orange-bf', name: 'Orange Money', emoji: '🟠', bg: 'bg-orange-500/10', border: 'border-orange-500' },
+    { id: 'moov_bf', name: 'Moov Money', emoji: '🔵', bg: 'bg-blue-700/10', border: 'border-blue-700' },
+  ],
+  GN: [
+    { id: 'mtn_open_gn', name: 'MTN MoMo', emoji: '🟡', bg: 'bg-yellow-500/10', border: 'border-yellow-500' },
+  ],
+  SN: [
+    { id: 'wave_sn', name: 'Wave', emoji: '🔵', bg: 'bg-blue-500/10', border: 'border-blue-500' },
+    { id: 'orange_sn', name: 'Orange Money', emoji: '🟠', bg: 'bg-orange-500/10', border: 'border-orange-500' },
+  ],
+};
 
 export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 'normale' }: AfrixaPaymentProps) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -49,6 +71,8 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
   const [processing, setProcessing] = useState(false);
   const [checkoutKey] = useState(() => crypto.randomUUID());
   const [buyerEmail, setBuyerEmail] = useState('');
+  const [country, setCountry] = useState('BJ');
+  const operators = operatorsByCountry[country] ?? [];
 
   const unit = customPrice ?? product.price;
   const total = unit * quantity;
@@ -63,6 +87,10 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
         if (!active) return;
         if (error || !data.user) throw new Error('Session utilisateur indisponible');
         setBuyerEmail(data.user.email ?? '');
+        const metadataCountry = data.user.user_metadata?.country;
+        setCountry(typeof metadataCountry === 'string' && /^[A-Za-z]{2}$/.test(metadataCountry)
+          ? metadataCountry.toUpperCase()
+          : 'BJ');
       })
       .catch(() => {
         if (active) toast.error('Connectez-vous pour poursuivre le paiement');
@@ -102,7 +130,7 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) throw new Error('Connectez-vous pour effectuer le paiement');
-      if (!product.id || !product.sellerId) {
+      if (!product.id) {
         throw new Error('Les informations du produit ou du vendeur sont indisponibles');
       }
       if (user.email && buyerEmail && user.email !== buyerEmail) {
@@ -243,7 +271,8 @@ export const AfrixaPayment = ({ product, onClose, customPrice, commissionType = 
           {/* STEP 2 */}
           {step === 2 && (
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground mb-2">Choisir votre opérateur Mobile Money</p>
+              <p className="text-sm text-muted-foreground mb-2">Choisir votre opérateur Mobile Money ({country})</p>
+              {operators.length === 0 && <p className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-300">Aucun opérateur FedaPay configuré pour ce pays. Vérifiez le pays de votre compte.</p>}
               {operators.map(op => (
                 <button key={op.id} onClick={() => setOperator(op.id)}
                   className={cn('w-full p-4 rounded-2xl border-2 text-left transition-all flex items-center gap-3',
