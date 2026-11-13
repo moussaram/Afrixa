@@ -79,7 +79,7 @@ export function useLiveChat(
     let profiles: ChatProfile[] = [];
     if (authorIds.length > 0) {
       const { data: profileRows } = await client
-        .from('profiles')
+        .from('public_profiles')
         .select('user_id,username,prenom,nom,avatar_url')
         .in('user_id', authorIds);
       profiles = (profileRows ?? []) as ChatProfile[];
