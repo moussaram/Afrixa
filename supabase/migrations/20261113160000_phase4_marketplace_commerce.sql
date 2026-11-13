@@ -719,7 +719,7 @@ CREATE OR REPLACE FUNCTION public.protect_product_sales_count()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = ''
-AS $
+AS $phase4$
 BEGIN
   IF coalesce(auth.role(), '') <> 'service_role'
     AND NEW.sales_count IS DISTINCT FROM OLD.sales_count THEN
@@ -727,7 +727,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$phase4$;
 DROP TRIGGER IF EXISTS protect_product_sales_count_before_update ON public.products;
 CREATE TRIGGER protect_product_sales_count_before_update
 BEFORE UPDATE OF sales_count ON public.products
@@ -740,7 +740,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $
+AS $phase4$
 DECLARE
   v_order public.orders%ROWTYPE;
   v_payment_exists boolean;
@@ -770,7 +770,7 @@ BEGIN
   UPDATE public.orders SET sales_count_recorded_at = now() WHERE id = p_order_id;
   RETURN jsonb_build_object('recorded', true, 'duplicate', false);
 END;
-$;
+$phase4$;
 REVOKE ALL ON FUNCTION public.record_product_sale(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.record_product_sale(uuid) TO service_role;
 
@@ -781,7 +781,7 @@ LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = ''
-AS $
+AS $phase4$
 BEGIN
   IF p_product_ids IS NULL OR cardinality(p_product_ids) > 100 THEN
     RAISE EXCEPTION 'Liste de produits invalide';
@@ -794,7 +794,7 @@ BEGIN
     AND order_row.status IN ('livree', 'terminee')
   GROUP BY order_row.product_id;
 END;
-$;
+$phase4$;
 REVOKE ALL ON FUNCTION public.get_product_rating_summary(uuid[]) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_product_rating_summary(uuid[]) TO anon, authenticated;
 
