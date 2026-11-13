@@ -1,3 +1,6 @@
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS auto_confirm_date timestamptz;
+
 ALTER TABLE public.products
   ADD COLUMN IF NOT EXISTS description text,
   ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'Autre',
