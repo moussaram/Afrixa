@@ -78,6 +78,23 @@ try {
     db.query('SELECT public.create_shop_product_with_variant($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
       ['Produit invalide',null,'Mode',7000,0,null,null,[],'Rouge',null,-1]),
     /Informations variante invalides/i);
+  const sellerVariantId = await adminOne('SELECT id FROM public.product_variants WHERE product_id=$1',[sellerProduct.id]);
+  await one(
+    'SELECT public.update_shop_product_with_variant($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)',
+    [sellerProduct.id,'Boutique atomique modifiée','Produit test','Mode',7500,6,'Cotonou','Bénin',
+      ['https://cdn.test/new.jpg'],sellerVariantId.id,'Bleu clair',7500,6],
+  );
+  const updatedShopProduct = await adminOne('SELECT name,stock FROM public.products WHERE id=$1',[sellerProduct.id]);
+  const updatedShopVariant = await adminOne('SELECT name,price,stock FROM public.product_variants WHERE id=$1',[sellerVariantId.id]);
+  check('Le vendeur peut modifier son produit et sa variante atomiquement',
+    updatedShopProduct?.name === 'Boutique atomique modifiée' && updatedShopProduct?.stock === 6
+      && updatedShopVariant?.name === 'Bleu clair' && updatedShopVariant?.price === 7500 && updatedShopVariant?.stock === 6);
+
+  await as('authenticated', buyer);
+  await expectError('Un autre utilisateur ne peut pas modifier la boutique', () =>
+    db.query('SELECT public.update_shop_product_with_variant($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)',
+      [sellerProduct.id,'Intrusion',null,'Mode',1,1,null,null,[],sellerVariantId.id,'Bleu',1,1]),
+    /Produit introuvable/i);
 
   await as('authenticated', buyer);
   const variantCheckout = await one(
