@@ -38,7 +38,6 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
   const [buyerNote, setBuyerNote] = useState('');
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('yango');
   const [yangoAddress, setYangoAddress] = useState('');
@@ -64,7 +63,6 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
     // Ce composant est encore alimenté par des offres groupées de démonstration
     // (identifiants produits non persistés). Ne jamais simuler un débit réussi.
     setPaymentError('Les achats groupés ne sont pas encore reliés à une commande réelle. Aucun paiement n’a été effectué.');
-    setIsProcessing(false);
     setStep(4);
   };
 
@@ -87,7 +85,7 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
               {step === 1.5 && 'Mode de livraison'}
               {step === 2 && 'Moyen de paiement'}
               {step === 3 && 'Récapitulatif final'}
-              {step === 4 && (isProcessing ? 'Traitement...' : 'Commande confirmée')}
+              {step === 4 && 'Paiement non disponible'}
             </h3>
           </div>
           <button onClick={onClose} className="p-1 rounded-full hover:bg-muted">
