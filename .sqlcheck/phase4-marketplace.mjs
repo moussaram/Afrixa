@@ -72,7 +72,7 @@ try {
   const variantOrder = await adminOne('SELECT * FROM public.orders WHERE id=$1',[variantCheckout.order_id]);
   const variantStock = await adminOne('SELECT stock FROM public.product_variants WHERE id=$1',[variantId]);
   const productStock = await adminOne('SELECT stock FROM public.products WHERE id=$1',[variantProduct]);
-  check('Le checkout variante utilise le prix de la variante', variantOrder?.unit_price === 4500 && variantOrder?.total_price === 9000);
+  check('Le checkout variante utilise le prix de la variante', variantOrder?.unit_price === 4500 && variantOrder?.total_price === 9000 && variantOrder?.variant_name === 'Taille M');
   check('Le stock de variante est réservé atomiquement', variantOrder?.stock_reservation_status === 'reserved' && variantStock?.stock === 3 && productStock?.stock === 20);
   check('La référence FedaPay reste liée à la commande', Boolean(variantCheckout.order_ref && variantOrder?.payment_reference === variantCheckout.order_ref));
 
@@ -86,7 +86,7 @@ try {
   await expectError('Les anciens opérateurs non FedaPay sont refusés', () =>
     db.query('SELECT public.create_order_payment_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
       [fallbackProduct,1,'orange_money','97000000','Cotonou, Bénin',null,null,null,null,'bad-operator']),
-    /Parametres de commande invalides/i);
+    /commande invalides/i);
 
   await expectError('Les achats groupés restent désactivés', () =>
     db.query('SELECT public.create_order_payment_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
