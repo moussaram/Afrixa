@@ -98,16 +98,18 @@ AS $$
       (
         p_privacy = 'public'
         AND (
-          auth.uid() IS NULL
-          OR NOT EXISTS (
+          NOT EXISTS (
             SELECT 1 FROM public.profiles AS creator
             WHERE creator.user_id = p_creator_id
               AND COALESCE(creator.is_private, false) = true
           )
-          OR EXISTS (
+          OR (
+            auth.uid() IS NOT NULL
+            AND EXISTS (
             SELECT 1 FROM public.follows AS follow
-            WHERE follow.follower_id = auth.uid()
-              AND follow.following_id = p_creator_id
+              WHERE follow.follower_id = auth.uid()
+                AND follow.following_id = p_creator_id
+            )
           )
         )
       )
