@@ -147,6 +147,10 @@ Deno.serve(async (req) => {
       p_order_id: order.id,
     });
     if (consumeError) throw consumeError;
+    const { error: saleError } = await admin.rpc('record_product_sale', {
+      p_order_id: order.id,
+    });
+    if (saleError) throw saleError;
     if (order.product_id) {
       let cartCleanup = admin.from('cart_items').delete()
         .eq('buyer_id', order.buyer_id)
