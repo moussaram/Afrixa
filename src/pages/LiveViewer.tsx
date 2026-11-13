@@ -85,7 +85,7 @@ export default function LiveViewer() {
       setCommentsEnabled(session.comments_enabled !== false);
 
       const { data: profile } = await client
-        .from('profiles')
+        .from('public_profiles')
         .select('username, prenom, nom')
         .eq('user_id', session.host_id)
         .maybeSingle();
@@ -113,7 +113,7 @@ export default function LiveViewer() {
           if (!row) return;
           const gift = coins.gifts.find((entry) => entry.id === row.gift_id);
           const { data: sender } = await client
-            .from('profiles')
+            .from('public_profiles')
             .select('username')
             .eq('user_id', row.sender_id)
             .maybeSingle();

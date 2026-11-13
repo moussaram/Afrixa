@@ -89,7 +89,7 @@ export function useNotifications() {
     let actors: ActorProfile[] = [];
     if (actorIds.length > 0) {
       const { data: profiles } = await client
-        .from('profiles')
+        .from('public_profiles')
         .select('user_id,username,prenom,nom,avatar_url')
         .in('user_id', actorIds);
       actors = (profiles ?? []) as ActorProfile[];
