@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
 
     const { data: order, error: orderError } = await admin
       .from('orders')
-      .select('id, buyer_id, total_price, commission_rate, status')
+      .select('id, buyer_id, product_id, variant_id, total_price, commission_rate, status')
       .eq('id', tx.order_id)
       .maybeSingle();
     if (orderError) throw orderError;
@@ -147,6 +147,16 @@ Deno.serve(async (req) => {
       p_order_id: order.id,
     });
     if (consumeError) throw consumeError;
+    if (order.product_id) {
+      let cartCleanup = admin.from('cart_items').delete()
+        .eq('buyer_id', order.buyer_id)
+        .eq('product_id', order.product_id);
+      cartCleanup = order.variant_id
+        ? cartCleanup.eq('variant_id', order.variant_id)
+        : cartCleanup.is('variant_id', null);
+      const { error: cartCleanupError } = await cartCleanup;
+      if (cartCleanupError) throw cartCleanupError;
+    }
 
     return json({ verified: true, status: 'approved', order_id: order.id });
   } catch (error) {
