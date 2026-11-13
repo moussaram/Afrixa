@@ -22,7 +22,8 @@ CREATE TABLE public.products (
   stock integer DEFAULT 0,
   unlimited_stock boolean DEFAULT false,
   is_group_buy boolean DEFAULT false,
-  is_active boolean DEFAULT true
+  is_active boolean DEFAULT true,
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE public.orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -44,6 +45,8 @@ CREATE TABLE public.orders (
   status text NOT NULL DEFAULT 'en_attente',
   payment_reference text,
   escrow_released boolean NOT NULL DEFAULT false,
+  stock_reserved boolean NOT NULL DEFAULT false,
+  updated_at timestamptz NOT NULL DEFAULT now(),
   delivery_lat double precision,
   delivery_lng double precision,
   created_at timestamptz NOT NULL DEFAULT now()
@@ -63,6 +66,7 @@ CREATE TABLE public.payment_transactions (
   buyer_phone text,
   status text NOT NULL DEFAULT 'initiated',
   escrow_status text NOT NULL DEFAULT 'held',
+  updated_at timestamptz NOT NULL DEFAULT now(),
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE public.commission_splits (
