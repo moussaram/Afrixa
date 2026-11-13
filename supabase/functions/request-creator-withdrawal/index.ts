@@ -89,11 +89,19 @@ Deno.serve(async (req) => {
     payoutId = typeof reserved?.payout_id === 'string' ? reserved.payout_id : null;
     if (!payoutId) throw new Error('Withdrawal reservation returned no payout id');
 
+    const reservationStatus = typeof reserved?.status === 'string' ? reserved.status : 'demande';
+    if (reservationStatus === 'echec') {
+      return json({ success: false, pending: false, status: 'echec', payout_id: payoutId }, 409);
+    }
+    if (reservationStatus === 'envoye') {
+      return json({ success: true, pending: false, status: 'envoye', payout_id: payoutId, amount });
+    }
+
     if (Deno.env.get('FEDAPAY_PAYOUTS_ENABLED') !== 'true') {
       return json({
         success: true,
         pending: true,
-        status: 'demande',
+        status: reservationStatus,
         payout_id: payoutId,
         amount,
         message: 'Retrait enregistré. Le versement sera envoyé après validation.',
