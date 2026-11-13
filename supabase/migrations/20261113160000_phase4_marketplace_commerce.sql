@@ -323,6 +323,9 @@ CREATE TRIGGER enforce_delivered_order_review
 
 DROP POLICY IF EXISTS "Buyers and sellers can create disputes" ON public.disputes;
 DROP POLICY IF EXISTS "Participants can update disputes" ON public.disputes;
+DROP POLICY IF EXISTS "Buyers can open their own eligible order disputes" ON public.disputes;
+DROP POLICY IF EXISTS "Buyer can add evidence to open dispute" ON public.disputes;
+DROP POLICY IF EXISTS "Seller can add evidence to open dispute" ON public.disputes;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.disputes FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.disputes TO authenticated;
 
