@@ -37,6 +37,12 @@ BEGIN
     RETURN NEW;
   END IF;
 
+  IF TG_OP = 'INSERT'
+    AND auth.role() <> 'service_role'
+    AND current_setting('afrixa.checkout_writer', true) IS DISTINCT FROM 'on' THEN
+    RAISE EXCEPTION 'Orders must be created through secure checkout';
+  END IF;
+
   IF TG_OP = 'INSERT' THEN
     IF auth.uid() IS NULL OR NEW.buyer_id IS DISTINCT FROM auth.uid() THEN
       RAISE EXCEPTION 'A buyer may only create their own order';
@@ -256,6 +262,7 @@ BEGIN
   v_commission := round(v_total * v_rate);
   v_reference := 'AFR-' || replace(gen_random_uuid()::text, '-', '');
 
+  PERFORM set_config('afrixa.checkout_writer', 'on', true);
   INSERT INTO public.orders (
     buyer_id, seller_id, product_id, product_name, product_image,
     quantity, unit_price, total_price, commission_rate, commission_amount,
@@ -272,6 +279,7 @@ BEGIN
     'en_attente', v_reference, NOT coalesce(v_product.unlimited_stock, false)
   )
   RETURNING * INTO v_order;
+  PERFORM set_config('afrixa.checkout_writer', 'off', true);
 
   -- The BEFORE INSERT trigger reserves finite stock exactly once.
   -- Do not decrement it again here.
