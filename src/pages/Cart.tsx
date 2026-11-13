@@ -194,6 +194,9 @@ export default function Cart() {
                 <p className="text-xs text-muted-foreground">{item.sellerName}</p>
                 <p className="mt-1 text-sm font-bold text-primary">{item.price.toLocaleString('fr-FR')} FCFA</p>
                 {item.stock === 0 && <p className="text-xs text-destructive">Rupture de stock</p>}
+                {item.stock > 0 && item.quantity > item.stock && (
+                  <p className="text-xs text-destructive">Quantité supérieure au stock disponible ({item.stock}).</p>
+                )}
               </div>
               <button onClick={() => void removeItem(item)} disabled={busyId === item.id} className="p-2 text-muted-foreground" aria-label="Retirer du panier"><Trash2 className="w-4 h-4" /></button>
             </div>
@@ -203,7 +206,7 @@ export default function Cart() {
                 <span className="text-sm font-semibold tabular-nums">{item.quantity}</span>
                 <button onClick={() => void updateQuantity(item, item.quantity + 1)} disabled={busyId === item.id || item.quantity >= 50 || (item.stock >= 0 && item.quantity >= item.stock)} className="p-2 rounded-lg bg-muted disabled:opacity-40"><Plus className="w-3 h-3" /></button>
               </div>
-              <button onClick={() => setCheckoutItem(item)} disabled={item.stock === 0} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-40">Commander</button>
+              <button onClick={() => setCheckoutItem(item)} disabled={item.stock === 0 || (item.stock > 0 && item.quantity > item.stock)} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-40">Commander</button>
             </div>
           </article>
         ))}
