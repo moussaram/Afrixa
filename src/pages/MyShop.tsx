@@ -247,9 +247,9 @@ const MyShop = () => {
       city: product.city ?? '',
       country: product.country ?? '',
       imageUrl: product.imageUrl,
-      variantName: '',
-      variantPrice: '',
-      variantStock: '',
+      variantName: product.variantName ?? '',
+      variantPrice: product.variantPrice != null ? String(product.variantPrice) : '',
+      variantStock: product.variantStock != null ? String(product.variantStock) : '',
     });
     setShowAddForm(true);
   };
