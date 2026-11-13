@@ -90,7 +90,11 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
 
   const displayPrice = selectedVariant?.price ?? product.price;
   const unlimitedStock = product.stock === -1;
-  const noStock = selectedVariant ? selectedVariant.stock <= 0 && !unlimitedStock : false;
+  const noStock = unlimitedStock
+    ? false
+    : selectedVariant
+      ? selectedVariant.stock <= 0
+      : (product.stock ?? 0) <= 0;
 
   return (
     <>
