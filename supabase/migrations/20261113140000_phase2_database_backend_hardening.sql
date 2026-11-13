@@ -73,6 +73,32 @@ $$;
 -- longer an application write target.
 REVOKE ALL PRIVILEGES ON TABLE public.video_comments FROM PUBLIC, anon, authenticated;
 
+-- Comments inherit the visibility of their parent video. The old permissive
+-- policy exposed comments even when the corresponding video was private,
+-- blocked, unapproved, or not yet ready.
+DROP POLICY IF EXISTS comments_public_select ON public.comments;
+CREATE POLICY comments_visible_with_video
+  ON public.comments FOR SELECT
+  TO anon, authenticated
+  USING (
+    is_deleted = false
+    AND (
+      auth.uid() = user_id
+      OR EXISTS (
+        SELECT 1
+        FROM public.videos AS video
+        WHERE video.id = comments.video_id
+          AND video.is_published = true
+          AND video.moderation_status = 'approved'
+          AND video.cloudflare_status = 'ready'
+          AND public.can_view_creator_content(
+            video.user_id,
+            coalesce(video.privacy, 'public')
+          )
+      )
+    )
+  );
+
 -- ---------------------------------------------------------------------------
 -- DB-04: indexes for actual feed, reply, like, and follow access patterns.
 -- Remove redundant indexes after confirming the composite replacements exist.
