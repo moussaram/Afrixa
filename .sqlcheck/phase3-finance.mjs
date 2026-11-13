@@ -69,7 +69,7 @@ try {
   const tx = await adminOne('SELECT * FROM public.payment_transactions WHERE order_id=$1', [created.order_id]);
   check('Le checkout calcule le prix promo depuis la base', order?.unit_price === 8000 && order?.total_price === 16000);
   check('La commission et le net vendeur sont calcules côté serveur', order?.commission_amount === 800 && order?.seller_amount === 15200 && order?.commission_rate === 0.05);
-  check('La transaction est créée dans la même opération', tx?.amount === 16000 && tx?.fedapay_ref === order?.payment_reference);
+  check('La transaction est créée dans la même opération', tx?.amount === 16000 && tx?.fedapay_ref === order?.payment_reference, JSON.stringify({ txAmount: tx?.amount, txRef: tx?.fedapay_ref, orderRef: order?.payment_reference }));
   check('La référence retournée correspond à la commande', created.order_ref === order?.payment_reference);
   check('Le checkout conserve l opérateur FedaPay valide', order?.payment_operator === 'mtn_open');
   check('Le stock est réservé dans la même transaction', order?.stock_reserved === true
@@ -166,9 +166,14 @@ try {
   await as('authenticated', buyer);
   const roleBeforeUpdate = await one('SELECT auth.role() AS role, auth.uid() AS user_id');
   check('Le test de modification s’exécute avec le rôle acheteur', roleBeforeUpdate.role === 'authenticated' && roleBeforeUpdate.user_id === buyer, JSON.stringify(roleBeforeUpdate));
-  await expectError('Un client ne peut pas modifier le montant après création', () =>
-    db.query('UPDATE public.orders SET total_price=1 WHERE id=$1', [direct.rows[0].id]),
-    /Checkout and escrow fields cannot be changed/i);
+  const directUpdate = await db.query(
+    'UPDATE public.orders SET total_price=1 WHERE id=$1 RETURNING id',
+    [direct.rows[0].id],
+  );
+  const afterDirectUpdate = await adminOne('SELECT total_price FROM public.orders WHERE id=$1', [direct.rows[0].id]);
+  check('Un client ne peut pas modifier le montant après création',
+    directUpdate.rows.length === 0 && afterDirectUpdate?.total_price === 8000,
+    JSON.stringify({ affected: directUpdate.rows.length, totalPrice: afterDirectUpdate?.total_price }));
 
   const withdrawal = await one(
     'SELECT public.request_my_withdrawal($1,$2,$3,$4) AS result',
