@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/useAuth';
 
-type OrderStatus = 'en_attente' | 'payee' | 'en_preparation' | 'expediee' | 'livree' | 'terminee' | 'litige' | 'annulee';
+type OrderStatus = 'en_attente' | 'payee' | 'en_preparation' | 'expediee' | 'livree' | 'terminee' | 'litige' | 'annulee' | 'remboursee';
 type OrderRow = {
   id: string;
   buyer_id: string;
@@ -29,13 +29,14 @@ const statusConfig: Record<OrderStatus, { label: string; color: string; bg: stri
   terminee: { label: 'Terminée', color: 'text-[#10B981]', bg: 'bg-[#10B981]/10', emoji: '✅' },
   litige: { label: 'Litige', color: 'text-[#EF4444]', bg: 'bg-[#EF4444]/10', emoji: '🔴' },
   annulee: { label: 'Annulée', color: 'text-[#6B7280]', bg: 'bg-[#6B7280]/10', emoji: '⚫' },
+  remboursee: { label: 'Remboursée', color: 'text-muted-foreground', bg: 'bg-muted', emoji: '↩️' },
 };
 
 const tabs = [
   { id: 'all', label: 'Toutes' },
   { id: 'active', label: 'En cours' },
   { id: 'delivered', label: 'Livrées' },
-  { id: 'cancelled', label: 'Annulées / litiges' },
+  { id: 'cancelled', label: 'Annulées / litiges / remboursées' },
 ];
 
 const Orders = () => {
@@ -75,7 +76,7 @@ const Orders = () => {
   const filtered = orders.filter(order => {
     if (activeTab === 'active') return ['en_attente', 'payee', 'en_preparation', 'expediee'].includes(order.status);
     if (activeTab === 'delivered') return ['livree', 'terminee'].includes(order.status);
-    if (activeTab === 'cancelled') return ['annulee', 'litige'].includes(order.status);
+    if (activeTab === 'cancelled') return ['annulee', 'litige', 'remboursee'].includes(order.status);
     return true;
   });
 
