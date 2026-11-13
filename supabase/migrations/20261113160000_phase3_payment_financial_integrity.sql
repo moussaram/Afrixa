@@ -385,3 +385,186 @@ $$;
 
 REVOKE ALL ON FUNCTION public.fail_order_payment(uuid, text, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.fail_order_payment(uuid, text, jsonb) TO service_role;
+
+
+-- FIN-05 : idempotence du retrait avant controles de solde et verrouillage du wallet.
+CREATE OR REPLACE FUNCTION public.request_my_withdrawal(
+  p_amount integer,
+  p_operator text,
+  p_phone text,
+  p_idempotency_key text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_user uuid := auth.uid();
+  v_settings public.monetization_settings%ROWTYPE;
+  v_operator text := nullif(btrim(coalesce(p_operator, '')), '');
+  v_phone_digits text := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
+  v_client_key text := nullif(btrim(coalesce(p_idempotency_key, '')), '');
+  v_key text;
+  v_existing public.financial_ledger%ROWTYPE;
+  v_payout public.seller_payouts%ROWTYPE;
+  v_balance integer;
+  v_pending integer;
+  v_today integer;
+  v_result jsonb;
+BEGIN
+  IF v_user IS NULL THEN
+    RAISE EXCEPTION 'Connexion requise pour retirer';
+  END IF;
+  IF p_amount IS NULL OR p_amount <= 0 OR v_operator IS NULL
+    OR length(v_phone_digits) < 8 OR length(v_phone_digits) > 15
+    OR v_client_key IS NULL OR length(v_client_key) > 120 THEN
+    RAISE EXCEPTION 'Parametres de retrait invalides';
+  END IF;
+
+  -- La cle est scellee par utilisateur pour eviter les collisions entre comptes.
+  v_key := 'withdrawal:' || md5(v_user::text || ':' || v_client_key);
+  PERFORM pg_advisory_xact_lock(hashtext(v_key));
+
+  SELECT * INTO v_existing
+  FROM public.financial_ledger
+  WHERE user_id = v_user AND idempotency_key = v_key;
+  IF FOUND THEN
+    SELECT * INTO v_payout
+    FROM public.seller_payouts
+    WHERE id = v_existing.reference_id;
+    IF NOT FOUND OR v_payout.amount <> p_amount
+      OR v_payout.operator IS DISTINCT FROM v_operator
+      OR regexp_replace(coalesce(v_payout.phone, ''), '\D', '', 'g') <> v_phone_digits THEN
+      RAISE EXCEPTION 'Cle de retrait deja utilisee avec des parametres differents';
+    END IF;
+    RETURN jsonb_build_object(
+      'duplicate', true,
+      'payout_id', v_payout.id,
+      'balance', coalesce(v_existing.balance_after, 0),
+      'status', v_payout.status
+    );
+  END IF;
+
+  SELECT * INTO v_settings FROM public.monetization_settings WHERE id = 1;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Reglages monetaires indisponibles';
+  END IF;
+  IF p_amount < v_settings.min_withdrawal_fcfa THEN
+    RAISE EXCEPTION 'Le retrait minimum est de % FCFA', v_settings.min_withdrawal_fcfa;
+  END IF;
+
+  -- Ce verrou serialise les demandes concurrentes du meme createur.
+  SELECT balance INTO v_balance
+  FROM public.creator_wallet
+  WHERE user_id = v_user
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Portefeuille createur introuvable';
+  END IF;
+  IF v_balance < p_amount THEN
+    RAISE EXCEPTION 'Solde disponible insuffisant';
+  END IF;
+
+  SELECT count(*) INTO v_pending
+  FROM public.seller_payouts
+  WHERE seller_id = v_user AND status IN ('demande', 'processing');
+  IF v_pending > 0 THEN
+    RAISE EXCEPTION 'Un retrait est deja en cours de traitement';
+  END IF;
+
+  SELECT count(*) INTO v_today
+  FROM public.seller_payouts
+  WHERE seller_id = v_user AND created_at >= date_trunc('day', now());
+  IF v_today >= v_settings.withdrawal_daily_limit THEN
+    RAISE EXCEPTION 'Limite quotidienne de retraits atteinte';
+  END IF;
+
+  v_result := public.request_creator_withdrawal(v_user, p_amount, v_operator, btrim(p_phone), v_key);
+
+  IF coalesce((v_result ->> 'duplicate')::boolean, false) IS FALSE THEN
+    UPDATE public.seller_payouts
+    SET payout_reference = 'AFR-WD-' || replace((v_result ->> 'payout_id'), '-', '')
+    WHERE id = (v_result ->> 'payout_id')::uuid
+      AND payout_reference IS NULL;
+  END IF;
+
+  RETURN v_result || jsonb_build_object('status', coalesce(v_result ->> 'status', 'demande'));
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.request_my_withdrawal(integer, text, text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.request_my_withdrawal(integer, text, text, text) TO authenticated;
+
+-- FIN-05 : le webhook de versement ajoute une preuve comptable de reglement.
+ALTER TABLE public.financial_ledger
+  DROP CONSTRAINT IF EXISTS financial_ledger_amount_present;
+ALTER TABLE public.financial_ledger
+  ADD CONSTRAINT financial_ledger_amount_present
+  CHECK (coins_delta <> 0 OR fcfa_delta <> 0 OR operation = 'withdrawal_paid');
+
+CREATE OR REPLACE FUNCTION public.complete_creator_withdrawal(
+  p_payout_id uuid,
+  p_provider_transaction_id text,
+  p_provider_response jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_payout public.seller_payouts%ROWTYPE;
+  v_balance integer;
+  v_key text;
+BEGIN
+  IF coalesce(auth.role(), '') <> 'service_role' THEN
+    RAISE EXCEPTION 'Operation reservee au serveur';
+  END IF;
+  IF p_payout_id IS NULL OR p_provider_transaction_id IS NULL
+    OR p_provider_transaction_id !~ '^\d{1,32}$' THEN
+    RAISE EXCEPTION 'Reference de versement invalide';
+  END IF;
+
+  SELECT * INTO v_payout
+  FROM public.seller_payouts
+  WHERE id = p_payout_id AND order_id IS NULL
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Retrait createur introuvable';
+  END IF;
+  IF v_payout.fedapay_transfer_id IS DISTINCT FROM p_provider_transaction_id THEN
+    RAISE EXCEPTION 'Reference FedaPay differente du retrait';
+  END IF;
+  IF v_payout.status = 'envoye' THEN
+    RETURN jsonb_build_object('duplicate', true, 'status', 'envoye');
+  END IF;
+  IF v_payout.status NOT IN ('demande', 'processing') THEN
+    RAISE EXCEPTION 'Ce retrait ne peut pas etre confirme';
+  END IF;
+
+  UPDATE public.seller_payouts
+  SET status = 'envoye', fedapay_response = p_provider_response
+  WHERE id = v_payout.id;
+
+  SELECT balance INTO v_balance
+  FROM public.creator_wallet
+  WHERE user_id = v_payout.seller_id;
+
+  v_key := 'withdrawal-paid:' || v_payout.id::text;
+  INSERT INTO public.financial_ledger (
+    user_id, operation, direction, coins_delta, fcfa_delta, balance_after,
+    reference_type, reference_id, idempotency_key, metadata
+  ) VALUES (
+    v_payout.seller_id, 'withdrawal_paid', 'debit', 0, 0, coalesce(v_balance, 0),
+    'seller_payout', v_payout.id, v_key,
+    jsonb_build_object('amount', v_payout.amount, 'provider_transaction_id', p_provider_transaction_id)
+  )
+  ON CONFLICT (idempotency_key) DO NOTHING;
+
+  RETURN jsonb_build_object('duplicate', false, 'status', 'envoye', 'balance', coalesce(v_balance, 0));
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.complete_creator_withdrawal(uuid, text, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.complete_creator_withdrawal(uuid, text, jsonb) TO service_role;
