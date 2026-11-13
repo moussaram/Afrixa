@@ -84,6 +84,18 @@ try {
   check('Un webhook de succès répété ne crée pas de deuxième split', settledAgain === false
     && (await adminOne('SELECT count(*)::int AS n FROM public.commission_splits WHERE transaction_id=$1',[tx.id])).n === 1);
 
+  const refund = await one('SELECT public.reconcile_fedapay_refund($1,$2) AS result',
+    [tx.id, '{"data":{"status":"refunded","refund_amount":16000}}']).then((row) => row.result);
+  check('Un remboursement FedaPay intégral confirmé clôture la commande',
+    refund.status === 'recorded'
+      && (await adminOne('SELECT status FROM public.orders WHERE id=$1',[created.order_id])).status === 'remboursee'
+      && (await adminOne('SELECT status FROM public.payment_transactions WHERE id=$1',[tx.id])).status === 'refunded');
+  check('Le split de commission est annulé après remboursement intégral',
+    (await adminOne('SELECT status FROM public.commission_splits WHERE transaction_id=$1',[tx.id])).status === 'remboursee');
+  const refundAgain = await one('SELECT public.reconcile_fedapay_refund($1,$2) AS result',
+    [tx.id, '{"data":{"status":"refunded","refund_amount":16000}}']).then((row) => row.result);
+  check('Un événement de remboursement répété reste idempotent', refundAgain.duplicate === true);
+
   await as('authenticated', buyer);
   const failedCheckout = await one(
     'SELECT public.create_order_payment_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9) AS result',
