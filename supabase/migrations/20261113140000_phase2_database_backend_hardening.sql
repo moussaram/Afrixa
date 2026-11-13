@@ -73,6 +73,25 @@ $$;
 -- longer an application write target.
 REVOKE ALL PRIVILEGES ON TABLE public.video_comments FROM PUBLIC, anon, authenticated;
 
+-- A comment and a comment-like must always belong to a real authenticated
+-- user and a real parent record. Stop rather than silently discard legacy rows.
+DO $
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.comments WHERE user_id IS NULL OR video_id IS NULL)
+    OR EXISTS (SELECT 1 FROM public.comment_likes WHERE user_id IS NULL OR comment_id IS NULL) THEN
+    RAISE EXCEPTION
+      'Phase 2 migration stopped: comments or comment likes contain rows without required owner/parent references';
+  END IF;
+
+  ALTER TABLE public.comments
+    ALTER COLUMN user_id SET NOT NULL,
+    ALTER COLUMN video_id SET NOT NULL;
+  ALTER TABLE public.comment_likes
+    ALTER COLUMN user_id SET NOT NULL,
+    ALTER COLUMN comment_id SET NOT NULL;
+END;
+$;
+
 -- Comments inherit the visibility of their parent video. The old permissive
 -- policy exposed comments even when the corresponding video was private,
 -- blocked, unapproved, or not yet ready.
@@ -98,6 +117,26 @@ CREATE POLICY comments_visible_with_video
       )
     )
   );
+
+DROP POLICY IF EXISTS comments_owner_insert ON public.comments;
+CREATE POLICY comments_owner_insert
+  ON public.comments FOR INSERT
+  TO authenticated
+  WITH CHECK ((select auth.uid()) IS NOT NULL AND (select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS comments_owner_update ON public.comments;
+CREATE POLICY comments_owner_update
+  ON public.comments FOR UPDATE
+  TO authenticated
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) IS NOT NULL AND (select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS comment_likes_owner_all ON public.comment_likes;
+CREATE POLICY comment_likes_owner_all
+  ON public.comment_likes FOR ALL
+  TO authenticated
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) IS NOT NULL AND (select auth.uid()) = user_id);
 
 -- ---------------------------------------------------------------------------
 -- DB-04: indexes for actual feed, reply, like, and follow access patterns.
