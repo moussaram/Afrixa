@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/useAuth';
 
-type OrderStatus = 'en_attente' | 'payee' | 'en_preparation' | 'expediee' | 'livree' | 'terminee' | 'litige' | 'annulee';
+type OrderStatus = 'en_attente' | 'payee' | 'en_preparation' | 'expediee' | 'livree' | 'terminee' | 'litige' | 'annulee' | 'remboursee';
 type OrderRecord = {
   id: string;
   buyer_id: string;
@@ -38,6 +38,7 @@ const statusConfig: Record<OrderStatus, { label: string; color: string; emoji: s
   terminee: { label: 'Terminée', color: 'text-emerald-400', emoji: '✅' },
   litige: { label: 'Litige ouvert', color: 'text-red-400', emoji: '🔴' },
   annulee: { label: 'Annulée', color: 'text-muted-foreground', emoji: '⚫' },
+  remboursee: { label: 'Remboursée', color: 'text-muted-foreground', emoji: '↩️' },
 };
 const progressStatuses: OrderStatus[] = ['en_attente', 'payee', 'en_preparation', 'expediee', 'livree', 'terminee'];
 
