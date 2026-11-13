@@ -77,22 +77,20 @@ const MyShop = () => {
           .eq('seller_id', user.id)
           .eq('is_active', true)
           .order('created_at', { ascending: false }),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase as any).rpc('get_my_shop_stats'),
+        supabase.rpc('get_my_shop_stats'),
       ]);
       if (error) throw error;
       if (statsError) throw statsError;
       const productIds = (data ?? []).map(product => product.id);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: variants, error: variantsError } = productIds.length
-        ? await (supabase as any).from('product_variants')
+        ? await supabase.from('product_variants')
           .select('id, product_id, name, price, stock')
           .in('product_id', productIds)
           .eq('is_active', true)
         : { data: [], error: null };
       if (variantsError) throw variantsError;
       const variantByProduct = new Map<string, { id: string; name: string; price: number | null; stock: number }>(
-        (variants ?? []).map((variant: { id: string; product_id: string; name: string; price: number | null; stock: number }) => [
+        (variants ?? []).map(variant => [
           variant.product_id, variant,
         ]),
       );
@@ -170,8 +168,7 @@ const MyShop = () => {
       };
       if (editingProduct) {
         // Product fields and its existing/first variant are updated atomically.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await (supabase as any).rpc('update_shop_product_with_variant', {
+        const { error } = await supabase.rpc('update_shop_product_with_variant', {
           p_product_id: editingProduct.id,
           p_name: productPayload.name,
           p_description: productPayload.description,
@@ -189,8 +186,7 @@ const MyShop = () => {
         if (error) throw error;
       } else {
         // Product and first variant are created in one database transaction.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: createdProductId, error } = await (supabase as any).rpc(
+        const { data: createdProductId, error } = await supabase.rpc(
           'create_shop_product_with_variant',
           {
             p_name: productPayload.name,
