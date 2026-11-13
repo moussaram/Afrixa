@@ -150,6 +150,14 @@ Deno.serve(async (req) => {
 
       const providerStatus = String(payment?.status ?? '').toLowerCase();
       if (providerStatus === 'approved') {
+        if (!['initiated', 'creating', 'pending', 'successful'].includes(tx.status)) {
+          console.error('Ignoring approved FedaPay event for a terminal local transaction', {
+            transactionId: tx.id,
+            localStatus: tx.status,
+          });
+          return json({ received: true, rejected: true });
+        }
+
         if (['initiated', 'creating', 'pending'].includes(tx.status)) {
           const { error: updateTxError } = await admin.from('payment_transactions')
             .update({ status: 'successful', fedapay_response: providerResponse })
@@ -161,14 +169,6 @@ Deno.serve(async (req) => {
             .update({ status: 'payee' }).eq('id', order.id).eq('status', 'en_attente');
           if (updateOrderError) throw updateOrderError;
         }
-        if (!['initiated', 'creating', 'pending', 'successful'].includes(tx.status)) {
-          console.error('Ignoring approved FedaPay event for a terminal local transaction', {
-            transactionId: tx.id,
-            localStatus: tx.status,
-          });
-          return json({ received: true, rejected: true });
-        }
-
         const rate = Number(order.commission_rate);
         const type = rate === 0.03 ? 'group_buy' : rate === 0.07 ? 'booste' : rate === 0.08 ? 'live' : 'normale';
         const { error: splitInsertError } = await admin.from('commission_splits').upsert({
