@@ -1,17 +1,9 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Clock, Check, Phone, X, Save } from 'lucide-react';
+import { ArrowLeft, Clock, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { SkeletonCard } from '@/components/common/SkeletonLoader';
-
-const paymentMethods = [
-  { id: 'orange_money', name: 'Orange Money', emoji: '🟠' },
-  { id: 'wave', name: 'Wave', emoji: '🔵' },
-  { id: 'mtn', name: 'MTN MoMo', emoji: '🟡' },
-  { id: 'moov', name: 'Moov Money', emoji: '🔵' },
-];
 
 const fedapayPayoutMethods = [
   { id: 'mtn_open', name: 'MTN Bénin' },
@@ -44,16 +36,12 @@ const formatFCFA = (n: number) => n.toLocaleString('fr-FR').replace(/,/g, ' ');
 
 const SellerWallet = () => {
   const navigate = useNavigate();
-  const [showWithdraw, setShowWithdraw] = useState(false);
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
-  const [phone, setPhone] = useState('');
   const [payoutMethod, setPayoutMethod] = useState('');
   const [payoutPhone, setPayoutPhone] = useState('');
   const [savingPayoutInfo, setSavingPayoutInfo] = useState(false);
 
   const [loading, setLoading] = useState(true);
-  const [availableBalance, setAvailableBalance] = useState(0);
+  const [totalPaid, setTotalPaid] = useState(0);
   const [pendingBalance, setPendingBalance] = useState(0);
   const [payouts, setPayouts] = useState<Payout[]>([]);
 
@@ -70,6 +58,7 @@ const SellerWallet = () => {
             .from('seller_payouts')
             .select('*')
             .eq('seller_id', uid)
+            .not('order_id', 'is', null)
             .order('created_at', { ascending: false }),
           supabase
             .from('orders')
@@ -83,7 +72,7 @@ const SellerWallet = () => {
 
         const list = (payoutsRes.data ?? []) as Payout[];
         setPayouts(list);
-        setAvailableBalance(
+        setTotalPaid(
           list.filter((p) => p.status === 'envoye').reduce((s, p) => s + (p.amount || 0), 0),
         );
 
@@ -101,13 +90,6 @@ const SellerWallet = () => {
     };
     load();
   }, []);
-
-  const handleWithdraw = () => {
-    const amount = parseInt(withdrawAmount);
-    if (!amount || amount <= 0) return toast.error('Montant invalide');
-    if (amount > availableBalance) return toast.error('Solde insuffisant');
-    toast.error('Les retraits manuels ne sont pas encore disponibles.');
-  };
 
   const savePayoutDetails = async () => {
     if (!payoutMethod) return toast.error('Choisissez votre opérateur de versement');
@@ -142,16 +124,11 @@ const SellerWallet = () => {
 
       <div className="px-4 py-6 space-y-4">
         <div className="p-6 rounded-2xl bg-gradient-to-br from-[#7C3AED]/20 to-[#7C3AED]/5 border border-[#7C3AED]/30 text-center">
-          <p className="text-sm text-muted-foreground mb-1">Solde disponible</p>
+          <p className="text-sm text-muted-foreground mb-1">Total déjà versé</p>
           <p className="text-3xl font-bold text-foreground">
-            {loading ? '…' : formatFCFA(availableBalance)} <span className="text-lg">FCFA</span>
+            {loading ? '…' : formatFCFA(totalPaid)} <span className="text-lg">FCFA</span>
           </p>
-          <button
-            onClick={() => setShowWithdraw(true)}
-            className="mt-4 px-6 py-2.5 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm"
-          >
-            Retirer mes gains
-          </button>
+          <p className="mt-2 text-xs text-muted-foreground">Les versements marketplace sont déclenchés automatiquement après confirmation de livraison.</p>
         </div>
 
         <section className="rounded-2xl bg-[#1A1A2E] border border-border/20 p-4 space-y-3">
@@ -228,72 +205,6 @@ const SellerWallet = () => {
         </div>
       </div>
 
-      {showWithdraw && (
-        <>
-          <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setShowWithdraw(false)} />
-          <div className="fixed inset-x-0 bottom-0 z-50 bg-[#1A1A2E] rounded-t-[20px] animate-slide-up">
-            <div className="w-12 h-1.5 bg-muted rounded-full mx-auto mt-3" />
-            <div className="flex items-center justify-between px-4 py-3">
-              <h3 className="font-bold text-foreground">Retirer mes gains</h3>
-              <button onClick={() => setShowWithdraw(false)} className="p-1">
-                <X className="w-5 h-5 text-muted-foreground" />
-              </button>
-            </div>
-            <div className="px-4 pb-8 space-y-4">
-              <div className="text-center p-3 rounded-xl bg-[#0A0A0F]">
-                <p className="text-xs text-muted-foreground">Disponible</p>
-                <p className="text-xl font-bold text-foreground">
-                  {formatFCFA(availableBalance)} FCFA
-                </p>
-              </div>
-
-              <input
-                type="number"
-                placeholder="Montant à retirer (FCFA)"
-                value={withdrawAmount}
-                onChange={(e) => setWithdrawAmount(e.target.value)}
-                className="w-full p-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground placeholder:text-muted-foreground text-sm"
-              />
-
-              <div className="grid grid-cols-2 gap-2">
-                {paymentMethods.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => setSelectedMethod(m.id)}
-                    className={cn(
-                      'p-3 rounded-xl border text-left text-sm transition-all',
-                      selectedMethod === m.id
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border/20 bg-[#0A0A0F]',
-                    )}
-                  >
-                    <span className="text-lg">{m.emoji}</span>
-                    <p className="text-xs text-foreground mt-1">{m.name}</p>
-                  </button>
-                ))}
-              </div>
-
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="tel"
-                  placeholder="Numéro de téléphone"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground placeholder:text-muted-foreground text-sm"
-                />
-              </div>
-
-              <button
-                onClick={handleWithdraw}
-                className="w-full py-3.5 rounded-xl bg-emerald-500 text-white font-semibold text-sm"
-              >
-                Demander le retrait
-              </button>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 };
