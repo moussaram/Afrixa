@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { X, ArrowLeft, Phone, Minus, Plus, MapPin, MessageSquare, ShieldCheck, AlertCircle, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { YangoDeliveryStep } from './YangoDeliveryStep';
-import { buildYangoDeepLink, type DeliveryMethod } from './yango';
 
 
 interface PaymentProduct {
@@ -31,7 +29,7 @@ const paymentMethods = [
   { id: 'moov', name: 'Moov Money', color: 'bg-blue-600', emoji: '🔵' },
 ];
 
-export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commissionType = 'normale' }: AfrixaPaySheetProps) => {
+export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle }: AfrixaPaySheetProps) => {
   const [step, setStep] = useState<number>(1);
   const [quantity, setQuantity] = useState(1);
   const [address, setAddress] = useState('');
@@ -39,23 +37,14 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('yango');
-  const [yangoAddress, setYangoAddress] = useState('');
-  const sellerAddress = `Boutique ${product.sellerName}`;
 
   const unitPrice = customPrice ?? product.price;
   const totalPrice = unitPrice * quantity;
   const selectedPayment = paymentMethods.find(m => m.id === selectedMethod);
-  const yangoLink = buildYangoDeepLink(sellerAddress, yangoAddress || address);
 
   const goBack = () => {
-    if (step === 2) setStep(1.5);
-    else if (step === 1.5) setStep(1);
+    if (step === 2) setStep(1);
     else if (step === 3) setStep(2);
-  };
-
-  const openYango = () => {
-    window.open(yangoLink, '_blank', 'noopener,noreferrer');
   };
 
 
@@ -82,8 +71,7 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
             )}
             <h3 className="font-bold text-foreground">
               {step === 1 && 'Résumé commande'}
-              {step === 1.5 && 'Mode de livraison'}
-              {step === 2 && 'Moyen de paiement'}
+                            {step === 2 && 'Moyen de paiement'}
               {step === 3 && 'Récapitulatif final'}
               {step === 4 && 'Paiement non disponible'}
             </h3>
@@ -96,7 +84,7 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
         {/* Steps indicator */}
         {step < 4 && (
           <div className="flex gap-2 px-4 mb-4">
-            {[1, 1.5, 2, 3].map(s => (
+            {[1, 2, 3].map(s => (
               <div key={s} className={cn('h-1 flex-1 rounded-full transition-all', s <= step ? 'bg-primary' : 'bg-muted')} />
             ))}
           </div>
@@ -173,27 +161,13 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
               {subtitle && <p className="text-xs text-muted-foreground text-center">{subtitle}</p>}
 
               <button
-                onClick={() => address.length >= 5 ? setStep(1.5) : toast.error('Veuillez entrer une adresse de livraison')}
+                onClick={() => address.length >= 5 ? setStep(2) : toast.error('Veuillez entrer une adresse de livraison')}
                 className="w-full py-3.5 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm"
               >
                 Continuer →
               </button>
             </div>
           )}
-
-          {/* Step 1.5 - Delivery method */}
-          {step === 1.5 && (
-            <YangoDeliveryStep
-              defaultAddress={address}
-              onContinue={(method, addr) => {
-                setDeliveryMethod(method);
-                if (method === 'yango') setYangoAddress(addr);
-                setStep(2);
-              }}
-            />
-          )}
-
-
 
           {/* Step 2 - Payment method */}
           {step === 2 && (
