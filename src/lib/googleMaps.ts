@@ -26,7 +26,7 @@ const loadMaps = (apiKey: string): Promise<MapsLibrary> => {
   if (window.google?.maps) return Promise.resolve(window.google.maps);
   if (window.__afrixaGoogleMapsLoad) return window.__afrixaGoogleMapsLoad;
 
-  window.__afrixaGoogleMapsLoad = new Promise((resolve, reject) => {
+  window.__afrixaGoogleMapsLoad = new Promise<MapsLibrary>((resolve, reject) => {
     const callbackName = '__afrixaGoogleMapsCallback';
     const script = document.createElement('script');
     const timeout = window.setTimeout(() => reject(new Error('Google Maps timeout')), 15000);

@@ -45,7 +45,7 @@ export const VideoCard = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressRef = useRef<number | null>(null);
   const longPressTriggeredRef = useRef(false);
   const previousSpeedRef = useRef(1);
 
@@ -63,7 +63,7 @@ export const VideoCard = ({
   const [showProduct, setShowProduct] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
   const [seekFeedback, setSeekFeedback] = useState<'forward' | 'backward' | null>(null);
-  const seekFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seekFeedbackTimerRef = useRef<number | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
 

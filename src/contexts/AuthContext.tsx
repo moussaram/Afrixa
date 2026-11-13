@@ -2,6 +2,7 @@ import { useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthContext, type Profile } from './auth';
+import { removeWebPushTokenRecord } from '@/lib/firebase/messaging';
 
 const DEV_MODE = import.meta.env.DEV;
 
@@ -95,9 +96,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     if (user && !DEV_MODE) {
-      const { error } = await (supabase as any).from('user_fcm_tokens')
-        .delete().eq('user_id', user.id).eq('platform', 'web_fid');
-      if (error) console.error('Failed to remove this account’s push installation before sign-out', error);
+      try {
+        await removeWebPushTokenRecord(user.id);
+      } catch (error) {
+        console.error('Failed to remove this account’s push installation before sign-out', error);
+      }
     }
     await supabase.auth.signOut();
   };

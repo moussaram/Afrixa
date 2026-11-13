@@ -39,8 +39,10 @@ export const usePersistedSettings = (
     }
 
     setHydrated(false);
-    void supabase.from('user_settings').select('settings').eq('user_id', userId).maybeSingle()
-      .then(({ data, error }) => {
+    void (async () => {
+      try {
+        const { data, error } = await supabase.from('user_settings')
+          .select('settings').eq('user_id', userId).maybeSingle();
         if (!active) return;
         if (error) {
           console.error('Could not load user settings', error);
@@ -54,13 +56,14 @@ export const usePersistedSettings = (
         } else {
           savedSettingsRef.current = latestSettingsRef.current;
         }
-        setHydrated(true);
-      }).catch((error: unknown) => {
+      } catch (error) {
         if (!active) return;
         console.error('Could not load user settings', error);
         savedSettingsRef.current = latestSettingsRef.current;
-        setHydrated(true);
-      });
+      } finally {
+        if (active) setHydrated(true);
+      }
+    })();
     return () => { active = false; };
   }, [userId]);
 

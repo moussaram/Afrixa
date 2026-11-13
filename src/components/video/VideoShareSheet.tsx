@@ -1,4 +1,4 @@
-import QRCode from 'qrcode.react';
+import { QRCodeSVG as QRCode } from 'qrcode.react';
 import { Copy, Facebook, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { copyShareLink, shareTargets } from '@/lib/share';
