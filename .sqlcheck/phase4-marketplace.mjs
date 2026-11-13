@@ -166,6 +166,23 @@ try {
     'INSERT INTO public.reviews(order_id,buyer_id,seller_id,rating,comment) VALUES ($1,$2,$3,5,$4)',
     [variantCheckout.order_id,buyer,seller,'Très bon produit'],
   );
+  await as('service_role');
+  await db.query("UPDATE public.payment_transactions SET status='successful' WHERE order_id=$1",[fallbackCheckout.order_id]);
+  await db.query("UPDATE public.orders SET status='payee' WHERE id=$1",[fallbackCheckout.order_id]);
+  await as('authenticated', buyer);
+  await expectError('Un acheteur ne peut pas créer un litige directement en base', () =>
+    db.query(`INSERT INTO public.disputes(order_id,buyer_id,seller_id,reason,status)
+      VALUES ($1,$2,$3,'Article non conforme','ouvert')`,[fallbackCheckout.order_id,buyer,seller]),
+    /permission denied/i);
+  const dispute = await one('SELECT public.open_order_dispute($1,$2,$3,$4) AS result',
+    [fallbackCheckout.order_id,'Article non conforme','Le produit reçu ne correspond pas à la description',null]);
+  const disputeOrder = await adminOne('SELECT status,dispute_reason FROM public.orders WHERE id=$1',[fallbackCheckout.order_id]);
+  check('Le litige est ouvert via RPC avec journalisation', dispute?.result?.success === true
+    && disputeOrder?.status === 'litige' && disputeOrder?.dispute_reason === 'Article non conforme');
+  await expectError('Un acheteur ne peut pas modifier directement le statut du litige', () =>
+    db.query("UPDATE public.orders SET status='terminee' WHERE id=$1",[fallbackCheckout.order_id]),
+    /authorized flow/i);
+
   await as('anon');
   const privateReviews = await one('SELECT count(*)::integer AS count FROM public.reviews');
   const rating = await one('SELECT * FROM public.get_product_rating_summary($1)',[[variantProduct]]);
