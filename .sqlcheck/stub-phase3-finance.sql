@@ -65,6 +65,7 @@ CREATE TABLE public.payment_transactions (
   operator text,
   buyer_phone text,
   status text NOT NULL DEFAULT 'initiated',
+  fedapay_response jsonb,
   escrow_status text NOT NULL DEFAULT 'held',
   updated_at timestamptz NOT NULL DEFAULT now(),
   created_at timestamptz NOT NULL DEFAULT now()
