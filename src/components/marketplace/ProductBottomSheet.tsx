@@ -32,6 +32,7 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [loadingVariants, setLoadingVariants] = useState(true);
+  const [variantLoadError, setVariantLoadError] = useState<string | null>(null);
   const [addingToCart, setAddingToCart] = useState(false);
 
   useEffect(() => {
@@ -48,7 +49,10 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
         if (error) throw error;
         if (active) setVariants((data ?? []) as ProductVariant[]);
       } catch (error) {
-        if (active) toast.error(error instanceof Error ? error.message : 'Impossible de charger les variantes.');
+        if (active) {
+          setVariantLoadError(error instanceof Error ? error.message : 'Impossible de charger les variantes.');
+          toast.error('Les options du produit ne sont pas disponibles. Réessaie plus tard.');
+        }
       } finally {
         if (active) setLoadingVariants(false);
       }
@@ -62,7 +66,7 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
   }
 
   const addToCart = async () => {
-    if (loadingVariants) return;
+    if (loadingVariants || variantLoadError) return;
     if (variants.length > 0 && !selectedVariant) return toast.error('Choisis une variante.');
     setAddingToCart(true);
     try {
@@ -109,7 +113,9 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
             </div>
           </div>
 
-          {loadingVariants ? (
+          {variantLoadError ? (
+            <p className="mt-4 text-xs text-destructive">Les variantes ne peuvent pas être vérifiées. L’achat est temporairement bloqué.</p>
+          ) : loadingVariants ? (
             <div className="flex justify-center py-5"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
           ) : variants.length > 0 ? (
             <section className="mt-4">
@@ -147,7 +153,7 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
               }
               setShowPayment(true);
             }}
-            disabled={loadingVariants || noStock}
+            disabled={loadingVariants || Boolean(variantLoadError) || noStock}
             className="w-full mt-4 py-3 rounded-xl gradient-primary text-primary-foreground font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <ShoppingCart className="w-5 h-5" />
@@ -155,7 +161,7 @@ export const ProductBottomSheet = ({ product, onClose }: ProductBottomSheetProps
           </button>
           <button
             onClick={() => void addToCart()}
-            disabled={loadingVariants || addingToCart || noStock}
+            disabled={loadingVariants || Boolean(variantLoadError) || addingToCart || noStock}
             className="w-full mt-2 py-3 rounded-xl border border-border/40 text-foreground font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {addingToCart ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
