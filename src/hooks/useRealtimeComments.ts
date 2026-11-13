@@ -99,7 +99,7 @@ export const useRealtimeComments = (videoId: string, userId?: string) => {
 
       const [{ data: profiles, error: profileError }, { data: likes, error: likeError }] = await Promise.all([
         authorIds.length
-          ? client.from('profiles').select('user_id,username,prenom,nom,avatar_url').in('user_id', authorIds)
+          ? client.from('public_profiles').select('user_id,username,prenom,nom,avatar_url').in('user_id', authorIds)
           : Promise.resolve({ data: [], error: null }),
         userId && commentIds.length
           ? client.from('comment_likes').select('comment_id').eq('user_id', userId).in('comment_id', commentIds)

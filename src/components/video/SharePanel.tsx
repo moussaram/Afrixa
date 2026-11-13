@@ -83,7 +83,7 @@ export const SharePanel = ({ video, onClose, onShared }: SharePanelProps) => {
     let active = true;
     void (async () => {
       const { data } = await supabase
-        .from('profiles')
+        .from('public_profiles')
         .select('user_id,username,prenom,nom,avatar_url')
         .neq('user_id', user.id)
         .limit(30);

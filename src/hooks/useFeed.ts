@@ -60,7 +60,7 @@ export function useFeed(mode: FeedMode) {
       let profiles: VideoAuthorProfile[] = [];
       if (authorIds.length > 0) {
         const { data: profileRows, error: profileError } = await client
-          .from('profiles')
+          .from('public_profiles')
           .select('user_id,username,prenom,nom,avatar_url')
           .in('user_id', authorIds);
         if (profileError) throw profileError;

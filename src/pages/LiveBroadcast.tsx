@@ -73,7 +73,7 @@ export default function LiveBroadcast() {
           if (!row) return;
           const gift = coins.gifts.find((entry: { id: string }) => entry.id === row.gift_id);
           const { data: sender } = await (supabase as any)
-            .from('profiles')
+            .from('public_profiles')
             .select('username')
             .eq('user_id', row.sender_id)
             .maybeSingle();
