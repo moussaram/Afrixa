@@ -88,6 +88,14 @@ Deno.serve(async (req) => {
 
     if (!isApproved) {
       const providerStatus = String(payment?.status ?? 'unknown').toLowerCase();
+      if (providerStatus === 'refunded') {
+        const { data: refund, error: refundError } = await admin.rpc('reconcile_fedapay_refund', {
+          p_transaction_id: tx.id,
+          p_provider_response: providerResponse,
+        });
+        if (refundError) throw refundError;
+        return json({ verified: false, status: 'refunded', refund });
+      }
       if (['declined', 'canceled', 'cancelled'].includes(providerStatus)) {
         const { error: failError } = await admin.rpc('fail_order_payment', {
           p_transaction_id: tx.id,
