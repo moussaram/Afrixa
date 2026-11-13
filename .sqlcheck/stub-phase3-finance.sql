@@ -43,6 +43,7 @@ CREATE TABLE public.orders (
   delivery_address text,
   buyer_note text,
   status text NOT NULL DEFAULT 'en_attente',
+  dispute_reason text,
   payment_reference text,
   escrow_released boolean NOT NULL DEFAULT false,
   stock_reserved boolean NOT NULL DEFAULT false,
