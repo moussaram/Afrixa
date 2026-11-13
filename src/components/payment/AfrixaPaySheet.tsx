@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, ArrowLeft, Phone, Minus, Plus, MapPin, MessageSquare, ShieldCheck, Loader2, Check, PartyPopper } from 'lucide-react';
+import { X, ArrowLeft, Phone, Minus, Plus, MapPin, MessageSquare, ShieldCheck, Loader2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { YangoDeliveryStep } from './YangoDeliveryStep';
@@ -31,11 +31,6 @@ const paymentMethods = [
   { id: 'moov', name: 'Moov Money', color: 'bg-blue-600', emoji: '🔵' },
 ];
 
-const generateOrderNumber = () => {
-  const num = Math.floor(100000 + Math.random() * 900000);
-  return `#AFR-${num}`;
-};
-
 export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commissionType = 'normale' }: AfrixaPaySheetProps) => {
   const [step, setStep] = useState<number>(1);
   const [quantity, setQuantity] = useState(1);
@@ -44,7 +39,6 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [orderNumber, setOrderNumber] = useState('');
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('yango');
   const [yangoAddress, setYangoAddress] = useState('');
   const sellerAddress = `Boutique ${product.sellerName}`;
@@ -66,17 +60,10 @@ export const AfrixaPaySheet = ({ product, onClose, customPrice, subtitle, commis
 
 
   const handlePay = async () => {
-    setStep(4);
-    setIsProcessing(true);
-    // Simulate payment processing
-    setTimeout(() => {
-      setIsProcessing(false);
-      setOrderNumber(generateOrderNumber());
-      toast.success('Paiement confirmé !');
-      if (deliveryMethod === 'yango') {
-        toast(`📨 ${product.sellerName} notifié : "Le client a choisi Yango pour la livraison. Préparez la commande."`, { duration: 4000 });
-      }
-    }, 3000);
+    toast.error(
+      'Ce parcours Group Buy utilise encore des données de démonstration. Aucun paiement ne peut être confirmé ici.',
+      { duration: 6000 },
+    );
   };
 
   return (
