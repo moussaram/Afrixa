@@ -257,7 +257,8 @@ BEGIN
   WHERE id = p_request_id
   FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Demande introuvable'; END IF;
-  IF v_request.status IN ('approved', 'rejected', 'revoked') THEN
+  IF v_request.status IN ('approved', 'rejected', 'revoked')
+    AND NOT (p_decision = 'revoked' AND v_request.status = 'approved') THEN
     RAISE EXCEPTION 'Demande déjà clôturée';
   END IF;
 
