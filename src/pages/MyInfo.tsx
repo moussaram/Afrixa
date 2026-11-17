@@ -3,6 +3,7 @@ import { ArrowLeft, CheckCircle2, XCircle, User, MapPin, Briefcase, Globe, FileT
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/useAuth';
 import { cn } from '@/lib/utils';
+import { ProfileBannerEditor } from '@/components/profile/ProfileBanner';
 
 interface InfoRowProps {
   icon: React.ElementType;
@@ -42,7 +43,7 @@ const InfoRow = ({ icon: Icon, label, value, verified }: InfoRowProps) => (
 
 const MyInfo = () => {
   const navigate = useNavigate();
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
 
   const fields: InfoRowProps[] = [
     { icon: User, label: 'Nom', value: profile?.nom, verified: !!profile?.nom?.trim() },
@@ -72,6 +73,18 @@ const MyInfo = () => {
           <h1 className="text-lg font-bold text-foreground">Mes infos</h1>
         </div>
       </header>
+
+      <div className="px-4 pt-4">
+        <div className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-border/30">
+          <ProfileBannerEditor
+            userId={user?.id || ''}
+            imageUrl={profile?.banner_url || null}
+            imagePath={profile?.banner_path || null}
+            position={profile?.banner_position}
+            onSaved={refreshProfile}
+          />
+        </div>
+      </div>
 
       {/* Progress */}
       <div className="px-4 pt-5 pb-2">
