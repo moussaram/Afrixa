@@ -284,6 +284,7 @@ BEGIN
       decision_reason = nullif(left(btrim(coalesce(p_reason, '')), 1000), ''),
       reviewed_at = now(),
       reviewed_by = p_reviewer_id,
+      documents_delete_after = CASE WHEN p_decision IN ('approved', 'rejected', 'revoked') THEN now() + interval '90 days' ELSE NULL END,
       updated_at = now()
   WHERE id = p_request_id;
 
