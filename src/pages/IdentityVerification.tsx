@@ -276,7 +276,7 @@ const IdentityVerificationPage = () => {
                   Un abonnement séparé est nécessaire. Il n’est pas inclus dans les autres formules Afrixa.
                 </p>
                 <Button className="mt-4 w-full" variant="gradient" disabled={busy || !plan} onClick={() => void startPayment()}>
-                  {busy ? 'Préparation du paiement…' : 'Payer {money(plan?.amount_xof ?? 2000)} avec FedaPay'}
+                  {busy ? 'Préparation du paiement…' : `Payer ${money(plan?.amount_xof ?? 2000)} avec FedaPay`}
                 </Button>
                 {latestSubscription?.status === 'payment_pending' && (
                   <Button className="mt-2 w-full" variant="outline" disabled={busy} onClick={() => void verifyAgain()}>
