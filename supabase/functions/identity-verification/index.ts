@@ -357,7 +357,8 @@ Deno.serve(async (req) => {
         .select('id,user_id,subscription_id,status').eq('id', requestId).maybeSingle();
       if (requestError) throw requestError;
       if (!request) return json({ error: 'request_not_found' }, 404);
-      if (['approved', 'rejected', 'revoked'].includes(request.status)) {
+      if (['approved', 'rejected', 'revoked'].includes(request.status)
+        && !(decision === 'revoked' && request.status === 'approved' && reviewer.role === 'supervisor')) {
         return json({ error: 'request_already_closed' }, 409);
       }
       const { data: updated, error: decisionError } = await admin.rpc('apply_identity_verification_decision', {
