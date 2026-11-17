@@ -73,6 +73,9 @@ CREATE TABLE IF NOT EXISTS public.identity_verification_subscriptions (
 
 CREATE INDEX IF NOT EXISTS identity_verification_subscriptions_user_idx
   ON public.identity_verification_subscriptions(user_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS identity_verification_one_pending_subscription_per_user
+  ON public.identity_verification_subscriptions(user_id)
+  WHERE status = 'payment_pending';
 CREATE INDEX IF NOT EXISTS identity_verification_subscriptions_expiry_idx
   ON public.identity_verification_subscriptions(expires_at)
   WHERE status = 'active';
