@@ -85,6 +85,10 @@ Deno.serve(async (req) => {
             if (identityPlanError) throw identityPlanError;
             const startedAt = new Date();
             const expiresAt = new Date(startedAt.getTime() + Number(identityPlan.duration_days) * 24 * 60 * 60 * 1000);
+            const { error: expireOldError } = await admin.from('identity_verification_subscriptions')
+              .update({ status: 'expired' }).eq('user_id', identitySubscription.user_id).eq('status', 'active')
+              .lte('expires_at', startedAt.toISOString());
+            if (expireOldError) throw expireOldError;
             const { data: activated, error: activateError } = await admin.from('identity_verification_subscriptions')
               .update({
                 status: 'active',
