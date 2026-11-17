@@ -19,6 +19,7 @@ const IdentityVerificationAdmin = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [reviewerRole, setReviewerRole] = useState('reviewer');
   const [requests, setRequests] = useState<ReviewRequest[]>([]);
   const [filter, setFilter] = useState('submitted');
   const [reasons, setReasons] = useState<Record<string, string>>({});
@@ -41,6 +42,7 @@ const IdentityVerificationAdmin = () => {
       return;
     }
     setAllowed(true);
+    setReviewerRole(data?.reviewer_role ?? 'reviewer');
     setRequests(data?.requests ?? []);
     setLoading(false);
   }, [user?.id, filter]);
@@ -161,6 +163,12 @@ const IdentityVerificationAdmin = () => {
                 )}
               </div>
               {request.decision_reason && <p className="mt-2 text-xs text-muted-foreground">Motif précédent : {request.decision_reason}</p>}
+              {request.status === 'approved' && reviewerRole === 'supervisor' && (
+                <div className="mt-4 space-y-3">
+                  <Textarea value={reasons[request.id] ?? ''} onChange={(event) => setReasons((current) => ({ ...current, [request.id]: event.target.value }))} placeholder="Motif obligatoire de révocation" maxLength={1000} />
+                  <Button size="sm" variant="destructive" disabled={busyId === request.id} onClick={() => void decide(request, 'revoked')}>Révoquer le badge</Button>
+                </div>
+              )}
               {['submitted', 'under_review', 'needs_information'].includes(request.status) && (
                 <div className="mt-4 space-y-3">
                   <Textarea value={reasons[request.id] ?? ''} onChange={(event) => setReasons((current) => ({ ...current, [request.id]: event.target.value }))} placeholder="Motif communiqué au demandeur (obligatoire pour complément ou refus)" maxLength={1000} />
