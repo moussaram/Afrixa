@@ -214,6 +214,16 @@ CREATE POLICY identity_documents_owner_delete
   USING (
     bucket_id = 'identity-verification-documents'
     AND (storage.foldername(name))[1] = (select auth.uid())::text
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.identity_verification_requests AS request
+      WHERE request.user_id = (select auth.uid())
+        AND request.document_paths @> ARRAY[storage.objects.name]
+        AND (
+          request.status IN ('submitted', 'under_review', 'needs_information')
+          OR request.documents_delete_after > now()
+        )
+    )
   );
 
 COMMENT ON TABLE public.identity_verification_requests IS
