@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+<title id="title">Symbole Akili</title>
+<defs>
+  <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#05d8f5"/><stop offset=".55" stop-color="#075cf5"/><stop offset="1" stop-color="#1322c9"/></linearGradient>
+  <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#075cf5"/><stop offset="1" stop-color="#a000f5"/></linearGradient>
+  <radialGradient id="glow"><stop stop-color="#fff"/><stop offset=".35" stop-color="#d9f8ff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+</defs>
+<g stroke-linejoin="round">
+  <circle cx="128" cy="28" r="17" fill="url(#blue)"/>
+  <circle cx="27" cy="111" r="14" fill="url(#blue)"/>
+  <circle cx="229" cy="111" r="14" fill="url(#violet)"/>
+  <circle cx="128" cy="228" r="17" fill="url(#violet)"/>
+  <path d="M116 49 C86 43 66 57 66 78 C66 94 81 105 101 119 C91 95 101 83 117 72 C124 66 126 56 116 49Z" fill="url(#blue)"/>
+  <path d="M140 49 C170 43 190 57 190 78 C190 94 175 105 155 119 C165 95 155 83 139 72 C132 66 130 56 140 49Z" fill="url(#blue)"/>
+  <path d="M55 96 C37 101 35 119 48 133 C58 144 74 145 96 137 C78 132 73 120 68 108 C65 101 61 97 55 96Z" fill="url(#blue)"/>
+  <path d="M201 96 C219 101 221 119 208 133 C198 144 182 145 160 137 C178 132 183 120 188 108 C191 101 195 97 201 96Z" fill="url(#violet)"/>
+  <path d="M128 72 C118 100 108 109 82 119 C54 130 48 151 61 170 C73 188 99 191 116 176 C97 179 85 167 88 153 C91 140 107 137 121 129 C133 122 139 109 128 72Z" fill="url(#blue)"/>
+  <path d="M128 72 C138 100 148 109 174 119 C202 130 208 151 195 170 C183 188 157 191 140 176 C159 179 171 167 168 153 C165 140 149 137 135 129 C123 122 117 109 128 72Z" fill="url(#violet)"/>
+  <path d="M111 181 C95 194 95 211 111 219 C123 225 135 218 140 201 C144 188 139 180 128 170 C124 184 119 188 111 181Z" fill="url(#blue)"/>
+  <path d="M145 181 C161 194 161 211 145 219 C133 225 121 218 116 201 C112 188 117 180 128 170 C132 184 137 188 145 181Z" fill="url(#violet)"/>
+</g>
+<path d="M128 91 L137 117 L164 128 L137 139 L128 166 L119 139 L92 128 L119 117Z" fill="url(#glow)"/>
+</svg>
