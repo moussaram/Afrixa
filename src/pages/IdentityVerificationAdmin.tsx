@@ -25,7 +25,7 @@ const IdentityVerificationAdmin = () => {
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [documentUrls, setDocumentUrls] = useState<Record<string, string>>({});
+  const [documentUrls, setDocumentUrls] = useState<Record<string, { index: number; document_url: string }[]>>({});
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -55,8 +55,8 @@ const IdentityVerificationAdmin = () => {
       const { data, error } = await supabase.functions.invoke('identity-verification', {
         body: { action: 'review_document', request_id: request.id },
       });
-      if (error || data?.error || !data?.document_url) throw error ?? new Error(data?.error ?? 'Document indisponible');
-      setDocumentUrls((current) => ({ ...current, [request.id]: data.document_url }));
+      if (error || data?.error || !Array.isArray(data?.documents) || data.documents.length === 0) throw error ?? new Error(data?.error ?? 'Documents indisponibles');
+      setDocumentUrls((current) => ({ ...current, [request.id]: data.documents }));
     } catch (error: any) {
       console.error('Unable to open identity document', error);
       toast.error('Impossible d’ouvrir le justificatif.');
@@ -153,12 +153,14 @@ const IdentityVerificationAdmin = () => {
               {request.applicant_note && <p className="mt-3 rounded-lg bg-muted/40 p-3 text-sm">{request.applicant_note}</p>}
               <div className="mt-3 flex flex-wrap gap-2">
                 {documentUrls[request.id] ? (
-                  <a href={documentUrls[request.id]} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-lg border border-border px-3 py-2 text-sm font-semibold text-primary">
-                    <FileText className="mr-2 h-4 w-4" /> Ouvrir le justificatif (lien temporaire)
-                  </a>
+                  documentUrls[request.id].map((document) => (
+                    <a key={document.index} href={document.document_url} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-lg border border-border px-3 py-2 text-sm font-semibold text-primary">
+                      <FileText className="mr-2 h-4 w-4" /> Pièce {document.index} (lien temporaire)
+                    </a>
+                  ))
                 ) : (
                   <Button size="sm" variant="outline" disabled={busyId === request.id} onClick={() => void openDocument(request)}>
-                    <FileText className="mr-2 h-4 w-4" /> Préparer le lien privé du justificatif
+                    <FileText className="mr-2 h-4 w-4" /> Préparer les liens privés des pièces
                   </Button>
                 )}
               </div>
