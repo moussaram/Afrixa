@@ -13,6 +13,7 @@ import {
   Link as LinkIcon,
   Globe,
   Briefcase,
+  BadgeCheck,
 } from 'lucide-react';
 import { VideoThumbnail } from '@/components/video/VideoThumbnail';
 import { Button } from '@/components/ui/button';
@@ -122,6 +123,10 @@ const UserProfile = () => {
   const displayName =
     [profile.prenom, profile.deuxieme_prenom, profile.nom].filter(Boolean).join(' ') || username;
   const followersCount = stats.followersCount;
+  const isIdentityVerified = Boolean(
+    profile.identity_verified && profile.identity_verified_until
+    && new Date(profile.identity_verified_until).getTime() > Date.now(),
+  );
   const isLocked = Boolean(profile.is_private) && !isOwnProfile && !isFollowing;
   // Un compte bloqué ne doit plus exposer ses vidéos dans cette vue.
   const visibleVideos = isBlocked ? [] : videos;
@@ -272,7 +277,7 @@ const UserProfile = () => {
               alt={username}
               className="w-24 h-24 rounded-full object-cover border-4 border-primary"
             />
-            {followersCount >= 50000 && (
+            {isIdentityVerified && (
               <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full gradient-primary flex items-center justify-center border-2 border-background">
                 <span className="text-xs text-primary-foreground font-bold">✓</span>
               </div>
@@ -280,7 +285,14 @@ const UserProfile = () => {
           </div>
 
           <h2 className="text-xl font-bold text-foreground mb-1">@{username}</h2>
-          <p className="text-foreground font-medium">{displayName}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-foreground font-medium">{displayName}</p>
+            {isIdentityVerified && (
+              <span title="Identité vérifiée par l’équipe Afrixa" className="inline-flex items-center gap-1 text-xs font-semibold text-sky-500">
+                <BadgeCheck className="h-4 w-4 fill-sky-500/15" /> Identité vérifiée
+              </span>
+            )}
+          </div>
 
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
             <CreatorBadge level={creatorLevel(followersCount)} />

@@ -7,7 +7,7 @@ export const formatCompact = (value: number | null | undefined) =>
 export const creatorLevelLabel: Record<string, string> = {
   starter: 'Starter',
   rising: 'Rising',
-  verified: 'Verified',
+  verified: 'Influence',
   elite: 'Elite',
 };
 

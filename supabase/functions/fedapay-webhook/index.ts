@@ -53,6 +53,76 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (txError) throw txError;
       if (!tx) {
+        const { data: identitySubscription, error: identityError } = await admin.from('identity_verification_subscriptions')
+          .select('id,user_id,plan_id,amount_xof,currency,status,fedapay_transaction_id')
+          .eq('fedapay_transaction_id', objectId)
+          .maybeSingle();
+        if (identityError) throw identityError;
+        if (identitySubscription) {
+          const identityResponse = await fedapayRequest(`/transactions/${encodeURIComponent(objectId)}`);
+          const identityPayment = getFedaPayEntity(identityResponse);
+          const identityMetadata = identityPayment?.custom_metadata && typeof identityPayment.custom_metadata === 'object'
+            ? identityPayment.custom_metadata as Record<string, unknown> : {};
+          const metadataValid = Object.keys(identityMetadata).length === 0 || (
+            identityMetadata.subscription_id === identitySubscription.id
+            && identityMetadata.user_id === identitySubscription.user_id
+            && identityMetadata.purpose === 'identity_verification'
+          );
+          if (String(identityPayment?.id) !== objectId
+            || Number(identityPayment?.amount) !== Number(identitySubscription.amount_xof)
+            || currencyIso(identityPayment?.currency) !== identitySubscription.currency
+            || !metadataValid) {
+            console.error('FedaPay identity verification event does not match stored subscription', {
+              subscriptionId: identitySubscription.id,
+            });
+            return json({ received: true, rejected: true });
+          }
+
+          const identityStatus = String(identityPayment?.status ?? '').toLowerCase();
+          if (identityStatus === 'approved' && identitySubscription.status === 'payment_pending') {
+            const { data: identityPlan, error: identityPlanError } = await admin.from('identity_verification_plans')
+              .select('duration_days').eq('id', identitySubscription.plan_id).single();
+            if (identityPlanError) throw identityPlanError;
+            const startedAt = new Date();
+            const expiresAt = new Date(startedAt.getTime() + Number(identityPlan.duration_days) * 24 * 60 * 60 * 1000);
+            const { error: expireOldError } = await admin.from('identity_verification_subscriptions')
+              .update({ status: 'expired' }).eq('user_id', identitySubscription.user_id).eq('status', 'active')
+              .lte('expires_at', startedAt.toISOString());
+            if (expireOldError) throw expireOldError;
+            const { data: activated, error: activateError } = await admin.from('identity_verification_subscriptions')
+              .update({
+                status: 'active',
+                starts_at: startedAt.toISOString(),
+                expires_at: expiresAt.toISOString(),
+                paid_at: startedAt.toISOString(),
+              })
+              .eq('id', identitySubscription.id)
+              .eq('status', 'payment_pending')
+              .select('id')
+              .maybeSingle();
+            if (activateError) throw activateError;
+            if (activated) {
+              await admin.from('notifications').insert({
+                user_id: identitySubscription.user_id,
+                title: 'Paiement confirmé',
+                message: 'Ton abonnement de vérification d’identité est actif. Tu peux maintenant envoyer ton dossier.',
+                type: 'verification',
+              });
+            }
+            return json({ received: true, processed: true });
+          }
+          if (['declined', 'canceled', 'cancelled', 'failed', 'expired'].includes(identityStatus)
+            && identitySubscription.status === 'payment_pending') {
+            const { error: cancelError } = await admin.from('identity_verification_subscriptions')
+              .update({ status: 'cancelled' })
+              .eq('id', identitySubscription.id)
+              .eq('status', 'payment_pending');
+            if (cancelError) throw cancelError;
+            return json({ received: true, processed: true });
+          }
+          return json({ received: true, ignored: true });
+        }
+
         // Achat de Coins : le reglement est idempotent cote base.
         const { data: coinPurchase, error: coinError } = await admin.from('coin_purchases')
           .select('id, user_id, coins_amount, fcfa_paid, fedapay_transaction_id, status')

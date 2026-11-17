@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Settings, Share2, MoreHorizontal, Grid3X3, Heart, Bookmark, Link as LinkIcon, MessageCircle, Zap, MapPin, Briefcase, Globe, Copy, Check, X, Send } from 'lucide-react';
+import { Settings, Share2, MoreHorizontal, BadgeCheck, Grid3X3, Heart, Bookmark, Link as LinkIcon, MessageCircle, Zap, MapPin, Briefcase, Globe, Copy, Check, X, Send } from 'lucide-react';
 import { mockConversations } from '@/data/mockChatData';
 import { VideoThumbnail } from '@/components/video/VideoThumbnail';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ const tabs = [
 ];
 
 type VendorProfile = { is_vendor?: boolean };
+type IdentityProfile = { identity_verified?: boolean; identity_verified_until?: string | null };
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState('videos');
@@ -44,6 +45,8 @@ const Profile = () => {
     ? [profile.prenom, profile.deuxieme_prenom, profile.nom].filter(Boolean).join(' ')
     : 'Utilisateur';
   const username = profile?.username || 'utilisateur';
+  const identityProfile = profile as unknown as IdentityProfile | null;
+  const isIdentityVerified = Boolean(identityProfile?.identity_verified && identityProfile.identity_verified_until && new Date(identityProfile.identity_verified_until).getTime() > Date.now());
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -99,7 +102,10 @@ const Profile = () => {
           <h2 className="text-xl font-bold text-foreground mb-1">
             @{username}
           </h2>
-          <p className="text-foreground font-medium">{displayName}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-foreground font-medium">{displayName}</p>
+            {isIdentityVerified && <BadgeCheck className="h-4 w-4 fill-sky-500/15 text-sky-500" aria-label="Identité vérifiée par Afrixa" />}
+          </div>
 
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
             <CreatorBadge level="starter" />
@@ -152,6 +158,9 @@ const Profile = () => {
               <Share2 className="w-5 h-5" />
             </Button>
           </div>
+          <Button variant="outline" className="mt-3 w-full max-w-sm" onClick={() => navigate('/identity-verification')}>
+            Demander le badge bleu · Identité vérifiée
+          </Button>
 
           {/* Boost Banner */}
           <button
