@@ -12,7 +12,7 @@ type ReviewRequest = {
   id: string; user_id: string; subscription_id: string; status: string;
   legal_name: string; document_type: string; issuing_country: string;
   applicant_note: string | null; decision_reason: string | null;
-  submitted_at: string; document_url: string | null;
+  submitted_at: string;
 };
 
 const IdentityVerificationAdmin = () => {
@@ -45,6 +45,22 @@ const IdentityVerificationAdmin = () => {
   }, [user?.id, filter]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const openDocument = async (request: ReviewRequest) => {
+    setBusyId(request.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('identity-verification', {
+        body: { action: 'review_document', request_id: request.id },
+      });
+      if (error || data?.error || !data?.document_url) throw error ?? new Error(data?.error ?? 'Document indisponible');
+      window.open(data.document_url, '_blank', 'noopener,noreferrer');
+    } catch (error: any) {
+      console.error('Unable to open identity document', error);
+      toast.error('Impossible d’ouvrir le justificatif.');
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const decide = async (request: ReviewRequest, decision: string) => {
     const reason = (reasons[request.id] ?? '').trim();
@@ -133,11 +149,9 @@ const IdentityVerificationAdmin = () => {
               </div>
               {request.applicant_note && <p className="mt-3 rounded-lg bg-muted/40 p-3 text-sm">{request.applicant_note}</p>}
               <div className="mt-3 flex flex-wrap gap-2">
-                {request.document_url ? (
-                  <a href={request.document_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-semibold text-primary">
-                    <FileText className="h-4 w-4" /> Ouvrir le justificatif (lien temporaire)
-                  </a>
-                ) : <span className="text-xs text-muted-foreground">Document non disponible.</span>}
+                <Button size="sm" variant="outline" disabled={busyId === request.id} onClick={() => void openDocument(request)}>
+                  <FileText className="mr-2 h-4 w-4" /> Ouvrir le justificatif (lien temporaire)
+                </Button>
               </div>
               {request.decision_reason && <p className="mt-2 text-xs text-muted-foreground">Motif précédent : {request.decision_reason}</p>}
               {['submitted', 'under_review', 'needs_information'].includes(request.status) && (
