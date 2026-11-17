@@ -44,6 +44,7 @@ const IdentityVerificationPage = () => {
   const [note, setNote] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [paymentMessage, setPaymentMessage] = useState('');
+  const [reviewerRole, setReviewerRole] = useState<string | null>(null);
 
   const latestSubscription = subscriptions[0] ?? null;
   const activeSubscription = useMemo(
@@ -67,6 +68,7 @@ const IdentityVerificationPage = () => {
       setPlan(data?.plan ?? null);
       setSubscriptions(data?.subscriptions ?? []);
       setRequests(data?.requests ?? []);
+      setReviewerRole(data?.reviewer_role ?? null);
     }
     setLoading(false);
   }, [user?.id]);
@@ -203,6 +205,12 @@ const IdentityVerificationPage = () => {
             <h1 className="text-2xl font-black">Identité vérifiée</h1>
           </div>
         </div>
+
+        {reviewerRole && (
+          <Button className="mt-4 w-full" variant="outline" onClick={() => navigate('/identity-verification/admin')}>
+            Ouvrir l’espace d’examen Afrixa
+          </Button>
+        )}
 
         <section className="mt-5 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-background p-5">
           <div className="flex items-center gap-3">
