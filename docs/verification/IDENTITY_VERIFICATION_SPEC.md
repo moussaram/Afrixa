@@ -35,6 +35,7 @@ Formats acceptés : JPEG, PNG, PDF. De 1 à 3 fichiers, 10 Mo maximum par fichie
 - Les examinateurs sont une liste blanche gérée côté serveur dans public.identity_verification_reviewers.
 - Les agents ne reçoivent que des URL signées à durée courte pour consulter un document.
 - Chaque décision et chaque consultation de document sont journalisées.
+- La date cible de suppression des justificatifs est fixée à 90 jours après une décision finale. La migration enregistre cette échéance ; le job de purge planifié doit être configuré avant l’ouverture publique. Tant que ce job n’est pas activé, la purge doit être effectuée manuellement.
 - Le badge public est contrôlé par le serveur et lié à l’expiration de l’abonnement.
 - Les rôles administratifs ne doivent jamais être déterminés à partir de user_metadata modifiable par l’utilisateur.
 
@@ -67,6 +68,7 @@ La migration de ce dépôt doit d’abord être appliquée à un environnement d
 - impossibilité pour un utilisateur de modifier son statut de vérification ;
 - impossibilité pour un agent non provisionné d’accéder à la file ;
 - expiration et révocation du badge ;
+- job de purge des justificatifs exécuté à l’échéance de 90 jours ;
 - build, lint et tests de non-régression.
 
 ## Périmètre exclu
