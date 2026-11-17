@@ -211,8 +211,11 @@ Deno.serve(async (req) => {
         return json({ verified: false, status: String(payment?.status ?? 'unknown').toLowerCase() });
       }
 
+      const { data: plan, error: planError } = await admin.from('identity_verification_plans')
+        .select('duration_days').eq('id', subscription.plan_id).single();
+      if (planError) throw planError;
       const now = new Date();
-      const expires = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+      const expires = new Date(now.getTime() + Number(plan.duration_days) * 24 * 60 * 60 * 1000);
       const { data: activated, error: activateError } = await admin.from('identity_verification_subscriptions')
         .update({
           status: 'active',
