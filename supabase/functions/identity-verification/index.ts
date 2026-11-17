@@ -240,11 +240,15 @@ Deno.serve(async (req) => {
         .in('status', ['submitted', 'under_review', 'needs_information']).limit(1).maybeSingle();
 
       const { data: existingObject, error: storageError } = await admin.storage.from(BUCKET)
-        .list(user.id, { search: documentPath.slice(user.id.length + 1).split('/').pop() ?? '' });
+        .list(documentPath.slice(0, documentPath.lastIndexOf('/')), { search: documentPath.split('/').pop() ?? '' });
       if (storageError) throw storageError;
       const fileName = documentPath.split('/').pop();
-      if (!existingObject?.some((file) => file.name === fileName)) {
-        return json({ error: 'document_not_found' }, 400);
+      const uploadedFile = existingObject?.find((file) => file.name === fileName);
+      const uploadedSize = Number(uploadedFile?.metadata?.size ?? 0);
+      const uploadedType = String(uploadedFile?.metadata?.mimetype ?? '');
+      if (!uploadedFile || uploadedSize > 10 * 1024 * 1024
+        || !['image/jpeg', 'image/png', 'application/pdf'].includes(uploadedType)) {
+        return json({ error: 'document_not_found_or_invalid' }, 400);
       }
 
       if (openRequest?.status === 'needs_information') {
@@ -299,16 +303,7 @@ Deno.serve(async (req) => {
           .select('id,user_id,subscription_id,status,legal_name,document_type,issuing_country,applicant_note,decision_reason,submitted_at,created_at')
           .eq('status', status).order('submitted_at', { ascending: true }).limit(100);
         if (rowsError) throw rowsError;
-        const queue = await Promise.all((rows ?? []).map(async (row) => {
-          const { data: signed, error: signedError } = await admin.storage.from(BUCKET)
-            .createSignedUrl(row.document_path, 120);
-          if (signedError) throw signedError;
-          await admin.from('identity_verification_reviews').insert({
-            request_id: row.id, reviewer_id: user.id, action: 'document_viewed',
-          });
-          return { ...row, document_url: signed?.signedUrl ?? null };
-        }));
-        return json({ requests: queue, reviewer_role: reviewer.role });
+        return json({ requests: rows ?? [], reviewer_role: reviewer.role });
       }
 
       if (action === 'review_document') {
@@ -346,6 +341,7 @@ Deno.serve(async (req) => {
       if (['approved', 'rejected', 'revoked'].includes(request.status)) {
         return json({ error: 'request_already_closed' }, 409);
       }
+      let verifiedUntil: string | null = null;
       if (decision === 'approved') {
         const { data: subscription, error: subscriptionError } = await admin.from('identity_verification_subscriptions')
           .select('status,expires_at').eq('id', request.subscription_id).eq('user_id', request.user_id).single();
@@ -353,18 +349,7 @@ Deno.serve(async (req) => {
         if (subscription.status !== 'active' || new Date(subscription.expires_at) <= new Date()) {
           return json({ error: 'subscription_expired' }, 409);
         }
-        const { error: profileError } = await admin.from('profiles').update({
-          identity_verified: true,
-          identity_verified_until: subscription.expires_at,
-        }).eq('user_id', request.user_id);
-        if (profileError) throw profileError;
-      }
-      if (decision === 'rejected' || decision === 'revoked') {
-        const { error: profileError } = await admin.from('profiles').update({
-          identity_verified: false,
-          identity_verified_until: null,
-        }).eq('user_id', request.user_id);
-        if (profileError) throw profileError;
+        verifiedUntil = subscription.expires_at;
       }
       const { data: updated, error: updateError } = await admin.from('identity_verification_requests')
         .update({
@@ -375,6 +360,19 @@ Deno.serve(async (req) => {
         })
         .eq('id', request.id).select('id,status').single();
       if (updateError) throw updateError;
+      if (decision === 'approved') {
+        const { error: profileError } = await admin.from('profiles').update({
+          identity_verified: true,
+          identity_verified_until: verifiedUntil,
+        }).eq('user_id', request.user_id);
+        if (profileError) throw profileError;
+      } else if (decision === 'rejected' || decision === 'revoked') {
+        const { error: profileError } = await admin.from('profiles').update({
+          identity_verified: false,
+          identity_verified_until: null,
+        }).eq('user_id', request.user_id);
+        if (profileError) throw profileError;
+      }
       const { error: logError } = await admin.from('identity_verification_reviews').insert({
         request_id: request.id,
         reviewer_id: user.id,
