@@ -76,6 +76,7 @@ const Profile = () => {
       </header>
 
       <ProfileBannerEditor userId={user?.id || ''} imageUrl={profile?.banner_url || null} imagePath={profile?.banner_path || null} position={profile?.banner_position} onSaved={refreshProfile} />
+      <ProfileCompletionBanner />
       <section className="px-4 pb-6">
         <div className="mx-auto max-w-5xl">
           <div className="-mt-12 flex items-end gap-4">
