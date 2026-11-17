@@ -11,20 +11,24 @@ CREATE OR REPLACE FUNCTION public.guard_identity_verified_profile_fields()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = ''
-AS $$
+AS $
 BEGIN
-  IF (NEW.identity_verified IS DISTINCT FROM OLD.identity_verified
-      OR NEW.identity_verified_until IS DISTINCT FROM OLD.identity_verified_until)
-     AND coalesce(auth.jwt() ->> 'role', '') <> 'service_role' THEN
-    RAISE EXCEPTION 'Le statut d’identité vérifiée est géré exclusivement par Afrixa';
+  IF coalesce(auth.jwt() ->> 'role', '') <> 'service_role' THEN
+    IF TG_OP = 'INSERT' THEN
+      NEW.identity_verified := false;
+      NEW.identity_verified_until := NULL;
+    ELSIF NEW.identity_verified IS DISTINCT FROM OLD.identity_verified
+      OR NEW.identity_verified_until IS DISTINCT FROM OLD.identity_verified_until THEN
+      RAISE EXCEPTION 'Le statut d’identité vérifiée est géré exclusivement par Afrixa';
+    END IF;
   END IF;
   RETURN NEW;
 END;
-$$;
+$;
 
 DROP TRIGGER IF EXISTS guard_identity_verified_profile_fields ON public.profiles;
 CREATE TRIGGER guard_identity_verified_profile_fields
-  BEFORE UPDATE ON public.profiles
+  BEFORE INSERT OR UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.guard_identity_verified_profile_fields();
 
 CREATE TABLE IF NOT EXISTS public.identity_verification_plans (
@@ -208,3 +212,111 @@ COMMENT ON TABLE public.identity_verification_reviewers IS
   'Liste blanche des agents Afrixa habilités à examiner les justificatifs d’identité.';
 COMMENT ON COLUMN public.profiles.identity_verified IS
   'Statut attribué exclusivement par le serveur après approbation et abonnement actif.';
+
+-- Atomic reviewer decision: request state, badge, audit entry and notification
+-- commit together. Only the trusted Edge Function service role may execute it.
+CREATE OR REPLACE FUNCTION public.apply_identity_verification_decision(
+  p_request_id uuid,
+  p_decision text,
+  p_reason text,
+  p_internal_note text,
+  p_reviewer_id uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_request public.identity_verification_requests%ROWTYPE;
+  v_reviewer public.identity_verification_reviewers%ROWTYPE;
+  v_expiry timestamptz;
+BEGIN
+  SELECT * INTO v_reviewer
+  FROM public.identity_verification_reviewers
+  WHERE user_id = p_reviewer_id AND active = true;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Examinateur non habilité';
+  END IF;
+  IF p_decision NOT IN ('under_review', 'needs_information', 'approved', 'rejected', 'revoked') THEN
+    RAISE EXCEPTION 'Décision invalide';
+  END IF;
+  IF p_decision = 'revoked' AND v_reviewer.role <> 'supervisor' THEN
+    RAISE EXCEPTION 'Révocation réservée au superviseur';
+  END IF;
+  IF p_decision IN ('needs_information', 'rejected', 'revoked')
+    AND length(btrim(coalesce(p_reason, ''))) < 3 THEN
+    RAISE EXCEPTION 'Motif obligatoire';
+  END IF;
+
+  SELECT * INTO v_request
+  FROM public.identity_verification_requests
+  WHERE id = p_request_id
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Demande introuvable'; END IF;
+  IF v_request.status IN ('approved', 'rejected', 'revoked') THEN
+    RAISE EXCEPTION 'Demande déjà clôturée';
+  END IF;
+
+  IF p_decision = 'approved' THEN
+    SELECT expires_at INTO v_expiry
+    FROM public.identity_verification_subscriptions
+    WHERE id = v_request.subscription_id
+      AND user_id = v_request.user_id
+      AND status = 'active'
+      AND expires_at > now();
+    IF v_expiry IS NULL THEN RAISE EXCEPTION 'Abonnement expiré'; END IF;
+  END IF;
+
+  UPDATE public.identity_verification_requests
+  SET status = p_decision,
+      decision_reason = nullif(left(btrim(coalesce(p_reason, '')), 1000), ''),
+      reviewed_at = now(),
+      reviewed_by = p_reviewer_id,
+      updated_at = now()
+  WHERE id = p_request_id;
+
+  IF p_decision = 'approved' THEN
+    UPDATE public.profiles
+    SET identity_verified = true,
+        identity_verified_until = v_expiry,
+        updated_at = now()
+    WHERE user_id = v_request.user_id;
+  ELSIF p_decision IN ('rejected', 'revoked') THEN
+    UPDATE public.profiles
+    SET identity_verified = false,
+        identity_verified_until = NULL,
+        updated_at = now()
+    WHERE user_id = v_request.user_id;
+  END IF;
+
+  INSERT INTO public.identity_verification_reviews (
+    request_id, reviewer_id, action, reason, internal_note
+  ) VALUES (
+    p_request_id, p_reviewer_id, p_decision,
+    nullif(left(btrim(coalesce(p_reason, '')), 1000), ''),
+    nullif(left(btrim(coalesce(p_internal_note, '')), 2000), '')
+  );
+
+  INSERT INTO public.notifications (user_id, title, message, type)
+  VALUES (
+    v_request.user_id,
+    'Vérification d’identité Afrixa',
+    CASE p_decision
+      WHEN 'approved' THEN 'Ton identité a été vérifiée. Le badge bleu est maintenant actif sur ton profil.'
+      WHEN 'needs_information' THEN 'Des informations complémentaires sont nécessaires pour terminer ta vérification.'
+      WHEN 'rejected' THEN 'Ta demande de vérification d’identité n’a pas été approuvée.'
+      WHEN 'revoked' THEN 'La vérification de ton identité a été retirée.'
+      ELSE 'Ton dossier de vérification est pris en charge par l’équipe Afrixa.'
+    END,
+    'verification'
+  );
+
+  RETURN jsonb_build_object('request_id', p_request_id, 'status', p_decision);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.apply_identity_verification_decision(uuid, text, text, text, uuid)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_identity_verification_decision(uuid, text, text, text, uuid)
+  TO service_role;
