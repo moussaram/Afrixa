@@ -152,6 +152,9 @@ const Profile = () => {
               <Share2 className="w-5 h-5" />
             </Button>
           </div>
+          <Button variant="outline" className="mt-3 w-full max-w-sm" onClick={() => navigate('/identity-verification')}>
+            Demander le badge bleu · Identité vérifiée
+          </Button>
 
           {/* Boost Banner */}
           <button
