@@ -15,6 +15,7 @@ import { useProfileVideoCollections } from '@/hooks/useProfileVideoCollections';
 import { useProfileVideos } from '@/hooks/useProfileVideos';
 import { useProfileStats } from '@/hooks/useProfileStats';
 import { toast } from 'sonner';
+import { ProfileBannerEditor } from '@/components/profile/ProfileBanner';
 
 const tabs = [
   { id: 'videos', icon: Grid3X3, label: 'Vidéos' },
@@ -29,7 +30,7 @@ const Profile = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const navigate = useNavigate();
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const {
     likedVideos,
     savedVideos,
@@ -76,118 +77,43 @@ const Profile = () => {
 
       <ProfileCompletionBanner />
 
-      {/* Profile info */}
-      <section className="px-4 py-6">
-        <div className="flex flex-col items-center">
-          {/* Avatar */}
-          <div className="relative mb-4">
-            <img
-              src={profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face'}
-              alt={username}
-              className="w-24 h-24 rounded-full object-cover border-4 border-primary"
-            />
-            <button
-              onClick={() => navigate('/settings/my-info')}
-              aria-label="Modifier la photo de profil"
-              className="absolute bottom-0 right-0 w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xl border-4 border-background"
-            >
-              +
+      <ProfileCompletionBanner />
+      <ProfileBannerEditor userId={user?.id || ''} imageUrl={profile?.banner_url || null} imagePath={profile?.banner_path || null} position={profile?.banner_position} onSaved={refreshProfile} />
+      <section className="px-4 pb-6">
+        <div className="mx-auto max-w-5xl">
+          <div className="-mt-12 flex items-end gap-4">
+            <div className="relative shrink-0">
+              <img src={profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face'} alt={username} className="h-24 w-24 rounded-full border-[5px] border-background object-cover shadow-xl ring-2 ring-primary/70" />
+              <button onClick={() => navigate('/settings/my-info')} aria-label="Modifier la photo de profil" className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full border-4 border-background gradient-primary text-xl text-primary-foreground">+</button>
+            </div>
+            <div className="min-w-0 pb-1"><p className="truncate text-sm font-semibold text-foreground">@{username}</p><p className="truncate text-xs text-muted-foreground">{displayName}</p></div>
+          </div>
+          <div className="mt-4 flex flex-col items-center">
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <CreatorBadge level="starter" />
+              {(profile as VendorProfile | null)?.is_vendor && <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-400/30 bg-orange-500/15 px-3 py-1 text-xs font-bold text-orange-300">Vendeur</span>}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              {profile?.nationalite && <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/40 px-3 py-1 text-sm text-foreground">{profile.nationalite_flag && <span>{profile.nationalite_flag}</span>}<Globe className="h-3.5 w-3.5 text-muted-foreground" /><span>{profile.nationalite}</span></span>}
+              {profile?.profession && <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/40 px-3 py-1 text-sm text-foreground"><Briefcase className="h-3.5 w-3.5 text-muted-foreground" /><span>{profile.profession}</span></span>}
+            </div>
+            <div className="mt-4 flex items-center gap-8">
+              <div className="text-center"><p className="text-xl font-bold text-foreground">{formatNumber(stats.followingCount)}</p><p className="text-sm text-muted-foreground">Abonnements</p></div>
+              <div className="text-center"><p className="text-xl font-bold text-foreground">{formatNumber(stats.followersCount)}</p><p className="text-sm text-muted-foreground">Abonnés</p></div>
+              <div className="text-center"><p className="text-xl font-bold text-foreground">{formatNumber(stats.likesCount)}</p><p className="text-sm text-muted-foreground">J'aime</p></div>
+            </div>
+            <div className="mt-6 flex w-full max-w-sm items-center gap-3">
+              <Button variant="gradient" className="flex-1" onClick={() => navigate('/settings/my-info')}>Modifier le profil</Button>
+              <Button variant="glass" size="icon" onClick={() => setShareOpen(true)}><Share2 className="h-5 w-5" /></Button>
+            </div>
+            <button onClick={() => navigate('/boost')} className="mt-4 flex w-full max-w-sm items-center gap-3 rounded-2xl border border-primary/40 bg-gradient-to-r from-primary/10 to-secondary/10 px-4 py-3 transition-all hover:scale-[1.02] hover:border-primary/70">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl gradient-primary"><Zap className="h-5 w-5 text-primary-foreground" /></div>
+              <div className="flex-1 text-left"><p className="text-sm font-bold text-foreground">Booster mes vidéos</p><p className="text-xs text-muted-foreground">À partir de 2,99€ · Touche jusqu'à 500K personnes</p></div>
+              <div className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-primary">Pub</div>
             </button>
+            {profile?.bio && <p className="mt-4 max-w-sm text-center text-foreground">{profile.bio}</p>}
+            <button onClick={async () => { await navigator.clipboard.writeText(`https://afrixa.app/user/${user?.id ?? ''}`); toast.success('Lien du profil copié'); }} className="mt-3 flex items-center gap-2 text-primary hover:underline"><LinkIcon className="h-4 w-4" /><span className="text-sm font-medium">afrixa.app/@{username}</span></button>
           </div>
-
-          {/* Username */}
-          <h2 className="text-xl font-bold text-foreground mb-1">
-            @{username}
-          </h2>
-          <p className="text-foreground font-medium">{displayName}</p>
-
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-            <CreatorBadge level="starter" />
-            {(profile as VendorProfile | null)?.is_vendor && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-400/30 bg-orange-500/15 px-3 py-1 text-xs font-bold text-orange-300">
-                Vendeur
-              </span>
-            )}
-          </div>
-
-          {/* Public info badges */}
-          <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
-            {profile?.nationalite && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/40 text-sm text-foreground">
-                {profile.nationalite_flag && <span>{profile.nationalite_flag}</span>}
-                <Globe className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>{profile.nationalite}</span>
-              </span>
-            )}
-            {profile?.profession && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/40 text-sm text-foreground">
-                <Briefcase className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>{profile.profession}</span>
-              </span>
-            )}
-          </div>
-
-          {/* Stats */}
-          <div className="flex items-center gap-8 mt-4">
-            <div className="text-center">
-              <p className="text-xl font-bold text-foreground">{formatNumber(stats.followingCount)}</p>
-              <p className="text-sm text-muted-foreground">Abonnements</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xl font-bold text-foreground">{formatNumber(stats.followersCount)}</p>
-              <p className="text-sm text-muted-foreground">Abonnés</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xl font-bold text-foreground">{formatNumber(stats.likesCount)}</p>
-              <p className="text-sm text-muted-foreground">J'aime</p>
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-3 mt-6 w-full max-w-sm">
-            <Button variant="gradient" className="flex-1" onClick={() => navigate('/settings/my-info')}>
-              Modifier le profil
-            </Button>
-            <Button variant="glass" size="icon" onClick={() => setShareOpen(true)}>
-              <Share2 className="w-5 h-5" />
-            </Button>
-          </div>
-
-          {/* Boost Banner */}
-          <button
-            onClick={() => navigate('/boost')}
-            className="mt-4 w-full max-w-sm flex items-center gap-3 rounded-2xl border border-primary/40 bg-gradient-to-r from-primary/10 to-secondary/10 px-4 py-3 transition-all hover:border-primary/70 hover:scale-[1.02]"
-          >
-            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shrink-0">
-              <Zap className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <div className="text-left flex-1">
-              <p className="text-sm font-bold text-foreground">Booster mes vidéos</p>
-              <p className="text-xs text-muted-foreground">À partir de 2,99€ · Touche jusqu'à 500K personnes</p>
-            </div>
-            <div className="text-xs font-bold text-primary px-2 py-1 rounded-full bg-primary/10">
-              Pub
-            </div>
-          </button>
-
-          {/* Bio */}
-          {profile?.bio && (
-            <p className="text-foreground text-center mt-4 max-w-sm">
-              {profile.bio}
-            </p>
-          )}
-
-          {/* Link */}
-          <button
-            onClick={async () => {
-              await navigator.clipboard.writeText(`https://afrixa.app/user/${user?.id ?? ''}`);
-              toast.success('Lien du profil copié');
-            }}
-            className="flex items-center gap-2 mt-3 text-primary hover:underline"
-          >
-            <LinkIcon className="w-4 h-4" />
-            <span className="text-sm font-medium">afrixa.app/@{username}</span>
-          </button>
         </div>
       </section>
 
