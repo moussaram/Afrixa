@@ -1,6 +1,8 @@
 name: Afrixa profile banner checks
 
 on:
+  push:
+    branches: [feat/profile-banner-20261117]
   pull_request:
     branches: [main]
     paths:
