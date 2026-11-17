@@ -197,13 +197,16 @@ Deno.serve(async (req) => {
       const payment = getFedaPayEntity(response);
       const metadata = payment?.custom_metadata && typeof payment.custom_metadata === 'object'
         ? payment.custom_metadata as Record<string, unknown> : {};
+      const metadataValid = Object.keys(metadata).length === 0 || (
+        metadata.subscription_id === subscription.id
+        && metadata.user_id === user.id
+        && metadata.purpose === 'identity_verification'
+      );
       const valid = String(payment?.id) === subscription.fedapay_transaction_id
         && String(payment?.status ?? '').toLowerCase() === 'approved'
         && Number(payment?.amount) === Number(subscription.amount_xof)
         && currencyIso(payment?.currency) === subscription.currency
-        && metadata.subscription_id === subscription.id
-        && metadata.user_id === user.id
-        && metadata.purpose === 'identity_verification';
+        && metadataValid;
       if (!valid) {
         return json({ verified: false, status: String(payment?.status ?? 'unknown').toLowerCase() });
       }
