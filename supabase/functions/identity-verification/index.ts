@@ -253,7 +253,8 @@ Deno.serve(async (req) => {
         ? body.document_paths.map((path: unknown) => typeof path === 'string' ? path : '')
         : [String(body?.document_path ?? '')];
       const note = typeof body?.applicant_note === 'string' ? body.applicant_note.trim() : '';
-      if (!/^[0-9a-f-]{36}$/i.test(subscriptionId)
+      const consent = body?.consent === true;
+      if (!consent || !/^[0-9a-f-]{36}$/i.test(subscriptionId)
         || legalName.length < 3 || legalName.length > 160
         || !['national_id', 'passport', 'residence_permit'].includes(documentType)
         || !/^[A-Z]{2}$/.test(country)
@@ -301,6 +302,9 @@ Deno.serve(async (req) => {
             document_path: documentPaths[0],
             document_paths: documentPaths,
             applicant_note: note || null,
+            consented_at: new Date().toISOString(),
+            consent_version: 'identity-verification-v1',
+            documents_delete_after: null,
             status: 'submitted',
             decision_reason: null,
             submitted_at: new Date().toISOString(),
@@ -324,6 +328,8 @@ Deno.serve(async (req) => {
           document_path: documentPaths[0],
           document_paths: documentPaths,
           applicant_note: note || null,
+          consented_at: new Date().toISOString(),
+          consent_version: 'identity-verification-v1',
           status: 'submitted',
         })
         .select('id,status').single();
