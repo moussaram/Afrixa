@@ -43,7 +43,18 @@ payment_pending, active, submitted, under_review, needs_information, approved, r
 Le paiement ne change jamais l’état de la demande en approved. Seul un examinateur habilité peut prendre une décision.
 
 ## Provisionnement des examinateurs
-Après application de la migration sur le projet Supabase confirmé, un administrateur du projet doit ajouter les UUID Auth des agents Afrixa autorisés dans public.identity_verification_reviewers via le SQL Editor Supabase ou un canal serveur sécurisé. Exemple à exécuter par un administrateur après avoir remplacé les UUID par ceux des comptes d’équipe autorisés :\n\n```sql\nINSERT INTO public.identity_verification_reviewers (user_id, role, active)\nVALUES ('<UUID_AUTH_AGENT>', 'reviewer', true);\n\n-- Pour un superviseur autorisé à révoquer une vérification :\nINSERT INTO public.identity_verification_reviewers (user_id, role, active)\nVALUES ('<UUID_AUTH_SUPERVISEUR>', 'supervisor', true);\n```\n\nNe jamais exposer la clé service role dans le navigateur ni dans le dépôt. Le provisionnement n’est pas automatique : aucun compte n’est promu examinateur sans sélection explicite.
+Après application de la migration sur le projet Supabase confirmé, un administrateur du projet doit ajouter les UUID Auth des agents Afrixa autorisés dans public.identity_verification_reviewers via le SQL Editor Supabase ou un canal serveur sécurisé. Exemple à exécuter par un administrateur après avoir remplacé les UUID par ceux des comptes d’équipe autorisés :
+
+```sql
+INSERT INTO public.identity_verification_reviewers (user_id, role, active)
+VALUES ('<UUID_AUTH_AGENT>', 'reviewer', true);
+
+-- Pour un superviseur autorisé à révoquer une vérification :
+INSERT INTO public.identity_verification_reviewers (user_id, role, active)
+VALUES ('<UUID_AUTH_SUPERVISEUR>', 'supervisor', true);
+```
+
+Ne jamais exposer la clé service role dans le navigateur ni dans le dépôt. Le provisionnement n’est pas automatique : aucun compte n’est promu examinateur sans sélection explicite.
 
 ## Déploiement et contrôles obligatoires
 La migration de ce dépôt doit d’abord être appliquée à un environnement de staging. Vérifier :
