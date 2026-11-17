@@ -1,13 +1,12 @@
-# Ressources visuelles d’Akili
+# Identité visuelle officielle d’Akili
 
-Déposez dans ce dossier les images officielles qui serviront de logo, d’icône et de variantes visuelles pour Akili.
+Les quatre fichiers PNG de ce dossier sont les variantes officielles fournies pour Akili.
 
-Formats conseillés : SVG pour les logos vectoriels, PNG avec fond transparent pour les icônes, et WebP ou PNG pour les images matricielles.
+| Fichier | Variante | Utilisation dans Afrixa |
+| --- | --- | --- |
+| `akili_logo_1.png` | Icône carrée avec symbole et nom | Visuel principal de bienvenue sur la page Akili |
+| `akili_logo_2.png` | Symbole seul, fond transparent | Avatar des réponses, indicateur de réflexion et entrée Akili dans « Mon espace » |
+| `akili_logo_3.png` | Symbole seul sur fond blanc | Icône dans l’en-tête du chat |
+| `akili_logo_4.png` | Signature horizontale symbole + nom | Signature de marque dans l’en-tête du chat |
 
-Noms de fichiers conseillés (à adapter selon les variantes fournies) :
-- `akili-logo.svg` ou `akili-logo.png` : logo principal
-- `akili-icon.png` : icône carrée de l’assistant
-- `akili-icon-dark.png` : variante adaptée aux fonds sombres
-- `akili-icon-light.png` : variante adaptée aux fonds clairs
-
-Ne remplacez pas les fichiers existants de l’application avant validation des visuels. Les images déposées ici seront examinées puis reliées aux composants d’Akili.
+Les visuels sont utilisés directement depuis `/akili-assets/`, sans recoloration ni déformation. Conserver leurs proportions avec `object-contain`.
