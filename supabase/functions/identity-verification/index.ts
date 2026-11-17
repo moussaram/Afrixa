@@ -81,6 +81,10 @@ Deno.serve(async (req) => {
         .select('id,status,expires_at').eq('user_id', user.id).eq('status', 'active')
         .gt('expires_at', new Date().toISOString()).limit(1).maybeSingle();
       if (existing) return json({ error: 'subscription_already_active', subscription: existing }, 409);
+      const { error: expireOldError } = await admin.from('identity_verification_subscriptions')
+        .update({ status: 'expired' }).eq('user_id', user.id).eq('status', 'active')
+        .lte('expires_at', new Date().toISOString());
+      if (expireOldError) throw expireOldError;
 
       const { data: pending } = await admin.from('identity_verification_subscriptions')
         .select('id,fedapay_transaction_id,fedapay_reference,status').eq('user_id', user.id)
@@ -217,6 +221,10 @@ Deno.serve(async (req) => {
       if (planError) throw planError;
       const now = new Date();
       const expires = new Date(now.getTime() + Number(plan.duration_days) * 24 * 60 * 60 * 1000);
+      const { error: expireOldError } = await admin.from('identity_verification_subscriptions')
+        .update({ status: 'expired' }).eq('user_id', user.id).eq('status', 'active')
+        .lte('expires_at', now.toISOString());
+      if (expireOldError) throw expireOldError;
       const { data: activated, error: activateError } = await admin.from('identity_verification_subscriptions')
         .update({
           status: 'active',
