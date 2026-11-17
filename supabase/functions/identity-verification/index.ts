@@ -241,14 +241,16 @@ Deno.serve(async (req) => {
       const legalName = String(body?.legal_name ?? '').trim();
       const documentType = String(body?.document_type ?? '');
       const country = String(body?.issuing_country ?? '').toUpperCase();
-      const documentPath = String(body?.document_path ?? '');
+      const documentPaths = Array.isArray(body?.document_paths)
+        ? body.document_paths.map((path: unknown) => typeof path === 'string' ? path : '')
+        : [String(body?.document_path ?? '')];
       const note = typeof body?.applicant_note === 'string' ? body.applicant_note.trim() : '';
       if (!/^[0-9a-f-]{36}$/i.test(subscriptionId)
         || legalName.length < 3 || legalName.length > 160
         || !['national_id', 'passport', 'residence_permit'].includes(documentType)
         || !/^[A-Z]{2}$/.test(country)
-        || !documentPath.startsWith(`${user.id}/`)
-        || !/\.(pdf|png|jpe?g)$/i.test(documentPath)
+        || documentPaths.length < 1 || documentPaths.length > 3
+        || documentPaths.some((path: string) => !path.startsWith(`${user.id}/`) || !/\.(pdf|png|jpe?g)$/i.test(path))
         || note.length > 1000) {
         return json({ error: 'invalid_application' }, 400);
       }
@@ -264,19 +266,23 @@ Deno.serve(async (req) => {
         .select('id,status').eq('user_id', user.id)
         .in('status', ['submitted', 'under_review', 'needs_information']).limit(1).maybeSingle();
 
-      const { data: uploadedDocument, error: storageError } = await admin.storage.from(BUCKET).download(documentPath);
-      if (storageError || !uploadedDocument) return json({ error: 'document_not_found' }, 400);
-      const documentBytes = new Uint8Array(await uploadedDocument.arrayBuffer());
-      const startsWith = (signature: number[]) => signature.every((value, index) => documentBytes[index] === value);
-      const extension = documentPath.split('.').pop()?.toLowerCase();
-      const validPdf = extension === 'pdf' && new TextDecoder().decode(documentBytes.slice(0, 5)) === '%PDF-';
-      const validJpeg = ['jpg', 'jpeg'].includes(extension ?? '') && startsWith([0xff, 0xd8, 0xff]);
-      const validPng = extension === 'png' && startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-      if (documentBytes.byteLength === 0 || documentBytes.byteLength > 10 * 1024 * 1024
-        || !(validPdf || validJpeg || validPng)) {
-        return json({ error: 'document_type_or_size_invalid' }, 400);
+      let totalBytes = 0;
+      for (const documentPath of documentPaths) {
+        const { data: uploadedDocument, error: storageError } = await admin.storage.from(BUCKET).download(documentPath);
+        if (storageError || !uploadedDocument) return json({ error: 'document_not_found' }, 400);
+        const documentBytes = new Uint8Array(await uploadedDocument.arrayBuffer());
+        totalBytes += documentBytes.byteLength;
+        const startsWith = (signature: number[]) => signature.every((value, index) => documentBytes[index] === value);
+        const extension = documentPath.split('.').pop()?.toLowerCase();
+        const validPdf = extension === 'pdf' && new TextDecoder().decode(documentBytes.slice(0, 5)) === '%PDF-';
+        const validJpeg = ['jpg', 'jpeg'].includes(extension ?? '') && startsWith([0xff, 0xd8, 0xff]);
+        const validPng = extension === 'png' && startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+        if (documentBytes.byteLength === 0 || documentBytes.byteLength > 10 * 1024 * 1024
+          || !(validPdf || validJpeg || validPng)) {
+          return json({ error: 'document_type_or_size_invalid' }, 400);
+        }
       }
-
+      if (totalBytes > 30 * 1024 * 1024) return json({ error: 'documents_total_size_exceeded' }, 400);
       if (openRequest?.status === 'needs_information') {
         const { data: updated, error: updateError } = await admin.from('identity_verification_requests')
           .update({
@@ -284,7 +290,8 @@ Deno.serve(async (req) => {
             legal_name: legalName,
             document_type: documentType,
             issuing_country: country,
-            document_path: documentPath,
+            document_path: documentPaths[0],
+            document_paths: documentPaths,
             applicant_note: note || null,
             status: 'submitted',
             decision_reason: null,
@@ -306,7 +313,8 @@ Deno.serve(async (req) => {
           legal_name: legalName,
           document_type: documentType,
           issuing_country: country,
-          document_path: documentPath,
+          document_path: documentPaths[0],
+          document_paths: documentPaths,
           applicant_note: note || null,
           status: 'submitted',
         })
@@ -335,16 +343,21 @@ Deno.serve(async (req) => {
       if (action === 'review_document') {
         const requestId = String(body?.request_id ?? '');
         const { data: row, error: rowError } = await admin.from('identity_verification_requests')
-          .select('id,document_path').eq('id', requestId).maybeSingle();
+          .select('id,document_path,document_paths').eq('id', requestId).maybeSingle();
         if (rowError) throw rowError;
         if (!row) return json({ error: 'request_not_found' }, 404);
-        const { data: signed, error: signedError } = await admin.storage.from(BUCKET)
-          .createSignedUrl(row.document_path, 120);
-        if (signedError) throw signedError;
+        const paths = Array.isArray(row.document_paths) && row.document_paths.length > 0
+          ? row.document_paths : [row.document_path];
+        const documents = await Promise.all(paths.map(async (path: string, index: number) => {
+          const { data: signed, error: signedError } = await admin.storage.from(BUCKET)
+            .createSignedUrl(path, 120);
+          if (signedError) throw signedError;
+          return { index: index + 1, document_url: signed?.signedUrl ?? null };
+        }));
         await admin.from('identity_verification_reviews').insert({
           request_id: row.id, reviewer_id: user.id, action: 'document_viewed',
         });
-        return json({ document_url: signed?.signedUrl ?? null });
+        return json({ documents });
       }
 
       const requestId = String(body?.request_id ?? '');
