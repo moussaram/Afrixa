@@ -3,7 +3,12 @@ import { ArrowLeft, ArrowUp, Bot, MessageSquarePlus, Sparkles, ThumbsDown, Thumb
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/useAuth";
-import akiliMark from "/akili-mark.svg";
+const akiliAssets = {
+  appIcon: "/akili-assets/akili_logo_1.png",
+  symbol: "/akili-assets/akili_logo_2.png",
+  symbolOnLight: "/akili-assets/akili_logo_3.png",
+  wordmark: "/akili-assets/akili_logo_4.png",
+};
 
 type AkiliMessage = {
   role: "user" | "model";
@@ -170,9 +175,9 @@ export default function AkiliPage() {
           <Link to="/profile" aria-label="Retour au profil" className="rounded-full p-2 hover:bg-muted">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <img src={akiliMark} alt="Akili" className="h-10 w-10 rounded-2xl" />
+          <img src={akiliAssets.symbolOnLight} alt="Symbole Akili" className="h-10 w-10 rounded-xl bg-white object-contain p-0.5" />
           <div className="min-w-0 flex-1">
-            <h1 className="font-bold leading-tight">Akili</h1>
+            <img src={akiliAssets.wordmark} alt="Akili" className="h-10 w-[5.5rem] rounded-lg bg-white object-contain" />
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-emerald-500" /> Ton assistant Afrixa
             </p>
@@ -213,7 +218,7 @@ export default function AkiliPage() {
         {messages.length === 1 && (
           <div className="mx-auto my-auto flex max-w-lg flex-col items-center py-8 text-center">
             <div className="mb-5 rounded-[2rem] bg-gradient-to-br from-sky-400/15 via-blue-500/10 to-fuchsia-500/15 p-4 ring-1 ring-primary/15 shadow-xl shadow-primary/10">
-              <img src={akiliMark} alt="" className="h-24 w-24" />
+              <img src={akiliAssets.appIcon} alt="Application Akili" className="h-24 w-24 rounded-[1.35rem] object-contain shadow-md" />
             </div>
             <div className="mb-2 flex items-center gap-2 text-primary"><Sparkles className="h-4 w-4" /><span className="text-sm font-semibold">Bienvenue sur Akili</span></div>
             <h2 className="text-2xl font-bold tracking-tight">On avance ensemble ?</h2>
@@ -233,7 +238,7 @@ export default function AkiliPage() {
 
         {messages.map((message) => (
           <article key={message.id} className={`flex items-end gap-2.5 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-            {message.role === "model" && <img src={akiliMark} alt="" className="mb-1 h-8 w-8 shrink-0 rounded-xl" />}
+            {message.role === "model" && <img src={akiliAssets.symbol} alt="Akili" className="mb-1 h-8 w-8 shrink-0 object-contain" />}
             <div className={`max-w-[min(88%,42rem)] rounded-3xl px-4 py-3 shadow-sm ${message.role === "user" ? "rounded-br-lg bg-primary text-primary-foreground" : "rounded-bl-lg border border-border bg-card"}`}>
               <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.content}</p>
               <div className={`mt-2 flex items-center justify-between gap-4 text-[10px] ${message.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
@@ -250,7 +255,7 @@ export default function AkiliPage() {
         ))}
         {loading && (
           <div className="flex items-end gap-2.5">
-            <img src={akiliMark} alt="" className="h-8 w-8 rounded-xl" />
+            <img src={akiliAssets.symbol} alt="Akili" className="h-8 w-8 object-contain" />
             <div className="rounded-3xl rounded-bl-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
               Akili réfléchit<span className="animate-pulse">…</span>
             </div>
