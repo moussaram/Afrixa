@@ -53,12 +53,13 @@ Deno.serve(async (req) => {
     const action = String(body?.action ?? '');
 
     if (action === 'status') {
-      const [{ data: plan }, { data: subscriptions }, { data: requests }] = await Promise.all([
+      const [{ data: plan }, { data: subscriptions }, { data: requests }, { data: reviewer }] = await Promise.all([
         admin.from('identity_verification_plans').select('id,name,amount_xof,duration_days').eq('id', PLAN_ID).eq('active', true).maybeSingle(),
         admin.from('identity_verification_subscriptions').select('id,status,amount_xof,starts_at,expires_at,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
         admin.from('identity_verification_requests').select('id,subscription_id,status,legal_name,document_type,issuing_country,decision_reason,submitted_at,reviewed_at,created_at,updated_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
+        admin.from('identity_verification_reviewers').select('role').eq('user_id', user.id).eq('active', true).maybeSingle(),
       ]);
-      return json({ plan, subscriptions: subscriptions ?? [], requests: requests ?? [] });
+      return json({ plan, subscriptions: subscriptions ?? [], requests: requests ?? [], reviewer_role: reviewer?.role ?? null });
     }
 
     if (action === 'create_checkout') {
