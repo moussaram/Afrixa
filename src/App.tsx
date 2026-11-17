@@ -26,6 +26,8 @@ const Chat = lazy(() => import("./pages/Chat"));
 const NewMessage = lazy(() => import("./pages/NewMessage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const UserProfile = lazy(() => import("./pages/UserProfile"));
+const IdentityVerification = lazy(() => import("./pages/IdentityVerification"));
+const IdentityVerificationAdmin = lazy(() => import("./pages/IdentityVerificationAdmin"));
 
 const LiveSetup = lazy(() => import("./pages/LiveSetup"));
 const LiveBroadcast = lazy(() => import("./pages/LiveBroadcast"));
@@ -73,7 +75,7 @@ const AppContent = () => {
   }, [location.pathname]);
   const { user, loading } = useAuth();
 
-  const hideNavPaths = ['/create', '/settings', '/messages', '/chat', '/live', '/auth', '/onboarding'];
+  const hideNavPaths = ['/create', '/settings', '/messages', '/chat', '/live', '/auth', '/onboarding', '/identity-verification'];
   const hideNav = hideNavPaths.some(path => location.pathname.startsWith(path));
 
   // Redirect to login if not authenticated (sauf pages auth)
@@ -104,6 +106,8 @@ const AppContent = () => {
           <Route path="/coins" element={<Coins />} />
           <Route path="/ads" element={<AdsManager />} />
           <Route path="/moderation" element={<ModerationPage />} />
+          <Route path="/identity-verification" element={<IdentityVerification />} />
+          <Route path="/identity-verification/admin" element={<IdentityVerificationAdmin />} />
 
           {/* App routes */}
           <Route path="/" element={<Index />} />
