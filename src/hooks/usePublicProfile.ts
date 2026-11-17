@@ -12,6 +12,8 @@ export interface PublicProfile {
   deuxieme_prenom: string | null;
   nom: string | null;
   avatar_url: string | null;
+  banner_url: string | null;
+  banner_position: string | null;
   bio: string | null;
   nationalite: string | null;
   nationalite_flag: string | null;
@@ -38,7 +40,7 @@ export const usePublicProfile = (userId?: string) => {
     const { data, error: profileError } = await client
       .from('profiles')
       .select(
-        'user_id,username,prenom,deuxieme_prenom,nom,avatar_url,bio,nationalite,nationalite_flag,profession,is_private,is_vendor',
+        'user_id,username,prenom,deuxieme_prenom,nom,avatar_url,banner_url,banner_position,bio,nationalite,nationalite_flag,profession,is_private,is_vendor',
       )
       .eq('user_id', userId)
       .maybeSingle();
