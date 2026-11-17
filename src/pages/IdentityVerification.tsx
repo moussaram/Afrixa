@@ -42,7 +42,7 @@ const IdentityVerificationPage = () => {
   const [documentType, setDocumentType] = useState('national_id');
   const [country, setCountry] = useState('BJ');
   const [note, setNote] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [paymentMessage, setPaymentMessage] = useState('');
   const [reviewerRole, setReviewerRole] = useState<string | null>(null);
 
@@ -125,23 +125,28 @@ const IdentityVerificationPage = () => {
   };
 
   const submitApplication = async () => {
-    if (!user?.id || !activeSubscription || !file) {
+    if (!user?.id || !activeSubscription || files.length === 0) {
       toast.error('Choisis un justificatif avant de continuer.');
       return;
     }
-    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.type) || file.size > 10 * 1024 * 1024) {
-      toast.error('Format accepté : JPG, PNG ou PDF, 10 Mo maximum.');
+    if (files.length > 3 || files.some((item) => !['image/jpeg', 'image/png', 'application/pdf'].includes(item.type) || item.size > 10 * 1024 * 1024)
+      || files.reduce((sum, item) => sum + item.size, 0) > 30 * 1024 * 1024) {
+      toast.error('Ajoute 1 à 3 fichiers JPG, PNG ou PDF, 10 Mo maximum par fichier.');
       return;
     }
     setBusy(true);
     const folder = crypto.randomUUID();
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100);
-    const path = user.id + '/' + folder + '/' + safeName;
+    const uploadedPaths: string[] = [];
     try {
-      const { error: uploadError } = await supabase.storage
-        .from('identity-verification-documents')
-        .upload(path, file, { contentType: file.type, upsert: false });
-      if (uploadError) throw uploadError;
+      for (const [index, item] of files.entries()) {
+        const safeName = item.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100);
+        const path = user.id + '/' + folder + '/' + (index + 1) + '-' + safeName;
+        const { error: uploadError } = await supabase.storage
+          .from('identity-verification-documents')
+          .upload(path, item, { contentType: item.type, upsert: false });
+        if (uploadError) throw uploadError;
+        uploadedPaths.push(path);
+      }
       const { data, error } = await supabase.functions.invoke('identity-verification', {
         body: {
           action: 'submit_request',
@@ -149,20 +154,20 @@ const IdentityVerificationPage = () => {
           legal_name: legalName,
           document_type: documentType,
           issuing_country: country,
-          document_path: path,
+          document_paths: uploadedPaths,
           applicant_note: note,
         },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success('Ton dossier a été transmis à l’équipe Afrixa.');
-      setFile(null);
+      setFiles([]);
       setNote('');
       await load();
     } catch (error: any) {
       console.error('Identity verification application failed', error);
       toast.error(error?.message ?? 'Impossible de transmettre le dossier.');
-      await supabase.storage.from('identity-verification-documents').remove([path]);
+      if (uploadedPaths.length > 0) await supabase.storage.from('identity-verification-documents').remove(uploadedPaths);
     } finally {
       setBusy(false);
     }
@@ -311,15 +316,15 @@ const IdentityVerificationPage = () => {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="identity-document">Justificatif (JPG, PNG ou PDF · 10 Mo max.)</Label>
-                      <Input id="identity-document" type="file" accept="image/jpeg,image/png,application/pdf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-                      {file && <p className="text-xs text-muted-foreground">{file.name} · {(file.size / 1024 / 1024).toFixed(1)} Mo</p>}
+                      <Label htmlFor="identity-document">Justificatifs (1 à 3 fichiers · 10 Mo max. chacun)</Label>
+                      <Input id="identity-document" type="file" multiple accept="image/jpeg,image/png,application/pdf" onChange={(event) => setFiles(Array.from(event.target.files ?? []).slice(0, 3))} />
+                      {files.map((item, index) => <p key={index} className="text-xs text-muted-foreground">{item.name} · {(item.size / 1024 / 1024).toFixed(1)} Mo</p>)}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="identity-note">Note facultative</Label>
                       <Textarea id="identity-note" value={note} onChange={(event) => setNote(event.target.value)} maxLength={1000} placeholder="Information utile pour l’équipe Afrixa…" />
                     </div>
-                    <Button className="w-full" variant="gradient" disabled={busy || !file || legalName.trim().length < 3 || country.length !== 2} onClick={() => void submitApplication()}>
+                    <Button className="w-full" variant="gradient" disabled={busy || files.length === 0 || legalName.trim().length < 3 || country.length !== 2} onClick={() => void submitApplication()}>
                       <UploadCloud className="mr-2 h-4 w-4" /> {busy ? 'Envoi en cours…' : 'Soumettre mon dossier'}
                     </Button>
                   </div>
