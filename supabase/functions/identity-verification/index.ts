@@ -134,9 +134,9 @@ Deno.serve(async (req) => {
       const callback = new URL('/identity-verification', publicUrl);
       callback.searchParams.set('payment', 'return');
       callback.searchParams.set('subscription_id', subscriptionId);
-      const metadata = user.user_metadata ?? {};
-      const country = typeof metadata.country === 'string' && /^[A-Za-z]{2}$/.test(metadata.country)
-        ? metadata.country.toUpperCase() : 'BJ';
+      const userMetadata = user.user_metadata ?? {};
+      const country = typeof userMetadata.country === 'string' && /^[A-Za-z]{2}$/.test(userMetadata.country)
+        ? userMetadata.country.toUpperCase() : 'BJ';
 
       const created = await fedapayRequest('/transactions', {
         method: 'POST',
@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
           custom_metadata: {
             purpose: 'identity_verification',
             user_id: user.id,
-            subscription_id: subscription.id,
+            subscription_id: subscriptionId,
             payment_reference: paymentReference,
           },
         }),
