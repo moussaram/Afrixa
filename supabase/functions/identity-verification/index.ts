@@ -341,60 +341,14 @@ Deno.serve(async (req) => {
       if (['approved', 'rejected', 'revoked'].includes(request.status)) {
         return json({ error: 'request_already_closed' }, 409);
       }
-      let verifiedUntil: string | null = null;
-      if (decision === 'approved') {
-        const { data: subscription, error: subscriptionError } = await admin.from('identity_verification_subscriptions')
-          .select('status,expires_at').eq('id', request.subscription_id).eq('user_id', request.user_id).single();
-        if (subscriptionError) throw subscriptionError;
-        if (subscription.status !== 'active' || new Date(subscription.expires_at) <= new Date()) {
-          return json({ error: 'subscription_expired' }, 409);
-        }
-        verifiedUntil = subscription.expires_at;
-      }
-      const { data: updated, error: updateError } = await admin.from('identity_verification_requests')
-        .update({
-          status: decision,
-          decision_reason: reason || null,
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user.id,
-        })
-        .eq('id', request.id).select('id,status').single();
-      if (updateError) throw updateError;
-      if (decision === 'approved') {
-        const { error: profileError } = await admin.from('profiles').update({
-          identity_verified: true,
-          identity_verified_until: verifiedUntil,
-        }).eq('user_id', request.user_id);
-        if (profileError) throw profileError;
-      } else if (decision === 'rejected' || decision === 'revoked') {
-        const { error: profileError } = await admin.from('profiles').update({
-          identity_verified: false,
-          identity_verified_until: null,
-        }).eq('user_id', request.user_id);
-        if (profileError) throw profileError;
-      }
-      const { error: logError } = await admin.from('identity_verification_reviews').insert({
-        request_id: request.id,
-        reviewer_id: user.id,
-        action: decision,
-        reason: reason || null,
-        internal_note: note || null,
+      const { data: updated, error: decisionError } = await admin.rpc('apply_identity_verification_decision', {
+        p_request_id: request.id,
+        p_decision: decision,
+        p_reason: reason || null,
+        p_internal_note: note || null,
+        p_reviewer_id: user.id,
       });
-      if (logError) throw logError;
-      await admin.from('notifications').insert({
-        user_id: request.user_id,
-        title: 'Vérification d’identité Afrixa',
-        message: decision === 'approved'
-          ? 'Ton identité a été vérifiée. Le badge bleu est maintenant actif sur ton profil.'
-          : decision === 'needs_information'
-            ? 'Des informations complémentaires sont nécessaires pour terminer ta vérification.'
-            : decision === 'rejected'
-              ? 'Ta demande de vérification d’identité n’a pas été approuvée.'
-              : decision === 'revoked'
-                ? 'La vérification de ton identité a été retirée.'
-                : 'Ton dossier de vérification est pris en charge par l’équipe Afrixa.',
-        type: 'verification',
-      });
+      if (decisionError) throw decisionError;
       return json({ request: updated });
     }
 
