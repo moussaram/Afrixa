@@ -11,7 +11,7 @@ CREATE OR REPLACE FUNCTION public.guard_identity_verified_profile_fields()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = ''
-AS $
+AS $$
 BEGIN
   IF coalesce(auth.jwt() ->> 'role', '') <> 'service_role' THEN
     IF TG_OP = 'INSERT' THEN
@@ -24,7 +24,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS guard_identity_verified_profile_fields ON public.profiles;
 CREATE TRIGGER guard_identity_verified_profile_fields
