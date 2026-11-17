@@ -1,7 +1,10 @@
-project_id = "tktsjjrvclkhgpemmzgr"
+project_id = "kxxwdiyloplkoyperwty"
 
 [functions.fedapay-webhook]
 verify_jwt = false
 
 [functions.send-push-notification]
 verify_jwt = false
+
+[functions.identity-verification]
+verify_jwt = true
