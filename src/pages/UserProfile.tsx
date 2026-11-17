@@ -39,6 +39,7 @@ import { CreatorBadge } from '@/components/creators/CreatorBadge';
 import { SuperNotificationButton } from '@/components/creators/SuperNotificationButton';
 import { CollabRequestButton } from '@/components/creators/CollabRequestButton';
 import { FanClubCard } from '@/components/creators/FanClubCard';
+import { ProfileBanner, ProfileBannerEditor } from '@/components/profile/ProfileBanner';
 
 const client = supabase as any;
 
@@ -57,7 +58,7 @@ const creatorLevel = (followers: number) => {
 const UserProfile = () => {
   const navigate = useNavigate();
   const { userId } = useParams<{ userId: string }>();
-  const { user: viewer } = useAuth();
+  const { user: viewer, profile: viewerProfile, refreshProfile } = useAuth();
   const { profile, stats, loading, error, notFound, reload } = usePublicProfile(userId);
   const { videos, loading: videosLoading, error: videosError } = useProfileVideos(userId);
   const { likedVideos, loading: likesLoading } = useProfileVideoCollections(
@@ -264,27 +265,47 @@ const UserProfile = () => {
         </div>
       </header>
 
-      <section className="px-4 py-6">
-        <div className="flex flex-col items-center">
-          <div className="relative mb-4">
-            <img
-              src={profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face'}
-              alt={username}
-              className="w-24 h-24 rounded-full object-cover border-4 border-primary"
-            />
-            {followersCount >= 50000 && (
-              <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full gradient-primary flex items-center justify-center border-2 border-background">
-                <span className="text-xs text-primary-foreground font-bold">✓</span>
-              </div>
-            )}
+      {isOwnProfile ? (
+        <ProfileBannerEditor userId={viewer?.id || ''} imageUrl={viewerProfile?.banner_url || profile.banner_url} imagePath={viewerProfile?.banner_path || null} position={viewerProfile?.banner_position || profile.banner_position} onSaved={async () => { await refreshProfile(); await reload(); }} />
+      ) : <ProfileBanner imageUrl={profile.banner_url} position={profile.banner_position} />}
+      <section className="px-4 pb-6">
+        <div className="mx-auto max-w-5xl">
+          <div className="-mt-12 flex items-end gap-4">
+            <div className="relative shrink-0">
+              <img src={profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop&crop=face'} alt={username} className="h-24 w-24 rounded-full border-[5px] border-background object-cover shadow-xl ring-2 ring-primary/70" />
+              {followersCount >= 50000 && <div className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background gradient-primary"><span className="text-xs font-bold text-primary-foreground">✓</span></div>}
+            </div>
+            <div className="min-w-0 pb-1"><p className="truncate text-sm font-semibold text-foreground">@{username}</p><p className="truncate text-xs text-muted-foreground">{displayName}</p></div>
           </div>
+          <div className="mt-4 flex flex-col items-center">
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <CreatorBadge level={creatorLevel(followersCount)} />
+              {followersCount >= 500000 && <span className="inline-flex items-center rounded-full border border-[#F59E0B]/30 bg-[#F59E0B]/15 px-3 py-1 text-xs font-bold text-[#F59E0B]">Spotlight Afrixa</span>}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              {profile.nationalite && <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/40 px-3 py-1 text-sm text-foreground">{profile.nationalite_flag && <span>{profile.nationalite_flag}</span>}<Globe className="h-3.5 w-3.5 text-muted-foreground" /><span>{profile.nationalite}</span></span>}
+              {profile.profession && <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/40 px-3 py-1 text-sm text-foreground"><Briefcase className="h-3.5 w-3.5 text-muted-foreground" /><span>{profile.profession}</span></span>}
+            </div>
+            <div className="mt-4 flex items-center gap-8">
+              <div className="text-center"><p className="text-xl font-bold text-foreground">{formatNumber(stats.followingCount)}</p><p className="text-sm text-muted-foreground">Abonnements</p></div>
+              <div className="text-center"><p className="text-xl font-bold text-foreground">{formatNumber(followersCount)}</p><p className="text-sm text-muted-foreground">Abonnés</p></div>
+              <div className="text-center"><p className="text-xl font-bold text-foreground">{formatNumber(stats.likesCount)}</p><p className="text-sm text-muted-foreground">J'aime</p></div>
+            </div>
+            {profile.bio && <p className="mt-4 max-w-sm text-center text-foreground">{profile.bio}</p>}
+            {isBlocked && <p className="mt-3 text-xs text-destructive">Tu as bloqué ce compte : ses vidéos ne te sont plus recommandées.</p>}
+            <div className="mt-5 flex w-full max-w-sm items-center gap-3">
+              {isOwnProfile ? <Button variant="gradient" className="flex-1" onClick={() => navigate('/settings/my-info')}>Modifier le profil</Button> : <>
+                <Button variant={isFollowing ? 'outline' : 'gradient'} className="flex-1" onClick={handleFollow} disabled={followLoading || actionPending}>{isFollowing ? 'Abonné ✓' : 'Suivre'}</Button>
+                <Button variant="glass" className="flex-1" onClick={handleMessage} disabled={actionPending}><MessageCircle className="mr-2 h-4 w-4" />Message</Button>
+                <SuperNotificationButton creatorId={profile.user_id} />
+              </>}
+            </div>
+            {!isOwnProfile && <div className="mt-3 grid w-full max-w-sm grid-cols-2 gap-3"><CollabRequestButton receiverId={profile.user_id} /><Button variant="glass" onClick={() => navigate('/creators/fan-club')}>Fan Club</Button></div>}
+          </div>
+        </div>
+      </section>
 
-          <h2 className="text-xl font-bold text-foreground mb-1">@{username}</h2>
-          <p className="text-foreground font-medium">{displayName}</p>
-
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-            <CreatorBadge level={creatorLevel(followersCount)} />
-            {followersCount >= 500000 && (
+      {followersCount >= 500000 && (
               <span className="inline-flex items-center rounded-full border border-[#F59E0B]/30 bg-[#F59E0B]/15 px-3 py-1 text-xs font-bold text-[#F59E0B]">
                 Spotlight Afrixa
               </span>
