@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
             }
             return json({ received: true, processed: true });
           }
-          if (['declined', 'canceled', 'cancelled', 'failed'].includes(identityStatus)
+          if (['declined', 'canceled', 'cancelled', 'failed', 'expired'].includes(identityStatus)
             && identitySubscription.status === 'payment_pending') {
             const { error: cancelError } = await admin.from('identity_verification_subscriptions')
               .update({ status: 'cancelled' })
