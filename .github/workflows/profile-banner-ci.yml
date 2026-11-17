@@ -1,0 +1,42 @@
+name: Afrixa profile banner checks
+
+on:
+  push:
+    branches: [feat/profile-banner-20261117]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/components/profile/ProfileBanner.tsx'
+      - 'src/pages/Profile.tsx'
+      - 'src/pages/UserProfile.tsx'
+      - 'src/pages/MyInfo.tsx'
+      - 'src/hooks/usePublicProfile.ts'
+      - 'src/contexts/**'
+      - 'src/integrations/supabase/types.ts'
+      - 'supabase/migrations/*profile_banners.sql'
+      - '.github/workflows/profile-banner-ci.yml'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint and production build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: ESLint
+        run: npm run lint
+      - name: Production build
+        run: npm run build
