@@ -43,6 +43,7 @@ const IdentityVerificationPage = () => {
   const [country, setCountry] = useState('BJ');
   const [note, setNote] = useState('');
   const [files, setFiles] = useState<File[]>([]);
+  const [consent, setConsent] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState('');
   const [reviewerRole, setReviewerRole] = useState<string | null>(null);
 
@@ -156,6 +157,7 @@ const IdentityVerificationPage = () => {
           issuing_country: country,
           document_paths: uploadedPaths,
           applicant_note: note,
+          consent: true,
         },
       });
       if (error) throw error;
@@ -163,6 +165,7 @@ const IdentityVerificationPage = () => {
       toast.success('Ton dossier a été transmis à l’équipe Afrixa.');
       setFiles([]);
       setNote('');
+      setConsent(false);
       await load();
     } catch (error: any) {
       console.error('Identity verification application failed', error);
@@ -324,7 +327,11 @@ const IdentityVerificationPage = () => {
                       <Label htmlFor="identity-note">Note facultative</Label>
                       <Textarea id="identity-note" value={note} onChange={(event) => setNote(event.target.value)} maxLength={1000} placeholder="Information utile pour l’équipe Afrixa…" />
                     </div>
-                    <Button className="w-full" variant="gradient" disabled={busy || files.length === 0 || legalName.trim().length < 3 || country.length !== 2} onClick={() => void submitApplication()}>
+                    <label className="flex items-start gap-3 rounded-xl border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                      <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
+                      <span>Je confirme que ces documents me concernent et j’autorise l’équipe Afrixa à les consulter uniquement pour examiner ma demande de vérification d’identité. Je comprends que le badge n’est accordé qu’après approbation.</span>
+                    </label>
+                    <Button className="w-full" variant="gradient" disabled={busy || !consent || files.length === 0 || legalName.trim().length < 3 || country.length !== 2} onClick={() => void submitApplication()}>
                       <UploadCloud className="mr-2 h-4 w-4" /> {busy ? 'Envoi en cours…' : 'Soumettre mon dossier'}
                     </Button>
                   </div>
