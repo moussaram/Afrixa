@@ -45,7 +45,7 @@ const Profile = () => {
     ? [profile.prenom, profile.deuxieme_prenom, profile.nom].filter(Boolean).join(' ')
     : 'Utilisateur';
   const username = profile?.username || 'utilisateur';
-  const identityProfile = profile as (typeof profile & IdentityProfile);
+  const identityProfile = profile as unknown as IdentityProfile | null;
   const isIdentityVerified = Boolean(identityProfile?.identity_verified && identityProfile.identity_verified_until && new Date(identityProfile.identity_verified_until).getTime() > Date.now());
 
   return (
