@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
       if (txError) throw txError;
       if (!tx) {
         const { data: identitySubscription, error: identityError } = await admin.from('identity_verification_subscriptions')
-          .select('id,user_id,amount_xof,currency,status,fedapay_transaction_id')
+          .select('id,user_id,plan_id,amount_xof,currency,status,fedapay_transaction_id')
           .eq('fedapay_transaction_id', objectId)
           .maybeSingle();
         if (identityError) throw identityError;
@@ -80,8 +80,11 @@ Deno.serve(async (req) => {
 
           const identityStatus = String(identityPayment?.status ?? '').toLowerCase();
           if (identityStatus === 'approved' && identitySubscription.status === 'payment_pending') {
+            const { data: identityPlan, error: identityPlanError } = await admin.from('identity_verification_plans')
+              .select('duration_days').eq('id', identitySubscription.plan_id).single();
+            if (identityPlanError) throw identityPlanError;
             const startedAt = new Date();
-            const expiresAt = new Date(startedAt.getTime() + 365 * 24 * 60 * 60 * 1000);
+            const expiresAt = new Date(startedAt.getTime() + Number(identityPlan.duration_days) * 24 * 60 * 60 * 1000);
             const { data: activated, error: activateError } = await admin.from('identity_verification_subscriptions')
               .update({
                 status: 'active',
