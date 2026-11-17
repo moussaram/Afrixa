@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck, Clock3, FileText, RefreshCw, ShieldCheck, UploadCloud } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, FileText, RefreshCw, ShieldCheck, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/useAuth';
 type Plan = { id: string; name: string; amount_xof: number; duration_days: number };
 type Subscription = { id: string; status: string; amount_xof: number; expires_at: string | null; created_at: string };
 type RequestItem = {
-  id: string; status: string; legal_name: string; document_type: string;
+  id: string; subscription_id: string; status: string; legal_name: string; document_type: string;
   issuing_country: string; decision_reason: string | null; submitted_at: string;
 };
 
@@ -51,7 +51,7 @@ const IdentityVerificationPage = () => {
     [subscriptions],
   );
   const latestRequest = requests[0] ?? null;
-  const canApply = Boolean(activeSubscription && (!latestRequest || latestRequest.status === 'needs_information'));
+  const canApply = Boolean(activeSubscription && (!latestRequest || latestRequest.status === 'needs_information' || latestRequest.status === 'rejected' || (latestRequest.status === 'approved' && latestRequest.subscription_id !== activeSubscription.id)));
   const money = (amount: number) => new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA';
 
   const load = useCallback(async () => {
