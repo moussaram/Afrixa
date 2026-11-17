@@ -25,7 +25,7 @@
 - Carte nationale d’identité.
 - Passeport.
 - Titre de séjour.
-Formats acceptés : JPEG, PNG, PDF. Taille maximale : 10 Mo par fichier. Ne pas demander de selfie ni de reconnaissance faciale dans cette version. L’interface doit rappeler à l’utilisateur de ne transmettre que les informations nécessaires et de masquer les informations non pertinentes lorsqu’il peut le faire sans invalider le justificatif.
+Formats acceptés : JPEG, PNG, PDF. De 1 à 3 fichiers, 10 Mo maximum par fichier et 30 Mo au total. Cela permet notamment d’envoyer le recto et le verso d’une carte. Ne pas demander de selfie ni de reconnaissance faciale dans cette version. L’interface doit rappeler à l’utilisateur de ne transmettre que les informations nécessaires et de masquer les informations non pertinentes lorsqu’il peut le faire sans invalider le justificatif.
 
 ## Sécurité et confidentialité
 - Les justificatifs sont stockés dans un bucket privé.
