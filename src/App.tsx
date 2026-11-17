@@ -25,6 +25,7 @@ const Messages = lazy(() => import("./pages/Messages"));
 const Chat = lazy(() => import("./pages/Chat"));
 const NewMessage = lazy(() => import("./pages/NewMessage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const AkiliPage = lazy(() => import("./pages/AkiliPage"));
 const UserProfile = lazy(() => import("./pages/UserProfile"));
 
 const LiveSetup = lazy(() => import("./pages/LiveSetup"));
@@ -73,7 +74,7 @@ const AppContent = () => {
   }, [location.pathname]);
   const { user, loading } = useAuth();
 
-  const hideNavPaths = ['/create', '/settings', '/messages', '/chat', '/live', '/auth', '/onboarding'];
+  const hideNavPaths = ['/create', '/settings', '/messages', '/chat', '/live', '/auth', '/onboarding', '/akili'];
   const hideNav = hideNavPaths.some(path => location.pathname.startsWith(path));
 
   // Redirect to login if not authenticated (sauf pages auth)
@@ -99,6 +100,7 @@ const AppContent = () => {
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/upload-video" element={<UploadVideo />} />
           <Route path="/search" element={<SearchAdvanced />} />
+          <Route path="/akili" element={<AkiliPage />} />
           <Route path="/sounds" element={<Sounds />} />
           <Route path="/premium" element={<Premium />} />
           <Route path="/coins" element={<Coins />} />
