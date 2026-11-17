@@ -257,16 +257,17 @@ Deno.serve(async (req) => {
         .select('id,status').eq('user_id', user.id)
         .in('status', ['submitted', 'under_review', 'needs_information']).limit(1).maybeSingle();
 
-      const { data: existingObject, error: storageError } = await admin.storage.from(BUCKET)
-        .list(documentPath.slice(0, documentPath.lastIndexOf('/')), { search: documentPath.split('/').pop() ?? '' });
-      if (storageError) throw storageError;
-      const fileName = documentPath.split('/').pop();
-      const uploadedFile = existingObject?.find((file) => file.name === fileName);
-      const uploadedSize = Number(uploadedFile?.metadata?.size ?? 0);
-      const uploadedType = String(uploadedFile?.metadata?.mimetype ?? '');
-      if (!uploadedFile || uploadedSize > 10 * 1024 * 1024
-        || !['image/jpeg', 'image/png', 'application/pdf'].includes(uploadedType)) {
-        return json({ error: 'document_not_found_or_invalid' }, 400);
+      const { data: uploadedDocument, error: storageError } = await admin.storage.from(BUCKET).download(documentPath);
+      if (storageError || !uploadedDocument) return json({ error: 'document_not_found' }, 400);
+      const documentBytes = new Uint8Array(await uploadedDocument.arrayBuffer());
+      const startsWith = (signature: number[]) => signature.every((value, index) => documentBytes[index] === value);
+      const extension = documentPath.split('.').pop()?.toLowerCase();
+      const validPdf = extension === 'pdf' && new TextDecoder().decode(documentBytes.slice(0, 5)) === '%PDF-';
+      const validJpeg = ['jpg', 'jpeg'].includes(extension ?? '') && startsWith([0xff, 0xd8, 0xff]);
+      const validPng = extension === 'png' && startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      if (documentBytes.byteLength === 0 || documentBytes.byteLength > 10 * 1024 * 1024
+        || !(validPdf || validJpeg || validPng)) {
+        return json({ error: 'document_type_or_size_invalid' }, 400);
       }
 
       if (openRequest?.status === 'needs_information') {
