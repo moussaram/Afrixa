@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS public.identity_verification_requests (
     CHECK (document_type IN ('national_id', 'passport', 'residence_permit')),
   issuing_country text NOT NULL CHECK (issuing_country ~ '^[A-Z]{2}$'),
   document_path text NOT NULL,
+  document_paths text[] NOT NULL DEFAULT ARRAY[]::text[] CHECK (cardinality(document_paths) <= 3),
   applicant_note text CHECK (applicant_note IS NULL OR char_length(applicant_note) <= 1000),
   decision_reason text CHECK (decision_reason IS NULL OR char_length(decision_reason) <= 1000),
   submitted_at timestamptz NOT NULL DEFAULT now(),
