@@ -220,7 +220,7 @@ const IdentityVerificationPage = () => {
               <p className="text-xs text-muted-foreground">Pour 12 mois</p>
             </div>
             <div className="rounded-xl bg-background/80 p-3">
-              <p className="text-2xl font-black">365 jours</p>
+              <p className="text-2xl font-black">{plan?.duration_days ?? 365} jours</p>
               <p className="text-xs text-muted-foreground">Renouvellement manuel</p>
             </div>
           </div>
@@ -263,7 +263,7 @@ const IdentityVerificationPage = () => {
                   Un abonnement séparé est nécessaire. Il n’est pas inclus dans les autres formules Afrixa.
                 </p>
                 <Button className="mt-4 w-full" variant="gradient" disabled={busy || !plan} onClick={() => void startPayment()}>
-                  {busy ? 'Préparation du paiement…' : 'Payer 2 000 FCFA avec FedaPay'}
+                  {busy ? 'Préparation du paiement…' : 'Payer {money(plan?.amount_xof ?? 2000)} avec FedaPay'}
                 </Button>
                 {latestSubscription?.status === 'payment_pending' && (
                   <Button className="mt-2 w-full" variant="outline" disabled={busy} onClick={() => void verifyAgain()}>
