@@ -1,5 +1,5 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowUp, Bot, MessageSquarePlus, Sparkles, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowUp, Bot, MessageSquarePlus, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/useAuth";
@@ -37,7 +37,7 @@ const formatTime = (value: string) =>
   new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 
 export default function AkiliPage() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [messages, setMessages] = useState<AkiliMessage[]>([welcomeMessage]);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);

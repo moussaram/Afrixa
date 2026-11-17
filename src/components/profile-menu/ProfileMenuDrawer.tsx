@@ -225,6 +225,7 @@ export const ProfileMenuDrawer = ({ open, onClose }: ProfileMenuDrawerProps) => 
                 Outils personnels
               </p>
               <div className="mx-3 rounded-2xl bg-card/20 border border-border/20 overflow-hidden divide-y divide-border/20">
+                <button onClick={() => { handleClose(); navigate('/akili'); }} className="mx-3 mb-3 flex w-[calc(100%-1.5rem)] items-center gap-4 rounded-2xl border border-primary/20 bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-fuchsia-500/10 px-4 py-4 text-left hover:bg-primary/5"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 via-blue-600 to-fuchsia-600"><Sparkles className="h-5 w-5 text-white" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-bold text-foreground">Akili AI</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">Ton assistant intelligent Afrixa</span></span><ChevronRight className="h-4 w-4 text-muted-foreground" /></button>
                 {section1.map((item) => {
                   const Icon = item.icon;
                   return (
