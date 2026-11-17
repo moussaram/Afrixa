@@ -24,6 +24,7 @@ const IdentityVerificationAdmin = () => {
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [documentUrls, setDocumentUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -53,7 +54,7 @@ const IdentityVerificationAdmin = () => {
         body: { action: 'review_document', request_id: request.id },
       });
       if (error || data?.error || !data?.document_url) throw error ?? new Error(data?.error ?? 'Document indisponible');
-      window.open(data.document_url, '_blank', 'noopener,noreferrer');
+      setDocumentUrls((current) => ({ ...current, [request.id]: data.document_url }));
     } catch (error: any) {
       console.error('Unable to open identity document', error);
       toast.error('Impossible d’ouvrir le justificatif.');
@@ -149,9 +150,15 @@ const IdentityVerificationAdmin = () => {
               </div>
               {request.applicant_note && <p className="mt-3 rounded-lg bg-muted/40 p-3 text-sm">{request.applicant_note}</p>}
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" disabled={busyId === request.id} onClick={() => void openDocument(request)}>
-                  <FileText className="mr-2 h-4 w-4" /> Ouvrir le justificatif (lien temporaire)
-                </Button>
+                {documentUrls[request.id] ? (
+                  <a href={documentUrls[request.id]} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-lg border border-border px-3 py-2 text-sm font-semibold text-primary">
+                    <FileText className="mr-2 h-4 w-4" /> Ouvrir le justificatif (lien temporaire)
+                  </a>
+                ) : (
+                  <Button size="sm" variant="outline" disabled={busyId === request.id} onClick={() => void openDocument(request)}>
+                    <FileText className="mr-2 h-4 w-4" /> Préparer le lien privé du justificatif
+                  </Button>
+                )}
               </div>
               {request.decision_reason && <p className="mt-2 text-xs text-muted-foreground">Motif précédent : {request.decision_reason}</p>}
               {['submitted', 'under_review', 'needs_information'].includes(request.status) && (
