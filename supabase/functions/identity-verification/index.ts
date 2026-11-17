@@ -82,32 +82,50 @@ Deno.serve(async (req) => {
       if (existing) return json({ error: 'subscription_already_active', subscription: existing }, 409);
 
       const { data: pending } = await admin.from('identity_verification_subscriptions')
-        .select('id,fedapay_transaction_id,status').eq('user_id', user.id)
+        .select('id,fedapay_transaction_id,fedapay_reference,status').eq('user_id', user.id)
         .eq('status', 'payment_pending').order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (pending?.fedapay_transaction_id) {
-        const tokenResponse = await fedapayRequest(`/transactions/${encodeURIComponent(pending.fedapay_transaction_id)}/token`, {
-          method: 'POST', body: JSON.stringify({}),
-        });
-        const token = getFedaPayEntity(tokenResponse) ?? tokenResponse;
-        const checkoutUrl = typeof token.url === 'string' ? token.url : '';
-        const parsed = new URL(checkoutUrl);
-        if (parsed.protocol === 'https:' && parsed.hostname.endsWith('.fedapay.com')) {
-          return json({ checkout_url: parsed.toString(), subscription_id: pending.id });
+        const existingPaymentResponse = await fedapayRequest(`/transactions/${encodeURIComponent(pending.fedapay_transaction_id)}`);
+        const existingPayment = getFedaPayEntity(existingPaymentResponse);
+        const existingStatus = String(existingPayment?.status ?? '').toLowerCase();
+        if (existingStatus === 'approved') {
+          return json({ error: 'payment_pending_verification', subscription_id: pending.id }, 409);
+        }
+        if (['declined', 'canceled', 'cancelled', 'failed'].includes(existingStatus)) {
+          const { error: cancelError } = await admin.from('identity_verification_subscriptions')
+            .update({ status: 'cancelled' }).eq('id', pending.id).eq('status', 'payment_pending');
+          if (cancelError) throw cancelError;
+        } else {
+          const tokenResponse = await fedapayRequest(`/transactions/${encodeURIComponent(pending.fedapay_transaction_id)}/token`, {
+            method: 'POST', body: JSON.stringify({}),
+          });
+          const token = getFedaPayEntity(tokenResponse) ?? tokenResponse;
+          const checkoutUrl = typeof token.url === 'string' ? token.url : '';
+          const parsed = new URL(checkoutUrl);
+          if (parsed.protocol === 'https:' && parsed.hostname.endsWith('.fedapay.com')) {
+            return json({ checkout_url: parsed.toString(), subscription_id: pending.id });
+          }
         }
       }
 
-      const { data: subscription, error: insertError } = await admin.from('identity_verification_subscriptions')
-        .insert({
-          user_id: user.id,
-          plan_id: plan.id,
-          amount_xof: plan.amount_xof,
-          currency: 'XOF',
-          status: 'payment_pending',
-          fedapay_reference: `identity_${crypto.randomUUID()}`,
-        })
-        .select('id,fedapay_reference')
-        .single();
-      if (insertError) throw insertError;
+      let subscriptionId = pending?.fedapay_transaction_id ? '' : (pending?.id ?? '');
+      let paymentReference = pending?.fedapay_transaction_id ? '' : (pending?.fedapay_reference ?? '');
+      if (!subscriptionId) {
+        const { data: subscription, error: insertError } = await admin.from('identity_verification_subscriptions')
+          .insert({
+            user_id: user.id,
+            plan_id: plan.id,
+            amount_xof: plan.amount_xof,
+            currency: 'XOF',
+            status: 'payment_pending',
+            fedapay_reference: `identity_${crypto.randomUUID()}`,
+          })
+          .select('id,fedapay_reference')
+          .single();
+        if (insertError) throw insertError;
+        subscriptionId = subscription.id;
+        paymentReference = subscription.fedapay_reference;
+      }
 
       const publicUrl = new URL(appUrl);
       if (publicUrl.protocol !== 'https:' && publicUrl.hostname !== 'localhost') {
@@ -115,7 +133,7 @@ Deno.serve(async (req) => {
       }
       const callback = new URL('/identity-verification', publicUrl);
       callback.searchParams.set('payment', 'return');
-      callback.searchParams.set('subscription_id', subscription.id);
+      callback.searchParams.set('subscription_id', subscriptionId);
       const metadata = user.user_metadata ?? {};
       const country = typeof metadata.country === 'string' && /^[A-Za-z]{2}$/.test(metadata.country)
         ? metadata.country.toUpperCase() : 'BJ';
@@ -137,7 +155,7 @@ Deno.serve(async (req) => {
             purpose: 'identity_verification',
             user_id: user.id,
             subscription_id: subscription.id,
-            payment_reference: subscription.fedapay_reference,
+            payment_reference: paymentReference,
           },
         }),
       });
@@ -147,7 +165,7 @@ Deno.serve(async (req) => {
 
       const { error: saveError } = await admin.from('identity_verification_subscriptions')
         .update({ fedapay_transaction_id: transactionId })
-        .eq('id', subscription.id).eq('status', 'payment_pending');
+        .eq('id', subscriptionId).eq('status', 'payment_pending');
       if (saveError) throw saveError;
 
       const tokenResponse = await fedapayRequest(`/transactions/${encodeURIComponent(transactionId)}/token`, {
@@ -159,7 +177,7 @@ Deno.serve(async (req) => {
       if (parsed.protocol !== 'https:' || !parsed.hostname.endsWith('.fedapay.com')) {
         throw new Error('Invalid FedaPay checkout host');
       }
-      return json({ checkout_url: parsed.toString(), subscription_id: subscription.id });
+      return json({ checkout_url: parsed.toString(), subscription_id: subscriptionId });
     }
 
     if (action === 'verify_payment') {
