@@ -14,6 +14,9 @@ export interface Profile {
   mobile_verifie: boolean;
   email_verifie: boolean;
   avatar_url: string | null;
+  banner_url: string | null;
+  banner_path: string | null;
+  banner_position: string | null;
   bio: string | null;
   username: string | null;
   nationalite: string | null;
