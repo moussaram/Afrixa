@@ -135,6 +135,15 @@ CREATE POLICY "Applicants can submit their own verification requests"
       WHEN 'business' THEN 5000
       ELSE -1
     END
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.profiles AS profile
+      WHERE profile.user_id = (select auth.uid())
+        AND (
+          (request_type = 'identity' AND profile.identity_verified = true)
+          OR (request_type = 'business' AND profile.business_verified = true)
+        )
+    )
   );
 
 REVOKE ALL ON public.account_verification_requests FROM PUBLIC, anon;
