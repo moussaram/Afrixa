@@ -385,3 +385,19 @@
   .afrixa-shell-content { max-width: 1120px; }
   .afrixa-shell-main .afrixa-feed-page > header { right: 280px; }
 }
+
+@media (min-width: 768px) {
+  .afrixa-shell-main .afrixa-feed-page { position: relative; }
+  .afrixa-shell-main .afrixa-feed-scroll {
+    width: min(100%, 620px);
+    margin-inline: auto;
+    padding-bottom: 1rem;
+  }
+  .afrixa-shell-main .afrixa-feed-page > header > div:first-child {
+    max-width: 620px;
+    margin-inline: auto;
+  }
+}
+@media (min-width: 1024px) {
+  .afrixa-shell-main .afrixa-feed-scroll { width: min(100%, 560px); }
+}
