@@ -393,6 +393,10 @@ export type Database = {
       orders: {
         Row: {
           auto_confirm_date: string | null
+          buyer_confirmed_at: string | null
+          released_at: string | null
+          shipped_at: string | null
+          tracking_number: string | null
           buyer_id: string
           buyer_note: string | null
           buyer_phone: string | null
@@ -420,6 +424,10 @@ export type Database = {
         }
         Insert: {
           auto_confirm_date?: string | null
+          buyer_confirmed_at?: string | null
+          released_at?: string | null
+          shipped_at?: string | null
+          tracking_number?: string | null
           buyer_id: string
           buyer_note?: string | null
           buyer_phone?: string | null
@@ -447,6 +455,10 @@ export type Database = {
         }
         Update: {
           auto_confirm_date?: string | null
+          buyer_confirmed_at?: string | null
+          released_at?: string | null
+          shipped_at?: string | null
+          tracking_number?: string | null
           buyer_id?: string
           buyer_note?: string | null
           buyer_phone?: string | null
@@ -471,6 +483,42 @@ export type Database = {
           total_price?: number
           unit_price?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      seller_wallet_ledger: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          entry_type: string
+          id: string
+          idempotency_key: string
+          metadata: Json
+          order_id: string
+          seller_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          entry_type: string
+          id?: string
+          idempotency_key: string
+          metadata?: Json
+          order_id: string
+          seller_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          entry_type?: string
+          id?: string
+          idempotency_key?: string
+          metadata?: Json
+          order_id?: string
+          seller_id?: string
         }
         Relationships: []
       }
