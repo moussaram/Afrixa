@@ -1,5 +1,3 @@
--- Extensions actually installed in the Afrixa Supabase database.
--- pgcrypto and uuid-ossp are included for compatibility where available.
--- Supabase-only extensions (pg_graphql, supabase_vault) are intentionally excluded.
+-- Portable extension required by the current Afrixa SQL baseline.
+-- gen_random_uuid() is built into supported PostgreSQL versions; pgcrypto is retained for compatibility.
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
