@@ -99,6 +99,14 @@ BEGIN
     RAISE EXCEPTION 'Un litige ouvert bloque la liberation des fonds';
   END IF;
 
+  IF EXISTS (
+    SELECT 1 FROM public.seller_payouts sp
+    WHERE sp.order_id = v_order.id
+      AND sp.status IN ('en_attente', 'processing', 'envoye')
+  ) THEN
+    RAISE EXCEPTION 'Un versement externe historique est deja en cours pour cette commande';
+  END IF;
+
   SELECT * INTO v_payment
   FROM public.payment_transactions
   WHERE order_id = v_order.id
