@@ -8,10 +8,11 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/useAuth';
 
+type SupportAttachment = { id: string; file_name: string; object_path: string; signed_url?: string | null };
 type SupportTicket = {
   id: string; user_id: string; ticket_number: string; category: string; topic: string;
   subject: string; message: string; priority: string; status: string; order_reference: string | null;
-  contact_email: string | null; admin_reply: string | null; created_at: string;
+  contact_email: string | null; admin_reply: string | null; created_at: string; attachments?: SupportAttachment[];
 };
 
 const statusLabels: Record<string, string> = {
@@ -34,8 +35,8 @@ const AdminSupportPage = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    let query = supabase.from('help_messages')
-      .select('id,user_id,ticket_number,category,topic,subject,message,priority,status,order_reference,contact_email,admin_reply,created_at')
+    let query = (supabase.from('help_messages') as any)
+      .select('id,user_id,ticket_number,category,topic,subject,message,priority,status,order_reference,contact_email,admin_reply,created_at,support_attachments(id,file_name,object_path)')
       .order('created_at', { ascending: true }).limit(150);
     if (filter === 'active') query = query.in('status', ['new', 'in_progress', 'waiting_customer', 'non_lu', 'lu']);
     else query = query.eq('status', filter);
@@ -46,7 +47,13 @@ const AdminSupportPage = () => {
       setItems([]);
     } else {
       const priorityOrder: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
-      const rows = (data ?? []) as SupportTicket[];
+      const rows = await Promise.all(((data ?? []) as SupportTicket[]).map(async (row) => ({
+        ...row,
+        attachments: await Promise.all((row.attachments ?? []).map(async (attachment) => {
+          const { data: signed } = await supabase.storage.from('support-attachments').createSignedUrl(attachment.object_path, 300);
+          return { ...attachment, signed_url: signed?.signedUrl ?? null };
+        })),
+      })));
       setItems([...rows].sort((left, right) =>
         (priorityOrder[left.priority] ?? 2) - (priorityOrder[right.priority] ?? 2)
         || new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
@@ -104,6 +111,7 @@ const AdminSupportPage = () => {
         <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="font-mono text-xs text-primary">{item.ticket_number}</p><h2 className="mt-1 font-bold">{item.subject}</h2><p className="mt-1 text-xs text-muted-foreground">{item.category} / {item.topic} · {new Date(item.created_at).toLocaleString('fr-FR')}</p><p className="mt-1 break-all text-[11px] text-muted-foreground">Utilisateur : {item.user_id}</p></div><div className="flex flex-wrap gap-2"><span className="rounded-full bg-muted px-2.5 py-1 text-xs">{priorityLabels[item.priority] ?? item.priority}</span><span className="rounded-full bg-muted px-2.5 py-1 text-xs">{statusLabels[item.status] ?? item.status}</span></div></div>
         <p className="whitespace-pre-wrap text-sm leading-relaxed">{item.message}</p>
         {(item.order_reference || item.contact_email) && <div className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">{item.order_reference && <p>Référence : {item.order_reference}</p>}{item.contact_email && <p>Contact : {item.contact_email}</p>}</div>}
+        {item.attachments && item.attachments.length > 0 && <div className="rounded-lg border border-border p-3"><p className="text-xs font-semibold">Pièces justificatives ({item.attachments.length})</p><ul className="mt-2 space-y-1">{item.attachments.map((attachment) => <li key={attachment.id} className="text-xs">{attachment.signed_url ? <a href={attachment.signed_url} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">{attachment.file_name}</a> : <span className="text-muted-foreground">{attachment.file_name} — accès temporairement indisponible</span>}</li>)}</ul><p className="mt-2 text-[11px] text-muted-foreground">Liens privés temporaires, valables 5 minutes.</p></div>}
         <div className="grid gap-3 sm:grid-cols-[1fr_220px]"><div className="space-y-1.5"><label className="text-xs font-semibold">Réponse au client</label><Textarea value={replies[item.id] ?? item.admin_reply ?? ''} onChange={(event) => setReplies((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Rédige une réponse claire et précise…" className="min-h-24" maxLength={5000} /></div><div className="space-y-2"><label className="text-xs font-semibold">Statut après réponse</label><Select value={statuses[item.id] ?? (item.status === 'new' ? 'in_progress' : item.status)} onValueChange={(value) => setStatuses((current) => ({ ...current, [item.id]: value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="in_progress">En cours</SelectItem><SelectItem value="waiting_customer">En attente du client</SelectItem><SelectItem value="resolved">Résolu</SelectItem><SelectItem value="closed">Clôturé</SelectItem></SelectContent></Select><Button className="w-full" disabled={workingId === item.id} onClick={() => void saveReply(item)}><Send className="mr-2 h-4 w-4" />Envoyer la réponse</Button><Button className="w-full" variant="outline" disabled={workingId === item.id} onClick={() => void updateStatus(item, 'in_progress')}>Prendre en charge</Button></div></div>
         {item.admin_reply && <div className="rounded-lg border border-primary/20 bg-primary/5 p-3"><p className="text-xs font-semibold text-primary">Dernière réponse enregistrée</p><p className="mt-1 whitespace-pre-wrap text-sm">{item.admin_reply}</p></div>}
       </article>)}
