@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Copy, Check, Send, QrCode, Link as LinkIcon } from 'lucide-react';
+import { X, Copy, Check, Send, QrCode, Link as LinkIcon, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { BrandShareIcon, type ShareBrand } from '@/components/common/BrandShareIcon';
@@ -35,7 +35,7 @@ const shareOptions: { id: ShareBrand | 'sms'; label: string; brand?: ShareBrand;
     getUrl: (url: string) => `fb-messenger://share?link=${encodeURIComponent(url)}`,
   },
   {
-    id: 'twitter',
+    id: 'x',
     label: 'X',
     brand: 'x',
     color: 'bg-black',
@@ -51,7 +51,6 @@ const shareOptions: { id: ShareBrand | 'sms'; label: string; brand?: ShareBrand;
   {
     id: 'sms',
     label: 'SMS',
-    
     color: 'bg-emerald-500',
     getUrl: (url: string, text: string) => `sms:?body=${encodeURIComponent(text + ' ' + url)}`,
   },
@@ -150,7 +149,7 @@ export const ProfileShareSheet = ({ open, onClose, username, displayName, avatar
                   {opt.brand ? (
                     <BrandShareIcon brand={opt.brand} label={opt.label} className="w-7 h-7 object-contain" />
                   ) : (
-                    <span aria-hidden="true" className="text-2xl">SMS</span>
+                    <Smartphone className="w-6 h-6 text-white" aria-hidden="true" />
                   )}
                 </div>
                 <span className="text-[10px] text-muted-foreground leading-tight">{opt.label}</span>
