@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home, Compass, PlusSquare, Bell, UserRound, Store, MessageCircle,
-  Clapperboard, Coins, Settings, Search, ShoppingBag, Sparkles,
+  Clapperboard, Coins, Settings, Search, ShoppingBag, Sparkles, Radio, Wallet, Megaphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -13,7 +13,8 @@ type DesktopShellProps = { children: ReactNode; enabled?: boolean };
 const primaryLinks = [
   { to: '/', label: 'Accueil', icon: Home },
   { to: '/discover', label: 'Découvrir', icon: Compass },
-  { to: '/marketplace', label: 'Marketplace', icon: Store },\n  { to: '/live/setup', label: 'Afrixa Live', icon: Radio },
+  { to: '/marketplace', label: 'Marketplace', icon: Store },
+  { to: '/live/setup', label: 'Afrixa Live', icon: Radio },
   { to: '/messages', label: 'Messages', icon: MessageCircle },
   { to: '/notifications', label: 'Notifications', icon: Bell },
   { to: '/create', label: 'Créer une publication', icon: PlusSquare },
@@ -22,7 +23,10 @@ const primaryLinks = [
 
 const toolsLinks = [
   { to: '/creators/studio', label: 'Studio créateur', icon: Clapperboard },
-  { to: '/coins', label: 'Mes pièces', icon: Coins },\n  { to: '/creators/wallet', label: 'Portefeuille créateur', icon: Wallet },\n  { to: '/ads', label: 'Publicités', icon: Megaphone },\n  { to: '/my-shop', label: 'Ma boutique', icon: Store },
+  { to: '/coins', label: 'Mes pièces', icon: Coins },
+  { to: '/creators/wallet', label: 'Portefeuille créateur', icon: Wallet },
+  { to: '/ads', label: 'Publicités', icon: Megaphone },
+  { to: '/my-shop', label: 'Ma boutique', icon: Store },
   { to: '/orders', label: 'Mes commandes', icon: ShoppingBag },
   { to: '/settings', label: 'Paramètres', icon: Settings },
 ];
