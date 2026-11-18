@@ -30,6 +30,7 @@ const AdminSupportPage = () => {
   const [replies, setReplies] = useState<Record<string, string>>({});
   const [statuses, setStatuses] = useState<Record<string, string>>({});
   const [workingId, setWorkingId] = useState<string | null>(null);
+  const userId = user?.id;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,14 +55,14 @@ const AdminSupportPage = () => {
   }, [filter]);
 
   useEffect(() => {
-    if (!user) { setAllowed(false); setLoading(false); return; }
+    if (!userId) { setAllowed(false); setLoading(false); return; }
     void (async () => {
       const { data, error } = await supabase.rpc('is_platform_admin');
       if (error || data !== true) { setAllowed(false); setLoading(false); return; }
       setAllowed(true);
       await load();
     })();
-  }, [user?.id, load]);
+  }, [userId, load]);
 
   const saveReply = async (item: SupportTicket) => {
     const reply = (replies[item.id] ?? item.admin_reply ?? '').trim();
