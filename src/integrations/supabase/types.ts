@@ -907,7 +907,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      release_marketplace_order: {
+        Args: { p_buyer_id: string; p_order_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
