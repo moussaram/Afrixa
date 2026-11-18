@@ -17,8 +17,8 @@ The desktop and tablet experience uses one persistent application frame, inspire
 
 - Top bar: Afrixa identity, search, create shortcut, messages, and account entry.
 - Left navigation: primary destinations and creator, seller, wallet, order, advertising, and settings areas.
-- Center: active route content. Route changes replace this content without removing the persistent application frame.
-- Right rail: quick links and contextual information on wide displays.
+- Center: active route content. On Home, this remains the immersive vertical feed with video, photo, album, and text renderers; route changes replace the active content without removing the persistent application frame.
+- Right rail: optional contextual shortcuts on wide displays. It must not compete with the active media or obstruct feed controls.
 - Notification unread count is loaded once in the authenticated application frame and shared with the mobile and desktop navigation components.
 
 ## Mobile preservation
@@ -28,7 +28,7 @@ The desktop top bar and side rails are hidden below 768 px. The shell removes it
 ## Validation matrix
 
 Manually inspect at 390, 768, 1024, 1366, and 1920 CSS pixels:
-- Home/video feed, stories rail, player controls, comments/share/product overlays.
+- Home mixed-content feed: video, photo, album/carousel, and text cards; vertical snap/scroll, autoplay rules, stories rail, player controls, comments/share/product overlays.
 - Discover and marketplace grids.
 - Profile and profile menu.
 - Messages list and conversation.
