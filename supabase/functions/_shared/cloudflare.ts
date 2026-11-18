@@ -1,4 +1,4 @@
-const json = (body: unknown) => JSON.stringify(body);
+import { resilientFetch } from './http.ts';
 
 export async function cloudflareStreamRequest(path: string, init: RequestInit = {}) {
   const accountId = Deno.env.get('CF_STREAM_ACCOUNT_ID');
@@ -6,21 +6,19 @@ export async function cloudflareStreamRequest(path: string, init: RequestInit = 
   if (!accountId || !apiToken) throw new Error('Cloudflare Stream server configuration is missing');
   if (path !== '' && !/^[/?a-zA-Z0-9/_=&-]+$/.test(path)) throw new Error('Invalid Cloudflare Stream path');
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20_000);
-  try {
-    const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/stream${path}`,
-      {
-        ...init,
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-          ...init.headers,
-        },
+  const method = (init.method ?? 'GET').toUpperCase();
+  const response = await resilientFetch(
+    `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/stream${path}`,
+    {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        'Content-Type': 'application/json',
+        ...init.headers,
       },
-    );
+    },
+    { timeoutMs: 20000, attempts: 3, retryable: method === 'GET' || method === 'HEAD' },
+  );
     const body = await response.text();
     let parsed: unknown;
     try { parsed = body ? JSON.parse(body) : {}; } catch { parsed = {}; }
@@ -29,8 +27,6 @@ export async function cloudflareStreamRequest(path: string, init: RequestInit = 
       throw new Error(`Cloudflare Stream API returned ${response.status}`);
     }
     return { response, body: parsed as Record<string, unknown> };
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
