@@ -67,6 +67,7 @@ const AccountVerification = () => {
   useEffect(() => { void loadRequests(); }, [loadRequests]);
 
   const activeRequest = requests.find((request) => request.request_type === kind && ['pending', 'in_review'].includes(request.status));
+  const alreadyVerified = kind === 'identity' ? Boolean(profile?.identity_verified) : Boolean(profile?.business_verified);
   const selectedFiles = (files: FileList | null) => {
     const next = Array.from(files ?? []);
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -172,7 +173,12 @@ const AccountVerification = () => {
           </div>
         </div>
 
-        {activeRequest ? (
+        {alreadyVerified ? (
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+            <p className="font-semibold text-emerald-600">{kind === 'identity' ? 'Votre identité est déjà vérifiée.' : 'Votre entreprise ou boutique est déjà vérifiée.'}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Le badge officiel correspondant est actif sur votre profil.</p>
+          </div>
+        ) : activeRequest ? (
           <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
             <div className="flex items-center gap-2 font-semibold"><Clock3 className="h-5 w-5" />Demande déjà en cours</div>
             <p className="mt-2 text-sm">Votre demande {kind === 'identity' ? 'd’identité' : 'd’entreprise'} est : <strong>{STATUS[activeRequest.status]}</strong>.</p>
