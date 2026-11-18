@@ -79,31 +79,13 @@ const OrderDetail = () => {
     if (!orderId) return toast.error('Référence de commande introuvable.');
     setDisputeSubmitting(true);
     try {
-      const { data: orderRecord, error: orderError } = await supabase.from('orders')
-        .select('id,buyer_id,seller_id,status,escrow_released')
-        .eq('id', orderId).maybeSingle();
-      if (orderError) throw orderError;
-      if (!orderRecord || orderRecord.buyer_id !== user.id) throw new Error('Cette commande ne peut pas être utilisée pour ouvrir un litige depuis ce compte.');
-      if (!['payee', 'en_preparation', 'expediee', 'livree'].includes(orderRecord.status) || orderRecord.escrow_released) {
-        throw new Error('Cette commande ne remplit plus les conditions d’ouverture d’un litige.');
-      }
-      const { data: existingDispute, error: existingError } = await supabase.from('disputes')
-        .select('id').eq('order_id', orderRecord.id).eq('buyer_id', user.id)
-        .order('created_at', { ascending: false }).limit(1).maybeSingle();
-      if (existingError) throw existingError;
-      let disputeId = existingDispute?.id;
-      if (!disputeId) {
-        const { data: createdDispute, error: disputeError } = await supabase.from('disputes').insert({
-          order_id: orderRecord.id,
-          buyer_id: user.id,
-          seller_id: orderRecord.seller_id,
-          reason: disputeReason,
-          buyer_evidence: disputeDesc.trim(),
-          status: 'ouvert',
-        }).select('id').single();
-        if (disputeError) throw disputeError;
-        disputeId = createdDispute.id;
-      }
+      const { data: disputeId, error: disputeError } = await supabase.rpc('open_marketplace_dispute', {
+        p_order_id: orderId,
+        p_reason: disputeReason,
+        p_evidence: disputeDesc.trim(),
+      });
+      if (disputeError) throw disputeError;
+      if (!disputeId) throw new Error('Le litige n’a pas pu être enregistré.');
       const topic = disputeReason === 'Colis non reçu' ? 'product_not_received'
         : ['Produit endommagé', 'Produit différent'].includes(disputeReason) ? 'product_not_as_described'
         : 'marketplace_other';
