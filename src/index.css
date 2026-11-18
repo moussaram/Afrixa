@@ -420,3 +420,17 @@
   .afrixa-desktop-topbar > a:first-child { width: 2.5rem; }
   .afrixa-desktop-topbar > div:last-child { gap: .25rem; }
 }
+
+@media (min-width: 768px) {
+  .afrixa-stories-rail {
+    top: 7rem;
+    left: 76px;
+    right: 0;
+  }
+}
+@media (min-width: 1024px) {
+  .afrixa-stories-rail { left: 248px; }
+}
+@media (min-width: 1440px) {
+  .afrixa-stories-rail { right: 280px; }
+}
