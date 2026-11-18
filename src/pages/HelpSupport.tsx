@@ -4,7 +4,7 @@ import {
   ArrowLeft, Headphones, Search, Mail, BookOpen, ChevronDown, Send, Loader2,
   ShoppingBag, CreditCard, Truck, Store, Copyright, ShieldAlert, UserRound,
   Video, Radio, MessageCircle, Wallet, Megaphone, Smartphone,
-  Ticket, AlertTriangle, LifeBuoy, RefreshCw,
+  Ticket, AlertTriangle, LifeBuoy, RefreshCw, Paperclip, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -160,6 +160,7 @@ const HelpSupport = () => {
   const [reference, setReference] = useState(params.get('reference') ?? '');
   const [contactEmail, setContactEmail] = useState(user?.email ?? '');
   const [priority, setPriority] = useState('normal');
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(false);
@@ -194,7 +195,7 @@ const HelpSupport = () => {
 
   const resetForm = () => {
     setCategory(''); setTopic(''); setSubject(''); setDescription('');
-    setReference(''); setPriority('normal'); setSentTicket(null);
+    setReference(''); setPriority('normal'); setAttachments([]); setSentTicket(null);
   };
 
   const submitTicket = async () => {
@@ -209,6 +210,9 @@ const HelpSupport = () => {
     if (contactEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) {
       return toast.error('Adresse e-mail de contact invalide.');
     }
+    if (attachments.length > 5) return toast.error('Tu peux joindre au maximum 5 fichiers.');
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (attachments.some((file) => !allowedTypes.includes(file.type) || file.size > 10 * 1024 * 1024)) return toast.error('Formats autorisés : JPG, PNG, WebP et PDF, 10 Mo maximum par fichier.');
     setSending(true);
     try {
       const { data, error } = await supabase.from('help_messages').insert({
@@ -221,10 +225,36 @@ const HelpSupport = () => {
         order_reference: reference.trim() || null,
         contact_email: contactEmail.trim() || null,
         status: 'new',
-      }).select('ticket_number').single();
+        related_dispute_id: params.get('dispute_id') || null,
+        related_order_id: params.get('order_id') || null,
+      } as any).select('id,ticket_number').single();
       if (error) throw error;
+      if (attachments.length) {
+        const uploadedPaths: string[] = [];
+        try {
+          const metadata = [];
+          for (const file of attachments) {
+            const safeName = file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-120) || 'evidence';
+            const objectPath = `support/${user.id}/${data.id}/${crypto.randomUUID()}-${safeName}`;
+            const { error: uploadError } = await supabase.storage.from('support-attachments').upload(objectPath, file, { contentType: file.type, upsert: false });
+            if (uploadError) throw uploadError;
+            uploadedPaths.push(objectPath);
+            metadata.push({ help_message_id: data.id, uploaded_by: user.id, object_path: objectPath, file_name: file.name.slice(0, 180), content_type: file.type, file_size_bytes: file.size });
+          }
+          const { error: metadataError } = await (supabase.from('support_attachments' as any) as any).insert(metadata);
+          if (metadataError) throw metadataError;
+        } catch (attachmentError) {
+          if (uploadedPaths.length) await supabase.storage.from('support-attachments').remove(uploadedPaths);
+          setSentTicket({ number: data.ticket_number });
+          setAttachments([]);
+          await loadTickets();
+          toast.error('Ton ticket est créé, mais les pièces jointes n’ont pas été ajoutées. Tu peux les transmettre dans un nouveau ticket.');
+          console.error('Support attachment upload failed', attachmentError);
+          return;
+        }
+      }
       setSentTicket({ number: data.ticket_number });
-      setDescription(''); setReference(''); setSubject('');
+      setDescription(''); setReference(''); setSubject(''); setAttachments([]);
       await loadTickets();
       toast.success('Demande transmise au support Afrixa.');
     } catch (error) {
@@ -291,6 +321,8 @@ const HelpSupport = () => {
             </div>
             <div className="space-y-1.5"><label className="text-sm font-medium">Adresse e-mail de contact (facultatif)</label><Input type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="exemple@email.com" maxLength={254} /></div>
             <div className="space-y-1.5"><label className="text-sm font-medium">Description détaillée</label><Textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Explique ce qui s’est passé, les étapes déjà effectuées et le résultat attendu. N’inclus jamais ton mot de passe, code OTP ou code PIN." className="min-h-36 resize-y" maxLength={10000} /><p className="text-right text-xs text-muted-foreground">{description.length}/10 000</p></div>
+            <div className="space-y-2"><label className="text-sm font-medium">Pièces justificatives (facultatif)</label><div className="rounded-xl border border-dashed border-border p-3"><label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-primary"><Paperclip className="h-4 w-4" /> Ajouter des fichiers<input className="sr-only" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" disabled={!user || sending} onChange={(event) => { const chosen = Array.from(event.target.files ?? []); setAttachments((current) => [...current, ...chosen].slice(0, 5)); event.target.value = ''; }} /></label><p className="mt-1 text-xs text-muted-foreground">5 fichiers maximum · JPG, PNG, WebP ou PDF · 10 Mo maximum chacun. Les fichiers restent privés.</p>{attachments.length > 0 && <ul className="mt-3 space-y-2">{attachments.map((file, index) => <li key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center gap-2 text-xs"><span className="min-w-0 flex-1 truncate">{file.name} · {(file.size / 1024 / 1024).toFixed(2)} Mo</span><button type="button" aria-label={`Retirer ${file.name}`} onClick={() => setAttachments((current) => current.filter((_, fileIndex) => fileIndex !== index))} className="rounded p-1 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button></li>)}</ul>}</div></div>
+            {params.get('dispute_id') && <p className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">Ce ticket sera relié au litige sélectionné. Le support pourra suivre le dossier sans modifier automatiquement les fonds ou le statut du litige.</p>}
             <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-muted-foreground"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /><span>Afrixa ne te demandera jamais ton mot de passe, ton code OTP ou ton code PIN Mobile Money. Pour une fraude, conserve les preuves et ne verse aucun paiement supplémentaire hors plateforme.</span></div>
             <Button className="w-full" onClick={() => void submitTicket()} disabled={sending || !user}><span className="inline-flex items-center gap-2">{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{sending ? 'Envoi en cours…' : 'Envoyer ma demande'}</span></Button>
             {!user && <p className="text-center text-xs text-muted-foreground">Connecte-toi pour envoyer une demande et suivre son traitement.</p>}
