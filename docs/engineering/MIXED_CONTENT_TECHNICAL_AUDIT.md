@@ -108,3 +108,21 @@ Le parcours vidéo avancé est un actif existant à préserver. Le parcours cam�
 ## Limites de cet audit
 
 Cet audit est basé sur les fichiers et migrations du dépôt sur la branche indiquée. Il ne prouve pas l'état réel du projet Supabase distant, des buckets configurés dans le tableau de bord, des secrets Railway/Supabase, ni l'exécution réelle des Edge Functions. Ces éléments doivent être vérifiés sur staging avant de déclarer le chantier prêt pour production.
+
+
+## Vérification complémentaire du projet Supabase Afrixa (lecture seule)
+
+Le connecteur Supabase a identifié le projet nommé **Afrixa**, état `ACTIVE_HEALTHY`, région `eu-west-1`. Les contrôles suivants ont été exécutés en lecture seule le 18 novembre 2026 :
+
+- `public.videos` existe ; `public.content_items` et `public.content_media` n'existent pas encore.
+- `storage.buckets` contient actuellement **0 bucket**.
+- Le journal distant `supabase_migrations.schema_migrations` se termine à `20261109182143` (`afrixa_20261106180000_sync_video_engagement_counts`). Les migrations du dépôt pour la vérification d'identité (`20261117190000`) et la vérification entreprise/boutique (`20261118100000`) ne sont donc pas enregistrées dans ce projet distant au moment du contrôle.
+- Le connecteur ne retourne actuellement aucune Edge Function déployée pour ce projet. Cela doit être confirmé dans le tableau de bord avant toute hypothèse de disponibilité des fonctions Cloudflare ou de modération.
+- Les politiques RLS des tables vidéo et de leurs interactions sont présentes. Leurs règles effectives doivent néanmoins être testées avec les rôles et scénarios utilisateurs réels avant extension au nouveau modèle.
+- Le conseiller de sécurité Supabase remonte **68 avertissements** de visibilité dans le schéma GraphQL pour des objets publics accessibles en SELECT par le rôle `anon`. Ce signal ne prouve pas à lui seul une fuite de données : chaque objet doit être trié selon son caractère volontairement public, ses politiques RLS et ses privilèges. Ne pas appliquer une révocation globale sans analyse fonctionnelle.
+
+### Conséquence opérationnelle
+
+Le projet Supabase Afrixa inspecté est actif, mais il ne constitue pas une cible de développement sûre pour appliquer immédiatement une nouvelle migration de publications mixtes : aucun bucket Storage n'est configuré, aucune table canonique n'existe, le journal de migrations est en retard par rapport au dépôt et aucune Edge Function n'est listée par le connecteur.
+
+**Aucune modification n'a été faite sur ce projet.** Pas de migration appliquée, pas de bucket créé, pas de fonction déployée et pas de donnée modifiée. Avant d'écrire le SQL, il faut identifier/valider un environnement staging isolé et réconcilier l'historique des migrations du dépôt avec le schéma distant. Le projet de production ne doit pas servir de bac d'essai.
