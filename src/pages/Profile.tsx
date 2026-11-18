@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Settings, Share2, MoreHorizontal, Grid3X3, Heart, Bookmark, Link as LinkIcon, MessageCircle, Zap, MapPin, Briefcase, Globe, Copy, Check, X, Send } from 'lucide-react';
+import { Settings, Share2, MoreHorizontal, Grid3X3, Heart, Bookmark, Link as LinkIcon, MessageCircle, Zap, MapPin, Briefcase, Globe, Copy, Check, X, Send, BadgeCheck } from 'lucide-react';
 import { mockConversations } from '@/data/mockChatData';
 import { VideoThumbnail } from '@/components/video/VideoThumbnail';
 import { Button } from '@/components/ui/button';
@@ -103,6 +103,16 @@ const Profile = () => {
 
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
             <CreatorBadge level="starter" />
+            {profile?.identity_verified && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs font-semibold text-sky-500">
+                <BadgeCheck className="h-3.5 w-3.5" /> Identité vérifiée
+              </span>
+            )}
+            {profile?.business_verified && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-500">
+                <BadgeCheck className="h-3.5 w-3.5" /> Entreprise vérifiée
+              </span>
+            )}
             {(profile as VendorProfile | null)?.is_vendor && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-400/30 bg-orange-500/15 px-3 py-1 text-xs font-bold text-orange-300">
                 Vendeur
