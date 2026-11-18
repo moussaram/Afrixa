@@ -29,18 +29,32 @@ const loadMaps = (apiKey: string): Promise<MapsLibrary> => {
   window.__afrixaGoogleMapsLoad = new Promise((resolve, reject) => {
     const callbackName = '__afrixaGoogleMapsCallback';
     const script = document.createElement('script');
-    const timeout = window.setTimeout(() => reject(new Error('Google Maps timeout')), 15000);
-    window[callbackName] = () => {
+    let settled = false;
+    const cleanup = () => {
       window.clearTimeout(timeout);
-      if (window.google?.maps) resolve(window.google.maps);
-      else reject(new Error('Google Maps unavailable'));
+      if (window[callbackName] === onLoad) delete window[callbackName];
+      script.onerror = null;
     };
+    const fail = (message: string) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      script.remove();
+      reject(new Error(message));
+    };
+    const onLoad = () => {
+      if (settled) return;
+      if (window.google?.maps) {
+        settled = true;
+        cleanup();
+        resolve(window.google.maps);
+      } else fail('Google Maps unavailable');
+    };
+    const timeout = window.setTimeout(() => fail('Google Maps timeout'), 15000);
+    window[callbackName] = onLoad;
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&loading=async&callback=${callbackName}`;
     script.async = true;
-    script.onerror = () => {
-      window.clearTimeout(timeout);
-      reject(new Error('Google Maps failed to load'));
-    };
+    script.onerror = () => fail('Google Maps failed to load');
     document.head.appendChild(script);
   }).catch((error) => {
     window.__afrixaGoogleMapsLoad = undefined;
