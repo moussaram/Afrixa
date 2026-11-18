@@ -1,4 +1,4 @@
--- GENERATED FROM LIVE AF RIXA SUPABASE PUBLIC SCHEMA SNAPSHOT.
+-- GENERATED FROM LIVE AFRIXA SUPABASE PUBLIC SCHEMA SNAPSHOT.
 -- Source project: kxxwdiyloplkoyperwty; generated 2026-11-18.
 -- This is a schema-only portability baseline, not a data dump.
 -- Review extension requirements, auth compatibility, functions/triggers and policies before production restore.
