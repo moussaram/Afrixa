@@ -174,7 +174,7 @@ DECLARE
   v_actor uuid;
 BEGIN
   BEGIN
-    v_actor := nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
+    v_actor := coalesce(NEW.reviewer_id, nullif(current_setting('request.jwt.claim.sub', true), '')::uuid);
   EXCEPTION WHEN invalid_text_representation THEN
     v_actor := NULL;
   END;
@@ -185,7 +185,7 @@ BEGIN
     NEW.id, v_actor,
     CASE WHEN TG_OP = 'INSERT' THEN NULL ELSE OLD.status END,
     NEW.status,
-    CASE WHEN TG_OP = 'INSERT' THEN 'Demande soumise' ELSE NEW.reviewer_note END
+    CASE WHEN TG_OP = 'INSERT' THEN 'Demande soumise' ELSE coalesce(NEW.reviewer_note, NEW.rejection_reason) END
   );
   RETURN NEW;
 END;
