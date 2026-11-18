@@ -51,6 +51,40 @@ CREATE TRIGGER seller_wallet_ledger_append_only
   BEFORE UPDATE OR DELETE ON public.seller_wallet_ledger
   FOR EACH ROW EXECUTE FUNCTION public.prevent_seller_wallet_ledger_mutation();
 
+
+-- Buyers cannot forge shipment/release timestamps or change tracking data.
+-- Only the seller may set shipment details; only the service RPC may release funds.
+CREATE OR REPLACE FUNCTION public.guard_marketplace_order_financial_fields()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $
+BEGIN
+  IF coalesce(auth.jwt() ->> 'role', '') = 'service_role' THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.buyer_confirmed_at IS DISTINCT FROM OLD.buyer_confirmed_at
+    OR NEW.released_at IS DISTINCT FROM OLD.released_at
+    OR NEW.escrow_released IS DISTINCT FROM OLD.escrow_released THEN
+    RAISE EXCEPTION 'Les champs de liberation des fonds sont reserves au serveur Afrixa';
+  END IF;
+
+  IF (NEW.tracking_number IS DISTINCT FROM OLD.tracking_number
+      OR NEW.shipped_at IS DISTINCT FROM OLD.shipped_at)
+    AND auth.uid() IS DISTINCT FROM OLD.seller_id THEN
+    RAISE EXCEPTION 'Seul le vendeur peut renseigner les informations d’expedition';
+  END IF;
+
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS guard_marketplace_order_financial_fields ON public.orders;
+CREATE TRIGGER guard_marketplace_order_financial_fields
+  BEFORE UPDATE ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.guard_marketplace_order_financial_fields();
+
 -- This RPC is callable only by service_role. The Edge Function authenticates the
 -- buyer first, then passes the verified buyer ID. The order, payment, dispute,
 -- ledger and notification changes are committed in one database transaction.
@@ -88,7 +122,7 @@ BEGIN
     RETURN jsonb_build_object('released', true, 'duplicate', true, 'order_id', v_order.id);
   END IF;
 
-  IF v_order.status <> 'expediee' THEN
+  IF v_order.status NOT IN ('expediee', 'livree') THEN
     RAISE EXCEPTION 'La commande doit etre expediee avant confirmation';
   END IF;
 
