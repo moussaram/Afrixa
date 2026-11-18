@@ -38,6 +38,22 @@ ALTER TABLE public.help_messages DROP CONSTRAINT IF EXISTS help_messages_status_
 ALTER TABLE public.help_messages ADD CONSTRAINT help_messages_status_check
   CHECK (status IN ('new', 'in_progress', 'waiting_customer', 'resolved', 'closed'));
 
+UPDATE public.help_messages
+SET category = CASE lower(category)
+  WHEN 'compte' THEN 'account'
+  WHEN 'paiement' THEN 'payment'
+  WHEN 'video' THEN 'content'
+  WHEN 'vidéo' THEN 'content'
+  WHEN 'boutique' THEN 'seller_store'
+  WHEN 'autre' THEN 'other'
+  ELSE 'other'
+END
+WHERE category NOT IN (
+  'marketplace', 'payment', 'delivery', 'digital_products', 'seller_store',
+  'intellectual_property', 'safety_abuse', 'account', 'content', 'live',
+  'messaging', 'creator', 'advertising', 'technical', 'other'
+);
+
 ALTER TABLE public.help_messages DROP CONSTRAINT IF EXISTS help_messages_category_check;
 ALTER TABLE public.help_messages ADD CONSTRAINT help_messages_category_check
   CHECK (category IN (
