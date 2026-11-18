@@ -56,3 +56,24 @@ jobs:
         run: npm ci
       - name: Lint
         run: npx eslint src/App.tsx src/components/layout/DesktopShell.tsx src/components/layout/BottomNav.tsx src/components/stories/StoriesRail.tsx src/pages/Index.tsx
+
+  edge-api-check:
+    name: Edge API reliability checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check hardened Edge Function integrations
+        run: >-
+          deno check
+          supabase/functions/_shared/http.ts
+          supabase/functions/_shared/fedapay.ts
+          supabase/functions/_shared/cloudflare.ts
+          supabase/functions/moderate-image/index.ts
+          supabase/functions/send-push-notification/index.ts
+      - name: Test bounded HTTP retries
+        run: deno test supabase/functions/_shared/http_test.ts
