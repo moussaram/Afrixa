@@ -30,3 +30,7 @@ On first initialization, Docker runs `00-auth-compat.sql`, `00-extensions.sql`, 
 ## Production gates
 
 Provision a separate VPS and encrypted persistent storage; configure encrypted off-site backups and test restores; secure networking/TLS; inventory Supabase schemas, extensions, triggers and RLS; design and test replication; replace Supabase-specific services; enforce a single-writer/fencing model; test failover and failback before production use.
+
+## Full deployment and failover plan
+
+See [`docs/architecture/supabase-postgresql-standby-runbook.md`](../../docs/architecture/supabase-postgresql-standby-runbook.md) for the phased plan, acceptance gates, security safeguards, replication decision, and controlled failover procedure. Supabase remains the active primary until those gates are validated.
