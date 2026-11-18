@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useAuth } from '@/contexts/useAuth';
 
-type DesktopShellProps = { children: ReactNode };
+type DesktopShellProps = { children: ReactNode; enabled?: boolean };
 
 const primaryLinks = [
   { to: '/', label: 'Accueil', icon: Home },
@@ -27,7 +27,7 @@ const toolsLinks = [
   { to: '/settings', label: 'Paramètres', icon: Settings },
 ];
 
-export const DesktopShell = ({ children }: DesktopShellProps) => {
+export const DesktopShell = ({ children, enabled = true }: DesktopShellProps) => {
   const location = useLocation();
   const { unreadCount } = useNotifications();
   const { profile } = useAuth();
