@@ -94,7 +94,8 @@ Définir un contrat commun pour aimer, commenter, enregistrer, partager, signale
 - `src/hooks/useFeed.ts` appelle le RPC `get_feed`, qui retourne des lignes de `public.videos`.
 - `src/components/video/VideoCard.tsx` est un lecteur et composant d'interaction vidéo.
 - `src/pages/Create.tsx` propose capture vidéo/photo et import d'un fichier image ou vidéo.
-- `src/components/create/PostEditor.tsx` gère actuellement la description et les réglages, mais son `handlePost` simule l'envoi avec un délai et un toast. Ce parcours ne constitue donc pas une publication persistée fiable.
+- Le parcours caméra de `src/pages/Create.tsx` aboutit à `src/components/create/PostEditor.tsx`, dont le `handlePost` simule l'envoi avec un délai et un toast. Ce parcours ne constitue donc pas une publication persistée fiable.
+- Un parcours distinct, `/upload-video` via `src/components/create/AdvancedVideoUpload.tsx`, utilise déjà Cloudflare Stream/TUS et des Edge Functions pour créer, transférer et vérifier une vidéo. Il faut réutiliser/aligner ce pipeline au lieu de le remplacer ou de créer un second pipeline vidéo.
 - Le schéma social actuel contient `public.videos` et des tables d'interaction spécialisées vidéo. Aucun modèle canonique complet de publications photo/album/texte n'a été confirmé dans les migrations examinées.
 
 ## Plan d'implémentation ordonné
