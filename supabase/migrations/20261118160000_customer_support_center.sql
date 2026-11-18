@@ -68,11 +68,11 @@ ALTER TABLE public.help_messages ADD CONSTRAINT help_messages_priority_check
 
 ALTER TABLE public.help_messages DROP CONSTRAINT IF EXISTS help_messages_subject_length_check;
 ALTER TABLE public.help_messages ADD CONSTRAINT help_messages_subject_length_check
-  CHECK (char_length(btrim(subject)) BETWEEN 5 AND 160);
+  CHECK (char_length(btrim(subject)) BETWEEN 5 AND 160) NOT VALID;
 
 ALTER TABLE public.help_messages DROP CONSTRAINT IF EXISTS help_messages_message_length_check;
 ALTER TABLE public.help_messages ADD CONSTRAINT help_messages_message_length_check
-  CHECK (char_length(btrim(message)) BETWEEN 20 AND 10000);
+  CHECK (char_length(btrim(message)) BETWEEN 20 AND 10000) NOT VALID;
 
 CREATE UNIQUE INDEX IF NOT EXISTS help_messages_ticket_number_uidx
   ON public.help_messages(ticket_number);
