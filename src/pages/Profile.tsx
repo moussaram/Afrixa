@@ -23,7 +23,7 @@ const tabs = [
 ];
 
 type VendorProfile = { is_vendor?: boolean };
-type IdentityProfile = { identity_verified?: boolean; identity_verified_until?: string | null };
+type IdentityProfile = { identity_verified?: boolean; identity_verified_until?: string | null; business_verified?: boolean; business_verified_until?: string | null; business_verification_type?: 'company' | 'shop' | null };
 
 const Profile = () => {
   const [activeTab, setActiveTab] = useState('videos');
@@ -47,6 +47,7 @@ const Profile = () => {
   const username = profile?.username || 'utilisateur';
   const identityProfile = profile as unknown as IdentityProfile | null;
   const isIdentityVerified = Boolean(identityProfile?.identity_verified && identityProfile.identity_verified_until && new Date(identityProfile.identity_verified_until).getTime() > Date.now());
+  const isBusinessVerified = Boolean(identityProfile?.business_verified && identityProfile.business_verified_until && new Date(identityProfile.business_verified_until).getTime() > Date.now());
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -105,6 +106,7 @@ const Profile = () => {
           <div className="flex items-center gap-1.5">
             <p className="text-foreground font-medium">{displayName}</p>
             {isIdentityVerified && <BadgeCheck className="h-4 w-4 fill-sky-500/15 text-sky-500" aria-label="Identité vérifiée par Afrixa" />}
+            {isBusinessVerified && <BadgeCheck className="h-4 w-4 fill-emerald-500/15 text-emerald-500" aria-label="Entreprise ou boutique vérifiée par Afrixa" />}
           </div>
 
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
@@ -158,9 +160,7 @@ const Profile = () => {
               <Share2 className="w-5 h-5" />
             </Button>
           </div>
-          <Button variant="outline" className="mt-3 w-full max-w-sm" onClick={() => navigate('/identity-verification')}>
-            Demander le badge bleu · Identité vérifiée
-          </Button>
+          <div className="mt-3 grid w-full max-w-sm gap-2"><Button variant="outline" onClick={() => navigate('/identity-verification')}>Demander le badge bleu · Identité vérifiée</Button><Button variant="outline" onClick={() => navigate('/business-verification')}>Demander le badge entreprise / boutique</Button></div>
 
           {/* Boost Banner */}
           <button
