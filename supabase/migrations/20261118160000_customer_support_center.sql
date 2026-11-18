@@ -38,6 +38,14 @@ ALTER TABLE public.help_messages DROP CONSTRAINT IF EXISTS help_messages_status_
 ALTER TABLE public.help_messages ADD CONSTRAINT help_messages_status_check
   CHECK (status IN ('new', 'in_progress', 'waiting_customer', 'resolved', 'closed'));
 
+ALTER TABLE public.help_messages DROP CONSTRAINT IF EXISTS help_messages_category_check;
+ALTER TABLE public.help_messages ADD CONSTRAINT help_messages_category_check
+  CHECK (category IN (
+    'marketplace', 'payment', 'delivery', 'digital_products', 'seller_store',
+    'intellectual_property', 'safety_abuse', 'account', 'content', 'live',
+    'messaging', 'creator', 'advertising', 'technical', 'other'
+  ));
+
 ALTER TABLE public.help_messages DROP CONSTRAINT IF EXISTS help_messages_priority_check;
 ALTER TABLE public.help_messages ADD CONSTRAINT help_messages_priority_check
   CHECK (priority IN ('low', 'normal', 'high', 'urgent'));
@@ -60,14 +68,14 @@ CREATE INDEX IF NOT EXISTS help_messages_user_created_idx
 CREATE OR REPLACE FUNCTION public.assign_support_ticket_number()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = ''
-AS $$
+AS $
 BEGIN
-  IF NEW.ticket_number IS NULL OR NEW.ticket_number = '' THEN
-    NEW.ticket_number := 'AFR-' || to_char(now() AT TIME ZONE 'UTC', 'YYYYMMDD') || '-' ||
-      lpad(nextval('public.support_ticket_number_seq')::text, 6, '0');
-  END IF;
-  IF NEW.status IS NULL OR NEW.status = '' THEN NEW.status := 'new'; END IF;
+  NEW.ticket_number := 'AFR-' || to_char(now() AT TIME ZONE 'UTC', 'YYYYMMDD') || '-' ||
+    lpad(nextval('public.support_ticket_number_seq')::text, 6, '0');
+  NEW.status := 'new';
+  NEW.admin_reply := NULL;
   RETURN NEW;
 END;
 $$;
@@ -91,6 +99,7 @@ CREATE INDEX IF NOT EXISTS support_message_events_ticket_idx
   ON public.support_message_events(help_message_id, created_at DESC);
 
 ALTER TABLE public.support_message_events ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.support_message_events TO authenticated;
 DROP POLICY IF EXISTS "Support events visible to ticket owner and admins" ON public.support_message_events;
 CREATE POLICY "Support events visible to ticket owner and admins"
   ON public.support_message_events FOR SELECT
@@ -132,6 +141,7 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.assign_support_ticket_number() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.log_support_message_event() FROM PUBLIC, anon, authenticated;
 DROP TRIGGER IF EXISTS log_support_message_event ON public.help_messages;
 CREATE TRIGGER log_support_message_event
