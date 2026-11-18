@@ -38,7 +38,7 @@ const SellerWallet = () => {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) throw new Error('Connectez-vous pour consulter votre portefeuille.');
       const [ledgerRes, ordersRes, payoutsRes, profileRes] = await Promise.all([
-        supabase.from('seller_wallet_ledger').select('id, order_id, amount, currency, created_at').eq('seller_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('seller_wallet_ledger').select('id, order_id, amount, currency, created_at').eq('seller_id', user.id).not('order_id', 'is', null).order('created_at', { ascending: false }),
         supabase.from('orders').select('seller_amount, status, escrow_released').eq('seller_id', user.id),
         supabase.from('seller_payouts').select('id, order_id, amount, operator, payout_reference, status, created_at').eq('seller_id', user.id).order('created_at', { ascending: false }),
         supabase.from('profiles').select('numero_mobile, numero_mobile_operateur').eq('user_id', user.id).maybeSingle(),
