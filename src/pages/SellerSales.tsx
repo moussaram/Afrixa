@@ -100,7 +100,7 @@ const SellerSales = () => {
     return order.status === activeTab;
   }), [orders, activeTab]);
 
-  const updateOrder = async (order: SellerOrder, patch: { status: OrderStatus; tracking_number?: string | null }) => {
+  const updateOrder = async (order: SellerOrder, patch: { status: OrderStatus; tracking_number?: string | null; shipped_at?: string }) => {
     setSaving(true);
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -206,7 +206,7 @@ const SellerSales = () => {
                 <div className="space-y-2">
                   <label className="text-xs text-muted-foreground">Numéro de suivi (facultatif)</label>
                   <input value={trackingNumber} onChange={(event) => setTrackingNumber(event.target.value)} placeholder="Référence du transporteur" className="w-full p-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground text-sm" />
-                  <button disabled={saving} onClick={() => void updateOrder(selectedOrder, { status: 'expediee', tracking_number: trackingNumber.trim() || null })} className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-semibold disabled:opacity-50"><Truck className="inline w-4 h-4 mr-2" />{saving ? 'Enregistrement…' : 'Confirmer l’expédition'}</button>
+                  <button disabled={saving} onClick={() => void updateOrder(selectedOrder, { status: 'expediee', tracking_number: trackingNumber.trim() || null, shipped_at: new Date().toISOString() })} className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-semibold disabled:opacity-50"><Truck className="inline w-4 h-4 mr-2" />{saving ? 'Enregistrement…' : 'Confirmer l’expédition'}</button>
                 </div>
               )}
               {selectedOrder.status === 'expediee' && <p className="text-sm text-blue-200">En attente de la confirmation de réception de l’acheteur. Les fonds restent bloqués.</p>}
