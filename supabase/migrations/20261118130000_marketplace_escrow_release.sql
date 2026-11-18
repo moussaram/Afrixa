@@ -58,7 +58,7 @@ CREATE OR REPLACE FUNCTION public.guard_marketplace_order_financial_fields()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = ''
-AS $
+AS $fn$
 BEGIN
   IF coalesce(auth.jwt() ->> 'role', '') = 'service_role' THEN
     RETURN NEW;
@@ -78,7 +78,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$;
+$fn$;
 
 DROP TRIGGER IF EXISTS guard_marketplace_order_financial_fields ON public.orders;
 CREATE TRIGGER guard_marketplace_order_financial_fields
