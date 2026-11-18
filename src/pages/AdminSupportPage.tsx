@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Headphones, RefreshCw, Send, ShieldAlert, Ticket } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Send, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
@@ -44,7 +43,13 @@ const AdminSupportPage = () => {
       console.error('Support queue load failed', error);
       toast.error('Impossible de charger la file du support.');
       setItems([]);
-    } else setItems((data ?? []) as SupportTicket[]);
+    } else {
+      const priorityOrder: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
+      setItems([...(data ?? []) as SupportTicket[]].sort((left, right) =>
+        (priorityOrder[left.priority] ?? 2) - (priorityOrder[right.priority] ?? 2)
+        || new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
+      ));
+    }
     setLoading(false);
   }, [filter]);
 
