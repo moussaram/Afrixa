@@ -18,6 +18,8 @@ export interface PublicProfile {
   profession: string | null;
   is_private: boolean | null;
   is_vendor: boolean | null;
+  identity_verified: boolean;
+  business_verified: boolean;
 }
 
 export const usePublicProfile = (userId?: string) => {
@@ -38,7 +40,7 @@ export const usePublicProfile = (userId?: string) => {
     const { data, error: profileError } = await client
       .from('profiles')
       .select(
-        'user_id,username,prenom,deuxieme_prenom,nom,avatar_url,bio,nationalite,nationalite_flag,profession,is_private,is_vendor',
+        'user_id,username,prenom,deuxieme_prenom,nom,avatar_url,bio,nationalite,nationalite_flag,profession,is_private,is_vendor,identity_verified,business_verified',
       )
       .eq('user_id', userId)
       .maybeSingle();

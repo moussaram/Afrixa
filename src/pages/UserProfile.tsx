@@ -13,6 +13,7 @@ import {
   Link as LinkIcon,
   Globe,
   Briefcase,
+  BadgeCheck,
 } from 'lucide-react';
 import { VideoThumbnail } from '@/components/video/VideoThumbnail';
 import { Button } from '@/components/ui/button';
@@ -272,9 +273,9 @@ const UserProfile = () => {
               alt={username}
               className="w-24 h-24 rounded-full object-cover border-4 border-primary"
             />
-            {followersCount >= 50000 && (
-              <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full gradient-primary flex items-center justify-center border-2 border-background">
-                <span className="text-xs text-primary-foreground font-bold">✓</span>
+            {profile.identity_verified && (
+              <div className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-sky-500 text-white">
+                <BadgeCheck className="h-4 w-4" />
               </div>
             )}
           </div>
@@ -284,6 +285,16 @@ const UserProfile = () => {
 
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
             <CreatorBadge level={creatorLevel(followersCount)} />
+            {profile.identity_verified && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs font-semibold text-sky-500">
+                <BadgeCheck className="h-3.5 w-3.5" /> Identité vérifiée
+              </span>
+            )}
+            {profile.business_verified && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-500">
+                <BadgeCheck className="h-3.5 w-3.5" /> Entreprise vérifiée
+              </span>
+            )}
             {followersCount >= 500000 && (
               <span className="inline-flex items-center rounded-full border border-[#F59E0B]/30 bg-[#F59E0B]/15 px-3 py-1 text-xs font-bold text-[#F59E0B]">
                 Spotlight Afrixa

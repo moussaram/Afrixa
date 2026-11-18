@@ -32,6 +32,7 @@ const LiveBroadcast = lazy(() => import("./pages/LiveBroadcast"));
 const LiveViewer = lazy(() => import("./pages/LiveViewer"));
 const LiveStats = lazy(() => import("./pages/LiveStats"));
 const MyInfo = lazy(() => import("./pages/MyInfo"));
+const AccountVerification = lazy(() => import("./pages/AccountVerification"));
 const Login = lazy(() => import("./pages/auth/Login"));
 const MyShop = lazy(() => import("./pages/MyShop"));
 const Orders = lazy(() => import("./pages/Orders"));
@@ -55,6 +56,7 @@ const Premium = lazy(() => import("./pages/Premium"));
 const Coins = lazy(() => import("./pages/Coins"));
 const AdsManager = lazy(() => import("./pages/AdsManager"));
 const ModerationPage = lazy(() => import("./pages/ModerationPage"));
+const AdminVerificationPage = lazy(() => import("./pages/AdminVerificationPage"));
 const CreatorProgramPage = lazy(() => import("./pages/creators/CreatorProgramPage"));
 const AfrixaStudioPage = lazy(() => import("./pages/creators/AfrixaStudioPage"));
 const CreatorWalletPage = lazy(() => import("./pages/creators/CreatorWalletPage"));
@@ -73,7 +75,7 @@ const AppContent = () => {
   }, [location.pathname]);
   const { user, loading } = useAuth();
 
-  const hideNavPaths = ['/create', '/settings', '/messages', '/chat', '/live', '/auth', '/onboarding'];
+  const hideNavPaths = ['/create', '/settings', '/messages', '/chat', '/live', '/auth', '/onboarding', '/admin'];
   const hideNav = hideNavPaths.some(path => location.pathname.startsWith(path));
 
   // Redirect to login if not authenticated (sauf pages auth)
@@ -104,6 +106,7 @@ const AppContent = () => {
           <Route path="/coins" element={<Coins />} />
           <Route path="/ads" element={<AdsManager />} />
           <Route path="/moderation" element={<ModerationPage />} />
+          <Route path="/admin/verifications" element={<AdminVerificationPage />} />
 
           {/* App routes */}
           <Route path="/" element={<Index />} />
@@ -113,6 +116,7 @@ const AppContent = () => {
           <Route path="/profile" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/my-info" element={<MyInfo />} />
+          <Route path="/settings/verification" element={<AccountVerification />} />
           <Route path="/messages" element={<Messages />} />
           <Route path="/messages/new" element={<NewMessage />} />
           <Route path="/chat/:conversationId" element={<Chat />} />

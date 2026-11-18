@@ -79,7 +79,7 @@ const MyInfo = () => {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <ShieldCheck className={cn("w-5 h-5", allVerified ? "text-green-500" : "text-primary")} />
-              <span className="text-sm font-semibold text-foreground">Statut du profil</span>
+              <span className="text-sm font-semibold text-foreground">Complétude du profil</span>
             </div>
             <span className={cn(
               "text-sm font-bold",
@@ -98,7 +98,7 @@ const MyInfo = () => {
             />
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            {verifiedCount}/{fields.length} informations vérifiées
+            {verifiedCount}/{fields.length} informations renseignées
           </p>
         </div>
       </div>
@@ -119,19 +119,33 @@ const MyInfo = () => {
             onClick={() => navigate('/auth/complete-profile')}
           >
             <ShieldCheck className="w-5 h-5" />
-            Vérifier maintenant
+            Compléter mon profil
           </Button>
           <p className="text-xs text-muted-foreground text-center mt-2">
-            Complétez vos informations pour un profil vérifié
+            Renseignez les informations manquantes de votre profil.
           </p>
         </div>
       )}
+
+      <div className="px-4 pt-5">
+        <Button
+          variant="outline"
+          className="w-full h-12 rounded-2xl gap-2"
+          onClick={() => navigate('/settings/verification')}
+        >
+          <ShieldCheck className="w-5 h-5" />
+          Demander une vérification officielle Afrixa
+        </Button>
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          Le badge est attribué uniquement après examen des justificatifs par l’équipe Afrixa.
+        </p>
+      </div>
 
       {allVerified && (
         <div className="px-4 pt-6 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/20">
             <CheckCircle2 className="w-5 h-5 text-green-500" />
-            <span className="text-sm font-semibold text-green-500">Profil entièrement vérifié ✓</span>
+            <span className="text-sm font-semibold text-green-500">Profil complété ✓</span>
           </div>
         </div>
       )}
