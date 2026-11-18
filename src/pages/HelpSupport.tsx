@@ -4,7 +4,7 @@ import {
   ArrowLeft, Headphones, Search, Mail, BookOpen, ChevronDown, Send, Loader2,
   ShoppingBag, CreditCard, Truck, Store, Copyright, ShieldAlert, UserRound,
   Video, Radio, MessageCircle, Wallet, Megaphone, BadgeCheck, Smartphone,
-  Clock3, Ticket, AlertTriangle, LifeBuoy, RefreshCw,
+  Ticket, AlertTriangle, LifeBuoy, RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
