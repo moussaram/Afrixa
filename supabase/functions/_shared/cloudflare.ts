@@ -19,15 +19,18 @@ export async function cloudflareStreamRequest(path: string, init: RequestInit = 
     },
     { timeoutMs: 20000, attempts: 3, retryable: method === 'GET' || method === 'HEAD' },
   );
-    const body = await response.text();
-    let parsed: unknown;
-    try { parsed = body ? JSON.parse(body) : {}; } catch { parsed = {}; }
-    if (!response.ok || (parsed && typeof parsed === 'object' && 'success' in parsed && parsed.success === false)) {
-      console.error('Cloudflare Stream API request failed', { status: response.status });
-      throw new Error(`Cloudflare Stream API returned ${response.status}`);
-    }
-    return { response, body: parsed as Record<string, unknown> };
+  const body = await response.text();
+  let parsed: unknown;
+  try {
+    parsed = body ? JSON.parse(body) : {};
+  } catch {
+    parsed = {};
   }
+  if (!response.ok || (parsed && typeof parsed === 'object' && 'success' in parsed && parsed.success === false)) {
+    console.error('Cloudflare Stream API request failed', { status: response.status });
+    throw new Error(`Cloudflare Stream API returned ${response.status}`);
+  }
+  return { response, body: parsed as Record<string, unknown> };
 }
 
 export const encodeTusMetadata = (value: string) => {
