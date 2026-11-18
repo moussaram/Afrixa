@@ -16,9 +16,17 @@ BEGIN
   IF current_user <> 'service_role'
      AND coalesce(current_setting('request.jwt.claim.role', true), '') <> 'service_role'
      AND (
-       NEW.identity_verified IS DISTINCT FROM OLD.identity_verified
-       OR NEW.business_verified IS DISTINCT FROM OLD.business_verified
-       OR NEW.verified_at IS DISTINCT FROM OLD.verified_at
+       (TG_OP = 'INSERT' AND (
+         NEW.identity_verified IS DISTINCT FROM false
+         OR NEW.business_verified IS DISTINCT FROM false
+         OR NEW.verified_at IS NOT NULL
+       ))
+       OR
+       (TG_OP = 'UPDATE' AND (
+         NEW.identity_verified IS DISTINCT FROM OLD.identity_verified
+         OR NEW.business_verified IS DISTINCT FROM OLD.business_verified
+         OR NEW.verified_at IS DISTINCT FROM OLD.verified_at
+       ))
      ) THEN
     RAISE EXCEPTION 'Les badges de vérification sont attribués uniquement par Afrixa';
   END IF;
@@ -28,7 +36,7 @@ $$;
 
 DROP TRIGGER IF EXISTS protect_profile_verification_badges ON public.profiles;
 CREATE TRIGGER protect_profile_verification_badges
-  BEFORE UPDATE ON public.profiles
+  BEFORE INSERT OR UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.protect_profile_verification_badges();
 
 CREATE TABLE IF NOT EXISTS public.account_verification_requests (
