@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Headphones, Search, Mail, BookOpen, ChevronDown, Send, Loader2,
   ShoppingBag, CreditCard, Truck, Store, Copyright, ShieldAlert, UserRound,
-  Video, Radio, MessageCircle, Wallet, Megaphone, BadgeCheck, Smartphone,
+  Video, Radio, MessageCircle, Wallet, Megaphone, Smartphone,
   Ticket, AlertTriangle, LifeBuoy, RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -260,7 +260,7 @@ const HelpSupport = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {supportCategories.map((item) => {
               const Icon = item.icon;
-              return <button key={item.value} type="button" onClick={() => { setCategory(item.value); setTopic(''); setSentTicket(null); document.getElementById('support-ticket-form')?.scrollIntoView({ behavior: 'smooth' }); }} className={cn('flex items-start gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-muted/40', category === item.value ? 'border-primary bg-primary/5' : 'border-border')}>
+              return <button key={item.value} type="button" onClick={() => { setCategory(item.value); setTopic(''); setSubject(''); setSentTicket(null); document.getElementById('support-ticket-form')?.scrollIntoView({ behavior: 'smooth' }); }} className={cn('flex items-start gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-muted/40', category === item.value ? 'border-primary bg-primary/5' : 'border-border')}>
                 <span className="rounded-lg bg-muted p-2"><Icon className="h-5 w-5 text-primary" /></span>
                 <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{item.label}</span><span className="mt-0.5 block text-xs text-muted-foreground">{item.description}</span></span>
                 <ChevronDown className="-rotate-90 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -278,7 +278,7 @@ const HelpSupport = () => {
             <Button className="mt-4" variant="outline" onClick={resetForm}>Créer une autre demande</Button>
           </div> : <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5"><label className="text-sm font-medium">Domaine</label><Select value={category} onValueChange={(value) => { setCategory(value); setTopic(''); setSentTicket(null); }}><SelectTrigger><SelectValue placeholder="Sélectionner un domaine" /></SelectTrigger><SelectContent>{supportCategories.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><label className="text-sm font-medium">Domaine</label><Select value={category} onValueChange={(value) => { setCategory(value); setTopic(''); setSubject(''); setSentTicket(null); }}><SelectTrigger><SelectValue placeholder="Sélectionner un domaine" /></SelectTrigger><SelectContent>{supportCategories.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1.5"><label className="text-sm font-medium">Sujet précis</label><Select value={topic} onValueChange={(value) => { setTopic(value); const found = selectedCategory?.topics.find((item) => item.value === value); if (found) setSubject(found.label); }} disabled={!selectedCategory}><SelectTrigger><SelectValue placeholder="Choisir le sujet" /></SelectTrigger><SelectContent>{selectedCategory?.topics.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
             </div>
             {selectedTopic && <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">{selectedTopic.description}</p>}
