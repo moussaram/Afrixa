@@ -945,7 +945,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      open_marketplace_dispute: {
+        Args: { p_order_id: string; p_reason: string; p_evidence: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
