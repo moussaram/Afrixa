@@ -71,9 +71,12 @@ const OrderDetail = () => {
   const handleDispute = () => {
     if (!disputeReason) return toast.error('Choisissez une raison');
     if (disputeDesc.trim().length < 20) return toast.error('Décrivez le problème avec au moins 20 caractères.');
+    const topic = disputeReason === 'Colis non reçu' ? 'product_not_received'
+      : ['Produit endommagé', 'Produit différent'].includes(disputeReason) ? 'product_not_as_described'
+      : 'marketplace_other';
     const params = new URLSearchParams({
       category: 'marketplace',
-      topic: 'marketplace_other',
+      topic,
       reference: orderId ?? order.orderNumber,
       subject: `Litige concernant la commande ${order.orderNumber}`,
       details: `Motif : ${disputeReason}\n\nDescription : ${disputeDesc.trim()}`,
