@@ -231,34 +231,114 @@ export type Database = {
         Row: {
           admin_reply: string | null
           category: string
+          contact_email: string | null
           created_at: string
           id: string
           message: string
+          order_reference: string | null
+          priority: string
+          related_order_id: string | null
+          related_dispute_id: string | null
           status: string
+          subject: string
+          ticket_number: string
+          topic: string
           updated_at: string
           user_id: string
         }
         Insert: {
           admin_reply?: string | null
           category: string
+          contact_email?: string | null
           created_at?: string
           id?: string
           message: string
+          order_reference?: string | null
+          priority?: string
+          related_order_id?: string | null
+          related_dispute_id?: string | null
           status?: string
+          subject: string
+          ticket_number?: string
+          topic: string
           updated_at?: string
           user_id: string
         }
         Update: {
           admin_reply?: string | null
           category?: string
+          contact_email?: string | null
           created_at?: string
           id?: string
           message?: string
+          order_reference?: string | null
+          priority?: string
+          related_order_id?: string | null
+          related_dispute_id?: string | null
           status?: string
+          subject?: string
+          ticket_number?: string
+          topic?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "help_messages_related_order_id_fkey"
+            columns: ["related_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "help_messages_related_dispute_id_fkey"
+            columns: ["related_dispute_id"]
+            isOneToOne: false
+            referencedRelation: "disputes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_attachments: {
+        Row: {
+          content_type: string
+          created_at: string
+          file_name: string
+          file_size_bytes: number
+          help_message_id: string
+          id: string
+          object_path: string
+          uploaded_by: string
+        }
+        Insert: {
+          content_type: string
+          created_at?: string
+          file_name: string
+          file_size_bytes: number
+          help_message_id: string
+          id?: string
+          object_path: string
+          uploaded_by: string
+        }
+        Update: {
+          content_type?: string
+          created_at?: string
+          file_name?: string
+          file_size_bytes?: number
+          help_message_id?: string
+          id?: string
+          object_path?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_attachments_help_message_id_fkey"
+            columns: ["help_message_id"]
+            isOneToOne: false
+            referencedRelation: "help_messages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {
@@ -807,6 +887,12 @@ export type Database = {
           },
         ]
       }
+      user_fcm_tokens: {
+        Row: { created_at: string; id: string; platform: string | null; token: string; updated_at: string; user_id: string }
+        Insert: { created_at?: string; id?: string; platform?: string | null; token: string; updated_at?: string; user_id: string }
+        Update: { created_at?: string; id?: string; platform?: string | null; token?: string; updated_at?: string; user_id?: string }
+        Relationships: []
+      }
       user_presence: {
         Row: {
           id: string
@@ -859,7 +945,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      open_marketplace_dispute: {
+        Args: { p_order_id: string; p_reason: string; p_evidence: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

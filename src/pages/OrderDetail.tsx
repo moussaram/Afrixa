@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/useAuth';
 import { ArrowLeft, MessageCircle, Check, X, Star, AlertTriangle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -50,12 +52,14 @@ const mockOrder = {
 const OrderDetail = () => {
   const navigate = useNavigate();
   const { orderId } = useParams();
+  const { user } = useAuth();
   const [order, setOrder] = useState(mockOrder);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [disputeReason, setDisputeReason] = useState('');
   const [disputeDesc, setDisputeDesc] = useState('');
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false);
   const [rating, setRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
 
@@ -68,11 +72,37 @@ const OrderDetail = () => {
     setTimeout(() => setShowReviewModal(true), 500);
   };
 
-  const handleDispute = () => {
+  const handleDispute = async () => {
     if (!disputeReason) return toast.error('Choisissez une raison');
-    setOrder(prev => ({ ...prev, status: 'litige' }));
-    setShowDisputeModal(false);
-    toast.success('Litige ouvert. Notre équipe vous contactera sous 24h.');
+    if (disputeDesc.trim().length < 20) return toast.error('Décrivez le problème avec au moins 20 caractères.');
+    if (!user) { toast.error('Connecte-toi pour ouvrir un litige.'); navigate('/auth/login'); return; }
+    if (!orderId) return toast.error('Référence de commande introuvable.');
+    setDisputeSubmitting(true);
+    try {
+      const { data: disputeId, error: disputeError } = await supabase.rpc('open_marketplace_dispute', {
+        p_order_id: orderId,
+        p_reason: disputeReason,
+        p_evidence: disputeDesc.trim(),
+      });
+      if (disputeError) throw disputeError;
+      if (!disputeId) throw new Error('Le litige n’a pas pu être enregistré.');
+      const topic = disputeReason === 'Colis non reçu' ? 'product_not_received'
+        : ['Produit endommagé', 'Produit différent'].includes(disputeReason) ? 'product_not_as_described'
+        : 'marketplace_other';
+      const params = new URLSearchParams({
+        category: 'marketplace', topic, reference: orderRecord.id,
+        order_id: orderRecord.id, dispute_id: disputeId,
+        subject: `Litige concernant la commande ${orderId}`,
+        details: `Motif : ${disputeReason}\n\nDescription : ${disputeDesc.trim()}`,
+      });
+      setShowDisputeModal(false);
+      navigate(`/help-support?${params.toString()}`);
+    } catch (error) {
+      console.error('Marketplace dispute creation failed', error);
+      toast.error(error instanceof Error ? error.message : 'Impossible d’ouvrir le litige. Réessaie plus tard.');
+    } finally {
+      setDisputeSubmitting(false);
+    }
   };
 
   const handleReview = () => {
@@ -158,7 +188,7 @@ const OrderDetail = () => {
               <img loading="lazy" src={order.sellerAvatar} alt="" className="w-10 h-10 rounded-full" />
               <span className="text-sm font-medium text-foreground">{order.sellerName}</span>
             </div>
-            <button className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-semibold flex items-center gap-1">
+            <button onClick={() => navigate(`/help-support?category=marketplace&topic=marketplace_other&reference=${encodeURIComponent(orderId ?? order.orderNumber)}`)} className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-semibold flex items-center gap-1">
               <MessageCircle className="w-3 h-3" /> Contacter
             </button>
           </div>
@@ -269,7 +299,7 @@ const OrderDetail = () => {
           <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 bg-[#1A1A2E] rounded-2xl p-6 space-y-4 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-[#EF4444]" />
-              <h3 className="text-lg font-bold text-foreground">Ouvrir un litige</h3>
+              <h3 className="text-lg font-bold text-foreground">Signaler un problème de commande</h3>
             </div>
             <div className="space-y-2">
               {['Colis non reçu', 'Produit endommagé', 'Produit différent', 'Autre'].map(r => (
@@ -292,10 +322,11 @@ const OrderDetail = () => {
               className="w-full p-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground placeholder:text-muted-foreground text-sm min-h-[80px] resize-none"
             />
             <button
-              onClick={handleDispute}
-              className="w-full py-3 rounded-xl bg-[#EF4444] text-white font-semibold text-sm"
+              onClick={() => void handleDispute()}
+              disabled={disputeSubmitting}
+              className="w-full py-3 rounded-xl bg-[#EF4444] text-white font-semibold text-sm disabled:opacity-60"
             >
-              Ouvrir un litige
+              {disputeSubmitting ? 'Ouverture du litige…' : 'Ouvrir le litige et contacter le support'}
             </button>
           </div>
         </>

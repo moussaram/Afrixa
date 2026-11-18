@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +40,7 @@ const ACTIONS = [
 ] as const;
 
 const ModerationPage = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
@@ -129,9 +131,12 @@ const ModerationPage = () => {
         <h1 className="flex items-center gap-2 text-2xl font-black">
           <ShieldAlert className="h-6 w-6 text-primary" /> Modération
         </h1>
-        <Button size="sm" variant="outline" onClick={() => void load()}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => navigate('/admin/support')}>Support client</Button>
+          <Button size="sm" variant="outline" onClick={() => void load()}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">

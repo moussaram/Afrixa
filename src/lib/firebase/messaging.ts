@@ -10,10 +10,7 @@ const ensureMessaging = async () => {
   return getMessaging(getFirebaseApp());
 };
 
-type TokenTable = {
-  from: (name: "user_fcm_tokens") => any;
-};
-const tokenTable = () => (supabase as unknown as TokenTable).from("user_fcm_tokens");
+const tokenTable = () => supabase.from("user_fcm_tokens");
 
 export async function enableWebPush(userId: string): Promise<void> {
   if (!window.isSecureContext) throw new Error("Les notifications push nécessitent HTTPS.");
