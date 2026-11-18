@@ -1,7 +1,8 @@
 export interface ResilientFetchOptions {
-  /** Total attempts. Retries are disabled unless retryable is explicitly true. */
+  /** Total attempts. Retries are disabled unless the caller explicitly marks the operation safe. */
   attempts?: number;
   timeoutMs?: number;
+  /** Set true only for idempotent/read-only operations, including read-only POST endpoints. */
   retryable?: boolean;
   retryStatuses?: number[];
 }
@@ -23,8 +24,8 @@ const retryDelay = (response: Response | null, attempt: number): number => {
 
 /**
  * Bounded fetch for server-side provider calls.
- * Retries are opt-in because repeating POST/DELETE can create duplicate side effects.
- * Callers must explicitly mark a POST retryable only when the provider operation is read-only.
+ * Retries are opt-in: never enable them for payment creation, message delivery,
+ * upload creation, or other operations that can have duplicate side effects.
  */
 export async function resilientFetch(
   input: RequestInfo | URL,
@@ -35,33 +36,41 @@ export async function resilientFetch(
   const timeoutMs = Math.max(1000, Math.min(options.timeoutMs ?? 15000, 30000));
   const canRetry = options.retryable === true && attempts > 1;
   const retryStatuses = new Set(options.retryStatuses ?? DEFAULT_RETRY_STATUSES);
-  const method = (init.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
-  if (canRetry && !['GET', 'HEAD', 'OPTIONS'].includes(method) && options.retryable !== true) {
-    throw new Error('Retries are not enabled for this HTTP method');
-  }
+  const externalSignal = init.signal;
 
-  let lastError: unknown;
   for (let attempt = 0; attempt < (canRetry ? attempts : 1); attempt += 1) {
     const controller = new AbortController();
-    const externalSignal = init.signal;
     const abortFromCaller = () => controller.abort(externalSignal?.reason);
     if (externalSignal?.aborted) abortFromCaller();
     else externalSignal?.addEventListener('abort', abortFromCaller, { once: true });
-    const timeout = setTimeout(() => controller.abort(new DOMException('Request timed out', 'TimeoutError')), timeoutMs);
+    const timeout = setTimeout(
+      () => controller.abort(new DOMException('Request timed out', 'TimeoutError')),
+      timeoutMs,
+    );
 
+    let response: Response | null = null;
+    let requestError: unknown;
     try {
-      const response = await fetch(input, { ...init, signal: controller.signal });
-      if (!canRetry || !retryStatuses.has(response.status) || attempt === attempts - 1) return response;
-      await response.body?.cancel().catch(() => undefined);
-      await wait(retryDelay(response, attempt));
+      response = await fetch(input, { ...init, signal: controller.signal });
     } catch (error) {
-      lastError = error;
-      if (!canRetry || externalSignal?.aborted || attempt === attempts - 1) throw error;
-      await wait(retryDelay(null, attempt));
+      requestError = error;
     } finally {
       clearTimeout(timeout);
       externalSignal?.removeEventListener('abort', abortFromCaller);
     }
+
+    if (response) {
+      if (!canRetry || !retryStatuses.has(response.status) || attempt === attempts - 1) return response;
+      await response.body?.cancel().catch(() => undefined);
+      await wait(retryDelay(response, attempt));
+      continue;
+    }
+
+    if (!canRetry || externalSignal?.aborted || attempt === attempts - 1) {
+      throw requestError instanceof Error ? requestError : new Error('Provider request failed');
+    }
+    await wait(retryDelay(null, attempt));
   }
-  throw lastError instanceof Error ? lastError : new Error('Provider request failed');
+
+  throw new Error('Provider request failed after bounded retries');
 }
