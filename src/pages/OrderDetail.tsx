@@ -70,9 +70,16 @@ const OrderDetail = () => {
 
   const handleDispute = () => {
     if (!disputeReason) return toast.error('Choisissez une raison');
-    setOrder(prev => ({ ...prev, status: 'litige' }));
+    if (disputeDesc.trim().length < 20) return toast.error('Décrivez le problème avec au moins 20 caractères.');
+    const params = new URLSearchParams({
+      category: 'marketplace',
+      topic: 'marketplace_other',
+      reference: orderId ?? order.orderNumber,
+      subject: `Litige concernant la commande ${order.orderNumber}`,
+      details: `Motif : ${disputeReason}\n\nDescription : ${disputeDesc.trim()}`,
+    });
     setShowDisputeModal(false);
-    toast.success('Litige ouvert. Notre équipe vous contactera sous 24h.');
+    navigate(`/help-support?${params.toString()}`);
   };
 
   const handleReview = () => {
@@ -158,7 +165,7 @@ const OrderDetail = () => {
               <img loading="lazy" src={order.sellerAvatar} alt="" className="w-10 h-10 rounded-full" />
               <span className="text-sm font-medium text-foreground">{order.sellerName}</span>
             </div>
-            <button className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-semibold flex items-center gap-1">
+            <button onClick={() => navigate(`/help-support?category=marketplace&topic=marketplace_other&reference=${encodeURIComponent(orderId ?? order.orderNumber)}`)} className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-semibold flex items-center gap-1">
               <MessageCircle className="w-3 h-3" /> Contacter
             </button>
           </div>
