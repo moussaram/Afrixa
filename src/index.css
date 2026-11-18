@@ -434,3 +434,13 @@
 @media (min-width: 1440px) {
   .afrixa-stories-rail { right: 280px; }
 }
+
+@media (min-width: 768px) {
+  .afrixa-shell-main { margin-left: 76px; margin-right: 0; }
+}
+@media (min-width: 1024px) {
+  .afrixa-shell-main { margin-left: 248px; }
+}
+@media (min-width: 1440px) {
+  .afrixa-shell-main { margin-right: 280px; }
+}
