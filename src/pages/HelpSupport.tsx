@@ -164,6 +164,7 @@ const HelpSupport = () => {
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(false);
   const [sentTicket, setSentTicket] = useState<{ number: string } | null>(null);
+  const userId = user?.id;
 
   const selectedCategory = supportCategories.find((item) => item.value === category);
   const selectedTopic = selectedCategory?.topics.find((item) => item.value === topic);
@@ -175,7 +176,6 @@ const HelpSupport = () => {
   }, [searchQuery]);
 
   const loadTickets = useCallback(async () => {
-    const userId = user?.id;
     if (!userId) { setTickets([]); return; }
     setLoadingTickets(true);
     const { data, error } = await supabase.from('help_messages')
@@ -188,7 +188,7 @@ const HelpSupport = () => {
       toast.error('Impossible de charger l’historique du support.');
     } else setTickets((data ?? []) as TicketRow[]);
     setLoadingTickets(false);
-  }, [user?.id]);
+  }, [userId]);
 
   useEffect(() => { void loadTickets(); }, [loadTickets]);
 
