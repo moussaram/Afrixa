@@ -305,7 +305,7 @@ const OrderDetail = () => {
               onClick={handleDispute}
               className="w-full py-3 rounded-xl bg-[#EF4444] text-white font-semibold text-sm"
             >
-              Ouvrir un litige
+              Continuer vers le support
             </button>
           </div>
         </>
