@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Headphones, Search, Mail, BookOpen, ChevronDown, Send, Loader2,
   ShoppingBag, CreditCard, Truck, Store, Copyright, ShieldAlert, UserRound,
@@ -149,14 +149,15 @@ type TicketRow = {
 
 const HelpSupport = () => {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [openFaq, setOpenFaq] = useState<string | null>(null);
-  const [category, setCategory] = useState('');
-  const [topic, setTopic] = useState('');
-  const [subject, setSubject] = useState('');
-  const [description, setDescription] = useState('');
-  const [reference, setReference] = useState('');
+  const [category, setCategory] = useState(params.get('category') ?? '');
+  const [topic, setTopic] = useState(params.get('topic') ?? '');
+  const [subject, setSubject] = useState(params.get('subject') ?? '');
+  const [description, setDescription] = useState(params.get('details') ?? '');
+  const [reference, setReference] = useState(params.get('reference') ?? '');
   const [contactEmail, setContactEmail] = useState(user?.email ?? '');
   const [priority, setPriority] = useState('normal');
   const [sending, setSending] = useState(false);
@@ -174,11 +175,12 @@ const HelpSupport = () => {
   }, [searchQuery]);
 
   const loadTickets = useCallback(async () => {
-    if (!user) { setTickets([]); return; }
+    const userId = user?.id;
+    if (!userId) { setTickets([]); return; }
     setLoadingTickets(true);
     const { data, error } = await supabase.from('help_messages')
       .select('id,ticket_number,category,topic,subject,status,priority,created_at,admin_reply')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(10);
     if (error) {
