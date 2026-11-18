@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { resilientFetch } from '../_shared/http.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -42,15 +43,15 @@ Deno.serve(async (req) => {
     const decoded = atob(imageBase64);
     if (decoded.length > 5 * 1024 * 1024) return json({ error: 'image_too_large' }, 413);
 
-    const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(visionApiKey)}`, {
+    const response = await resilientFetch(`https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(visionApiKey)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requests: [{
         image: { content: imageBase64 },
         features: [{ type: 'SAFE_SEARCH_DETECTION' }],
       }] }),
-    });
-    const result = await response.json();
+    }, { timeoutMs: 20000, attempts: 3, retryable: true });
+    const result = await response.json().catch(() => null);
     if (!response.ok || result?.responses?.[0]?.error) {
       console.error('Google Vision request failed', { status: response.status });
       return json({ error: 'image_moderation_failed' }, 502);
