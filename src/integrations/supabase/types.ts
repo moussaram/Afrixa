@@ -274,6 +274,7 @@ export type Database = {
           order_reference?: string | null
           priority?: string
           related_order_id?: string | null
+          related_dispute_id?: string | null
           status?: string
           subject?: string
           ticket_number?: string
