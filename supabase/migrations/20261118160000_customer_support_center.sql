@@ -70,7 +70,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $
+AS $$
 BEGIN
   NEW.ticket_number := 'AFR-' || to_char(now() AT TIME ZONE 'UTC', 'YYYYMMDD') || '-' ||
     lpad(nextval('public.support_ticket_number_seq')::text, 6, '0');
