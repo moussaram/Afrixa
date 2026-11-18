@@ -231,34 +231,63 @@ export type Database = {
         Row: {
           admin_reply: string | null
           category: string
+          contact_email: string | null
           created_at: string
           id: string
           message: string
+          order_reference: string | null
+          priority: string
+          related_order_id: string | null
           status: string
+          subject: string
+          ticket_number: string
+          topic: string
           updated_at: string
           user_id: string
         }
         Insert: {
           admin_reply?: string | null
           category: string
+          contact_email?: string | null
           created_at?: string
           id?: string
           message: string
+          order_reference?: string | null
+          priority?: string
+          related_order_id?: string | null
           status?: string
+          subject: string
+          ticket_number?: string
+          topic: string
           updated_at?: string
           user_id: string
         }
         Update: {
           admin_reply?: string | null
           category?: string
+          contact_email?: string | null
           created_at?: string
           id?: string
           message?: string
+          order_reference?: string | null
+          priority?: string
+          related_order_id?: string | null
           status?: string
+          subject?: string
+          ticket_number?: string
+          topic?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "help_messages_related_order_id_fkey"
+            columns: ["related_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {
