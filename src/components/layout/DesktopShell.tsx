@@ -33,6 +33,8 @@ export const DesktopShell = ({ children, enabled = true }: DesktopShellProps) =>
   const { profile } = useAuth();
   const username = profile?.username || 'Mon profil';
 
+  if (!enabled) return <>{children}</>;
+
   const renderLink = (item: (typeof primaryLinks)[number] | (typeof toolsLinks)[number]) => {
     const active = item.to === '/'
       ? location.pathname === '/'
