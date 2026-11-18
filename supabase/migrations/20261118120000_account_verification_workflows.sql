@@ -14,21 +14,20 @@ SET search_path = ''
 AS $$
 BEGIN
   IF current_user <> 'service_role'
-     AND coalesce(current_setting('request.jwt.claim.role', true), '') <> 'service_role'
-     AND (
-       (TG_OP = 'INSERT' AND (
-         NEW.identity_verified IS DISTINCT FROM false
-         OR NEW.business_verified IS DISTINCT FROM false
-         OR NEW.verified_at IS NOT NULL
-       ))
-       OR
-       (TG_OP = 'UPDATE' AND (
-         NEW.identity_verified IS DISTINCT FROM OLD.identity_verified
-         OR NEW.business_verified IS DISTINCT FROM OLD.business_verified
-         OR NEW.verified_at IS DISTINCT FROM OLD.verified_at
-       ))
-     ) THEN
-    RAISE EXCEPTION 'Les badges de vérification sont attribués uniquement par Afrixa';
+     AND coalesce(current_setting('request.jwt.claim.role', true), '') <> 'service_role' THEN
+    IF TG_OP = 'INSERT' AND (
+      NEW.identity_verified IS DISTINCT FROM false
+      OR NEW.business_verified IS DISTINCT FROM false
+      OR NEW.verified_at IS NOT NULL
+    ) THEN
+      RAISE EXCEPTION 'Les badges de vérification sont attribués uniquement par Afrixa';
+    ELSIF TG_OP = 'UPDATE' AND (
+      NEW.identity_verified IS DISTINCT FROM OLD.identity_verified
+      OR NEW.business_verified IS DISTINCT FROM OLD.business_verified
+      OR NEW.verified_at IS DISTINCT FROM OLD.verified_at
+    ) THEN
+      RAISE EXCEPTION 'Les badges de vérification sont attribués uniquement par Afrixa';
+    END IF;
   END IF;
   RETURN NEW;
 END;
