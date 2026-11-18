@@ -52,6 +52,32 @@ CREATE POLICY "Support users attach evidence to own tickets"
     )
   );
 
+-- Enforce the five-attachment limit atomically for registered evidence metadata.
+CREATE OR REPLACE FUNCTION public.enforce_support_attachment_limit()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended(NEW.help_message_id::text, 0));
+  IF (
+    SELECT count(*)
+    FROM public.support_attachments a
+    WHERE a.help_message_id = NEW.help_message_id
+  ) >= 5 THEN
+    RAISE EXCEPTION 'A ticket may contain at most five attachments.'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.enforce_support_attachment_limit() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS enforce_support_attachment_limit ON public.support_attachments;
+CREATE TRIGGER enforce_support_attachment_limit
+  BEFORE INSERT ON public.support_attachments
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_support_attachment_limit();
+
 -- Private bucket: only common image formats and PDF, maximum 10 MiB per object.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
