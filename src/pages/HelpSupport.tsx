@@ -227,7 +227,7 @@ const HelpSupport = () => {
         status: 'new',
         related_dispute_id: params.get('dispute_id') || null,
         related_order_id: params.get('order_id') || null,
-      } as any).select('id,ticket_number').single();
+      }).select('id,ticket_number').single();
       if (error) throw error;
       if (attachments.length) {
         const uploadedPaths: string[] = [];
@@ -241,7 +241,7 @@ const HelpSupport = () => {
             uploadedPaths.push(objectPath);
             metadata.push({ help_message_id: data.id, uploaded_by: user.id, object_path: objectPath, file_name: file.name.slice(0, 180), content_type: file.type, file_size_bytes: file.size });
           }
-          const { error: metadataError } = await (supabase.from('support_attachments' as any) as any).insert(metadata);
+          const { error: metadataError } = await supabase.from('support_attachments').insert(metadata);
           if (metadataError) throw metadataError;
         } catch (attachmentError) {
           if (uploadedPaths.length) await supabase.storage.from('support-attachments').remove(uploadedPaths);
