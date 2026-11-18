@@ -279,7 +279,7 @@ const OrderDetail = () => {
           <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 bg-[#1A1A2E] rounded-2xl p-6 space-y-4 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-[#EF4444]" />
-              <h3 className="text-lg font-bold text-foreground">Ouvrir un litige</h3>
+              <h3 className="text-lg font-bold text-foreground">Signaler un problème de commande</h3>
             </div>
             <div className="space-y-2">
               {['Colis non reçu', 'Produit endommagé', 'Produit différent', 'Autre'].map(r => (
