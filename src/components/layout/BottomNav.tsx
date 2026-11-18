@@ -1,11 +1,9 @@
 import { Home, Search, Plus, Bell, User } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { useNotifications } from '@/hooks/useNotifications';
 
-export const BottomNav = () => {
+export const BottomNav = ({ unreadCount }: { unreadCount: number }) => {
   const location = useLocation();
-  const { unreadCount } = useNotifications();
 
   const navItems = [
     { path: '/', icon: Home, label: 'Accueil' },
