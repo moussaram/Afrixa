@@ -76,6 +76,30 @@ CREATE UNIQUE INDEX IF NOT EXISTS account_verification_one_active_request_idx
   ON public.account_verification_requests(user_id, request_type)
   WHERE status IN ('pending', 'in_review');
 
+CREATE OR REPLACE FUNCTION public.validate_account_verification_documents()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(NEW.document_paths) AS item
+    WHERE coalesce(item ->> 'path', '') NOT LIKE NEW.user_id::text || '/%'
+  ) THEN
+    RAISE EXCEPTION 'Chaque justificatif doit appartenir au dossier privé du demandeur';
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.validate_account_verification_documents() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS validate_account_verification_documents ON public.account_verification_requests;
+CREATE TRIGGER validate_account_verification_documents
+  BEFORE INSERT ON public.account_verification_requests
+  FOR EACH ROW EXECUTE FUNCTION public.validate_account_verification_documents();
+
 ALTER TABLE public.account_verification_requests ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Applicants can read their verification requests"
@@ -200,6 +224,12 @@ CREATE POLICY "Applicants delete their own verification documents"
   USING (
     bucket_id = 'account-verification-private'
     AND (storage.foldername(name))[1] = (select auth.uid())::text
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.account_verification_requests AS request
+      WHERE request.user_id = (select auth.uid())
+        AND request.id::text = split_part(name, '/', 2)
+    )
   );
 
 -- No public bucket and no client UPDATE policy: a submitted application and its
