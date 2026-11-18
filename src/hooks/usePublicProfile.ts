@@ -20,6 +20,9 @@ export interface PublicProfile {
   is_vendor: boolean | null;
   identity_verified: boolean;
   identity_verified_until: string | null;
+  business_verified: boolean;
+  business_verified_until: string | null;
+  business_verification_type: 'company' | 'shop' | null;
 }
 
 export const usePublicProfile = (userId?: string) => {
@@ -40,7 +43,7 @@ export const usePublicProfile = (userId?: string) => {
     const { data, error: profileError } = await client
       .from('profiles')
       .select(
-        'user_id,username,prenom,deuxieme_prenom,nom,avatar_url,bio,nationalite,nationalite_flag,profession,is_private,is_vendor,identity_verified,identity_verified_until',
+        'user_id,username,prenom,deuxieme_prenom,nom,avatar_url,bio,nationalite,nationalite_flag,profession,is_private,is_vendor,identity_verified,identity_verified_until,business_verified,business_verified_until,business_verification_type',
       )
       .eq('user_id', userId)
       .maybeSingle();
