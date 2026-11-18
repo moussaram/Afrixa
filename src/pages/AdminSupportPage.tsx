@@ -35,8 +35,8 @@ const AdminSupportPage = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    let query = (supabase.from('help_messages') as any)
-      .select('id,user_id,ticket_number,category,topic,subject,message,priority,status,order_reference,contact_email,admin_reply,created_at,support_attachments(id,file_name,object_path)')
+    let query = supabase.from('help_messages')
+      .select('id,user_id,ticket_number,category,topic,subject,message,priority,status,order_reference,contact_email,admin_reply,created_at,attachments:support_attachments(id,file_name,object_path)')
       .order('created_at', { ascending: true }).limit(150);
     if (filter === 'active') query = query.in('status', ['new', 'in_progress', 'waiting_customer', 'non_lu', 'lu']);
     else query = query.eq('status', filter);
