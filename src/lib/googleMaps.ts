@@ -30,6 +30,8 @@ const loadMaps = (apiKey: string): Promise<MapsLibrary> => {
     const callbackName = '__afrixaGoogleMapsCallback';
     const script = document.createElement('script');
     let settled = false;
+    let timeout = 0;
+    let onLoad: () => void = () => undefined;
     const cleanup = () => {
       window.clearTimeout(timeout);
       if (window[callbackName] === onLoad) delete window[callbackName];
@@ -42,7 +44,7 @@ const loadMaps = (apiKey: string): Promise<MapsLibrary> => {
       script.remove();
       reject(new Error(message));
     };
-    const onLoad = () => {
+    onLoad = () => {
       if (settled) return;
       if (window.google?.maps) {
         settled = true;
@@ -50,7 +52,7 @@ const loadMaps = (apiKey: string): Promise<MapsLibrary> => {
         resolve(window.google.maps);
       } else fail('Google Maps unavailable');
     };
-    const timeout = window.setTimeout(() => fail('Google Maps timeout'), 15000);
+    timeout = window.setTimeout(() => fail('Google Maps timeout'), 15000);
     window[callbackName] = onLoad;
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&loading=async&callback=${callbackName}`;
     script.async = true;
