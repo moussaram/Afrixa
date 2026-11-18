@@ -168,6 +168,89 @@ CREATE TRIGGER validate_support_dispute_link
   ON public.help_messages
   FOR EACH ROW EXECUTE FUNCTION public.validate_support_dispute_link();
 
+
+-- Atomic buyer dispute opening: record evidence and move the order into dispute state.
+-- Runs as the authenticated caller; existing RLS policies and integrity triggers remain authoritative.
+CREATE OR REPLACE FUNCTION public.open_marketplace_dispute(
+  p_order_id uuid,
+  p_reason text,
+  p_evidence text
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SET search_path = ''
+AS $
+DECLARE
+  v_order public.orders%ROWTYPE;
+  v_dispute_id uuid;
+  v_existing_evidence text;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Authentication is required.' USING ERRCODE = '42501';
+  END IF;
+  IF char_length(btrim(COALESCE(p_reason, ''))) NOT BETWEEN 3 AND 120 THEN
+    RAISE EXCEPTION 'A valid dispute reason is required.' USING ERRCODE = '22023';
+  END IF;
+  IF char_length(btrim(COALESCE(p_evidence, ''))) NOT BETWEEN 20 AND 5000 THEN
+    RAISE EXCEPTION 'The dispute description must contain 20 to 5000 characters.' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT * INTO v_order
+  FROM public.orders
+  WHERE id = p_order_id AND buyer_id = auth.uid()
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Order not found for this buyer.' USING ERRCODE = '42501';
+  END IF;
+  IF v_order.escrow_released THEN
+    RAISE EXCEPTION 'The order funds have already been released; this order is not eligible for a new dispute.' USING ERRCODE = '23514';
+  END IF;
+
+  SELECT d.id, d.buyer_evidence
+    INTO v_dispute_id, v_existing_evidence
+  FROM public.disputes d
+  WHERE d.order_id = p_order_id
+    AND d.buyer_id = auth.uid()
+    AND d.status = 'ouvert'
+  ORDER BY d.created_at DESC
+  LIMIT 1
+  FOR UPDATE;
+
+  IF v_order.status NOT IN ('payee', 'en_preparation', 'expediee', 'livree')
+     AND NOT (v_order.status = 'litige' AND v_dispute_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'This order is not eligible for a dispute.' USING ERRCODE = '23514';
+  END IF;
+
+  IF v_dispute_id IS NULL THEN
+    INSERT INTO public.disputes (
+      order_id, buyer_id, seller_id, reason, buyer_evidence, status
+    )
+    VALUES (
+      p_order_id, auth.uid(), v_order.seller_id, btrim(p_reason), btrim(p_evidence), 'ouvert'
+    )
+    RETURNING id INTO v_dispute_id;
+  ELSE
+    UPDATE public.disputes
+    SET buyer_evidence = concat_ws(
+      E'\\n\\n',
+      NULLIF(btrim(COALESCE(v_existing_evidence, '')), ''),
+      'Complément du demandeur : ' || btrim(p_evidence)
+    )
+    WHERE id = v_dispute_id;
+  END IF;
+
+  IF v_order.status <> 'litige' THEN
+    UPDATE public.orders SET status = 'litige' WHERE id = p_order_id;
+  END IF;
+
+  RETURN v_dispute_id;
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.open_marketplace_dispute(uuid, text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.open_marketplace_dispute(uuid, text, text) TO authenticated;
+
 COMMENT ON TABLE public.support_attachments IS
   'Métadonnées des preuves du support. Les fichiers sont conservés dans le bucket privé support-attachments.';
 COMMENT ON COLUMN public.help_messages.related_dispute_id IS
