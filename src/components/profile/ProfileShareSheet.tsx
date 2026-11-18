@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { X, Copy, Check, Send, QrCode, Link as LinkIcon } from 'lucide-react';
+import { X, Copy, Check, Send, QrCode, Link as LinkIcon, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { BrandShareIcon, type ShareBrand } from '@/components/common/BrandShareIcon';
 
 interface ProfileShareSheetProps {
   open: boolean;
@@ -11,46 +12,45 @@ interface ProfileShareSheetProps {
   avatarUrl?: string;
 }
 
-const shareOptions = [
+const shareOptions: { id: ShareBrand | 'sms'; label: string; brand?: ShareBrand; color: string; getUrl: (url: string, text: string) => string }[] = [
   {
     id: 'whatsapp',
     label: 'WhatsApp',
-    icon: '💬',
+    brand: 'whatsapp',
     color: 'bg-green-500',
     getUrl: (url: string, text: string) => `https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`,
   },
   {
     id: 'facebook',
     label: 'Facebook',
-    icon: '📘',
+    brand: 'facebook',
     color: 'bg-blue-600',
     getUrl: (url: string) => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
   },
   {
     id: 'messenger',
     label: 'Messenger',
-    icon: '⚡',
+    brand: 'messenger',
     color: 'bg-blue-500',
     getUrl: (url: string) => `fb-messenger://share?link=${encodeURIComponent(url)}`,
   },
   {
-    id: 'twitter',
+    id: 'x',
     label: 'X',
-    icon: '🐦',
+    brand: 'x',
     color: 'bg-black',
     getUrl: (url: string, text: string) => `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
   },
   {
     id: 'telegram',
     label: 'Telegram',
-    icon: '✈️',
+    brand: 'telegram',
     color: 'bg-sky-500',
     getUrl: (url: string, text: string) => `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
   },
   {
     id: 'sms',
     label: 'SMS',
-    icon: '📱',
     color: 'bg-emerald-500',
     getUrl: (url: string, text: string) => `sms:?body=${encodeURIComponent(text + ' ' + url)}`,
   },
@@ -146,7 +146,11 @@ export const ProfileShareSheet = ({ open, onClose, username, displayName, avatar
                   "w-12 h-12 rounded-2xl flex items-center justify-center text-2xl transition-transform group-active:scale-90",
                   opt.color
                 )}>
-                  {opt.icon}
+                  {opt.brand ? (
+                    <BrandShareIcon brand={opt.brand} label={opt.label} className="w-7 h-7 object-contain" />
+                  ) : (
+                    <Smartphone className="w-6 h-6 text-white" aria-hidden="true" />
+                  )}
                 </div>
                 <span className="text-[10px] text-muted-foreground leading-tight">{opt.label}</span>
               </button>

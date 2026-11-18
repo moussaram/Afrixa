@@ -6,6 +6,7 @@ import { formatNumber } from '@/lib/formatters';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/useAuth';
 import { toast } from 'sonner';
+import { BrandShareIcon, type ShareBrand } from '@/components/common/BrandShareIcon';
 import {
   copyShareLink,
   getVideoShareUrl,
@@ -21,32 +22,32 @@ interface SharePanelProps {
   onShared?: () => void;
 }
 
-const shareOptions: { id: ShareChannel; label: string; icon: string; color: string; url: (url: string, title: string) => string }[] = [
+const shareOptions: { id: ShareChannel; label: string; brand: ShareBrand; color: string; url: (url: string, title: string) => string }[] = [
   {
     id: 'whatsapp',
     label: 'WhatsApp',
-    icon: '💬',
+    brand: 'whatsapp',
     color: 'bg-green-500',
     url: (url, title) => `https://wa.me/?text=${encodeURIComponent(`${title} ${url}`)}`,
   },
   {
     id: 'facebook',
     label: 'Facebook',
-    icon: '📘',
+    brand: 'facebook',
     color: 'bg-blue-600',
     url: (url) => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
   },
   {
     id: 'messenger',
     label: 'Messenger',
-    icon: '⚡',
+    brand: 'messenger',
     color: 'bg-blue-500',
     url: (url) => `fb-messenger://share?link=${encodeURIComponent(url)}`,
   },
   {
     id: 'twitter',
     label: 'X / Twitter',
-    icon: '🐦',
+    brand: 'x',
     color: 'bg-black',
     url: (url, title) =>
       `https://twitter.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}`,
@@ -54,7 +55,7 @@ const shareOptions: { id: ShareChannel; label: string; icon: string; color: stri
   {
     id: 'telegram',
     label: 'Telegram',
-    icon: '✈️',
+    brand: 'telegram',
     color: 'bg-sky-500',
     url: (url, title) => `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}`,
   },
@@ -250,7 +251,7 @@ export const SharePanel = ({ video, onClose, onShared }: SharePanelProps) => {
                       opt.color
                     )}
                   >
-                    {opt.icon}
+                    <BrandShareIcon brand={opt.brand} label={opt.label} className="w-7 h-7 object-contain" />
                   </div>
                   <span className="text-xs text-muted-foreground">{opt.label}</span>
                 </button>

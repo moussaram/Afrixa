@@ -55,7 +55,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Lint
-        run: npx eslint src/App.tsx src/components/layout/DesktopShell.tsx src/components/layout/BottomNav.tsx src/components/stories/StoriesRail.tsx src/pages/Index.tsx
+        run: npx eslint src/App.tsx src/components/layout/DesktopShell.tsx src/components/layout/BottomNav.tsx src/components/stories/StoriesRail.tsx src/pages/Index.tsx src/pages/Orders.tsx src/pages/OrderDetail.tsx src/pages/SellerSales.tsx src/pages/SellerWallet.tsx
 
   edge-api-check:
     name: Edge API reliability checks
@@ -82,5 +82,7 @@ jobs:
           supabase/functions/_shared/cloudflare.ts
           supabase/functions/moderate-image/index.ts
           supabase/functions/send-push-notification/index.ts
+          supabase/functions/confirm-marketplace-order/index.ts
+          supabase/functions/release-escrow/index.ts
       - name: Test bounded HTTP retries
         run: deno test supabase/functions/_shared/http_test.ts
