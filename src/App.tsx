@@ -32,6 +32,7 @@ const LiveBroadcast = lazy(() => import("./pages/LiveBroadcast"));
 const LiveViewer = lazy(() => import("./pages/LiveViewer"));
 const LiveStats = lazy(() => import("./pages/LiveStats"));
 const MyInfo = lazy(() => import("./pages/MyInfo"));
+const AccountVerification = lazy(() => import("./pages/AccountVerification"));
 const Login = lazy(() => import("./pages/auth/Login"));
 const MyShop = lazy(() => import("./pages/MyShop"));
 const Orders = lazy(() => import("./pages/Orders"));
@@ -113,6 +114,7 @@ const AppContent = () => {
           <Route path="/profile" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/my-info" element={<MyInfo />} />
+          <Route path="/settings/verification" element={<AccountVerification />} />
           <Route path="/messages" element={<Messages />} />
           <Route path="/messages/new" element={<NewMessage />} />
           <Route path="/chat/:conversationId" element={<Chat />} />
