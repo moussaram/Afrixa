@@ -5,10 +5,9 @@ import {
   Clapperboard, Coins, Settings, Search, ShoppingBag, Sparkles, Radio, Wallet, Megaphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useNotifications } from '@/hooks/useNotifications';
 import { useAuth } from '@/contexts/useAuth';
 
-type DesktopShellProps = { children: ReactNode; enabled?: boolean };
+type DesktopShellProps = { children: ReactNode; enabled?: boolean; unreadCount?: number };
 
 const primaryLinks = [
   { to: '/', label: 'Accueil', icon: Home },
@@ -31,9 +30,8 @@ const toolsLinks = [
   { to: '/settings', label: 'Paramètres', icon: Settings },
 ];
 
-export const DesktopShell = ({ children, enabled = true }: DesktopShellProps) => {
+export const DesktopShell = ({ children, enabled = true, unreadCount = 0 }: DesktopShellProps) => {
   const location = useLocation();
-  const { unreadCount } = useNotifications();
   const { profile } = useAuth();
   const username = profile?.username || 'Mon profil';
 
