@@ -155,7 +155,16 @@ CREATE POLICY business_documents_owner_upload ON storage.objects FOR INSERT TO a
 WITH CHECK(bucket_id='business-verification-documents' AND (storage.foldername(name))[1]=(select auth.uid())::text);
 DROP POLICY IF EXISTS business_documents_owner_read ON storage.objects;
 CREATE POLICY business_documents_owner_read ON storage.objects FOR SELECT TO authenticated
-USING(bucket_id='business-verification-documents' AND (storage.foldername(name))[1]=(select auth.uid())::text);
+USING(
+  bucket_id='business-verification-documents'
+  AND (storage.foldername(name))[1]=(select auth.uid())::text
+  AND NOT EXISTS (
+    SELECT 1 FROM public.business_verification_requests r
+    WHERE r.user_id=(select auth.uid())
+      AND r.document_paths @> ARRAY[storage.objects.name]
+      AND r.documents_delete_after <= now()
+  )
+);
 
 CREATE OR REPLACE FUNCTION public.apply_business_verification_decision(
   p_request_id uuid,p_decision text,p_reason text,p_internal_note text,p_reviewer_id uuid
