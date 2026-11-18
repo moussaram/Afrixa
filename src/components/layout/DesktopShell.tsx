@@ -87,6 +87,10 @@ export const DesktopShell = ({ children, enabled = true, unreadCount = 0 }: Desk
           <Link to="/create" aria-label="Créer" title="Créer" className="rounded-full bg-muted p-2.5 text-foreground hover:bg-muted/70">
             <PlusSquare className="h-5 w-5" />
           </Link>
+          <Link to="/notifications" aria-label="Notifications" title="Notifications" className="relative rounded-full bg-muted p-2.5 text-foreground hover:bg-muted/70">
+            <Bell className="h-5 w-5" />
+            {unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+          </Link>
           <Link to="/messages" aria-label="Messages" title="Messages" className="rounded-full bg-muted p-2.5 text-foreground hover:bg-muted/70">
             <MessageCircle className="h-5 w-5" />
           </Link>
