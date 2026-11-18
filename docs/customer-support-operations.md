@@ -1,7 +1,8 @@
 # Exploitation du support Afrixa
 
 ## Ce qui est raccordé
-- Un ticket peut référencer un litige existant de `public.disputes` via `help_messages.related_dispute_id`.
+- Depuis le détail d'une commande, l'acheteur peut ouvrir un litige réel. Le RPC `open_marketplace_dispute` vérifie l'acheteur, l'éligibilité et l'escrow, crée ou complète un litige ouvert, puis passe la commande à `litige` dans la même transaction.
+- Le parcours redirige ensuite vers le centre de support avec `order_id` et `dispute_id` préremplis; l'envoi du ticket lie le dossier support au litige existant via `help_messages.related_dispute_id`.
 - La base refuse un lien vers un litige dont le demandeur n'est ni acheteur ni vendeur. Si une commande est aussi référencée, elle doit correspondre au litige.
 - Les pièces jointes sont prévues dans un bucket privé `support-attachments`, limité à 10 Mio et aux images JPEG/PNG/WebP et PDF.
 - Le chemin de stockage attendu est `support/<user_id>/<ticket_id>/<uuid>.<ext>`.
