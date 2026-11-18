@@ -83,7 +83,7 @@ const SellerSales = () => {
 
   useEffect(() => { void loadOrders(); }, [loadOrders]);
 
-  const activeOrders = orders.filter((order) => ['payee', 'en_preparation', 'expediee'].includes(order.status) && !order.escrow_released);
+  const activeOrders = orders.filter((order) => ['payee', 'en_preparation', 'expediee', 'litige'].includes(order.status) && !order.escrow_released);
   const pendingAmount = activeOrders.reduce((sum, order) => sum + Number(order.seller_amount || 0), 0);
   const completedOrders = orders.filter((order) => order.status === 'terminee' || order.escrow_released);
   const tabs = [
@@ -95,7 +95,7 @@ const SellerSales = () => {
     { id: 'litige', label: 'Litiges' },
   ];
   const filtered = useMemo(() => orders.filter((order) => {
-    if (activeTab === 'active') return ['payee', 'en_preparation', 'expediee'].includes(order.status) && !order.escrow_released;
+    if (activeTab === 'active') return ['payee', 'en_preparation', 'expediee', 'litige'].includes(order.status) && !order.escrow_released;
     if (activeTab === 'terminee') return order.status === 'terminee' || order.escrow_released;
     return order.status === activeTab;
   }), [orders, activeTab]);
