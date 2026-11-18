@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/useAuth';
 import { ArrowLeft, MessageCircle, Check, X, Star, AlertTriangle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -50,12 +52,14 @@ const mockOrder = {
 const OrderDetail = () => {
   const navigate = useNavigate();
   const { orderId } = useParams();
+  const { user } = useAuth();
   const [order, setOrder] = useState(mockOrder);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [disputeReason, setDisputeReason] = useState('');
   const [disputeDesc, setDisputeDesc] = useState('');
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false);
   const [rating, setRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
 
@@ -68,21 +72,55 @@ const OrderDetail = () => {
     setTimeout(() => setShowReviewModal(true), 500);
   };
 
-  const handleDispute = () => {
+  const handleDispute = async () => {
     if (!disputeReason) return toast.error('Choisissez une raison');
     if (disputeDesc.trim().length < 20) return toast.error('Décrivez le problème avec au moins 20 caractères.');
-    const topic = disputeReason === 'Colis non reçu' ? 'product_not_received'
-      : ['Produit endommagé', 'Produit différent'].includes(disputeReason) ? 'product_not_as_described'
-      : 'marketplace_other';
-    const params = new URLSearchParams({
-      category: 'marketplace',
-      topic,
-      reference: orderId ?? order.orderNumber,
-      subject: `Litige concernant la commande ${order.orderNumber}`,
-      details: `Motif : ${disputeReason}\n\nDescription : ${disputeDesc.trim()}`,
-    });
-    setShowDisputeModal(false);
-    navigate(`/help-support?${params.toString()}`);
+    if (!user) { toast.error('Connecte-toi pour ouvrir un litige.'); navigate('/auth/login'); return; }
+    if (!orderId) return toast.error('Référence de commande introuvable.');
+    setDisputeSubmitting(true);
+    try {
+      const { data: orderRecord, error: orderError } = await supabase.from('orders')
+        .select('id,buyer_id,seller_id,status,escrow_released')
+        .eq('id', orderId).maybeSingle();
+      if (orderError) throw orderError;
+      if (!orderRecord || orderRecord.buyer_id !== user.id) throw new Error('Cette commande ne peut pas être utilisée pour ouvrir un litige depuis ce compte.');
+      if (!['payee', 'en_preparation', 'expediee', 'livree'].includes(orderRecord.status) || orderRecord.escrow_released) {
+        throw new Error('Cette commande ne remplit plus les conditions d’ouverture d’un litige.');
+      }
+      const { data: existingDispute, error: existingError } = await supabase.from('disputes')
+        .select('id').eq('order_id', orderRecord.id).eq('buyer_id', user.id)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (existingError) throw existingError;
+      let disputeId = existingDispute?.id;
+      if (!disputeId) {
+        const { data: createdDispute, error: disputeError } = await supabase.from('disputes').insert({
+          order_id: orderRecord.id,
+          buyer_id: user.id,
+          seller_id: orderRecord.seller_id,
+          reason: disputeReason,
+          buyer_evidence: disputeDesc.trim(),
+          status: 'ouvert',
+        }).select('id').single();
+        if (disputeError) throw disputeError;
+        disputeId = createdDispute.id;
+      }
+      const topic = disputeReason === 'Colis non reçu' ? 'product_not_received'
+        : ['Produit endommagé', 'Produit différent'].includes(disputeReason) ? 'product_not_as_described'
+        : 'marketplace_other';
+      const params = new URLSearchParams({
+        category: 'marketplace', topic, reference: orderRecord.id,
+        order_id: orderRecord.id, dispute_id: disputeId,
+        subject: `Litige concernant la commande ${order.orderNumber}`,
+        details: `Motif : ${disputeReason}\n\nDescription : ${disputeDesc.trim()}`,
+      });
+      setShowDisputeModal(false);
+      navigate(`/help-support?${params.toString()}`);
+    } catch (error) {
+      console.error('Marketplace dispute creation failed', error);
+      toast.error(error instanceof Error ? error.message : 'Impossible d’ouvrir le litige. Réessaie plus tard.');
+    } finally {
+      setDisputeSubmitting(false);
+    }
   };
 
   const handleReview = () => {
@@ -302,10 +340,11 @@ const OrderDetail = () => {
               className="w-full p-3 rounded-xl bg-[#0A0A0F] border border-border/20 text-foreground placeholder:text-muted-foreground text-sm min-h-[80px] resize-none"
             />
             <button
-              onClick={handleDispute}
-              className="w-full py-3 rounded-xl bg-[#EF4444] text-white font-semibold text-sm"
+              onClick={() => void handleDispute()}
+              disabled={disputeSubmitting}
+              className="w-full py-3 rounded-xl bg-[#EF4444] text-white font-semibold text-sm disabled:opacity-60"
             >
-              Continuer vers le support
+              {disputeSubmitting ? 'Ouverture du litige…' : 'Ouvrir le litige et contacter le support'}
             </button>
           </div>
         </>
