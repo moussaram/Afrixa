@@ -127,6 +127,10 @@ const UserProfile = () => {
     profile.identity_verified && profile.identity_verified_until
     && new Date(profile.identity_verified_until).getTime() > Date.now(),
   );
+  const isBusinessVerified = Boolean(
+    profile.business_verified && profile.business_verified_until
+    && new Date(profile.business_verified_until).getTime() > Date.now(),
+  );
   const isLocked = Boolean(profile.is_private) && !isOwnProfile && !isFollowing;
   // Un compte bloqué ne doit plus exposer ses vidéos dans cette vue.
   const visibleVideos = isBlocked ? [] : videos;
@@ -295,6 +299,7 @@ const UserProfile = () => {
           </div>
 
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            {isBusinessVerified && <span title="Entreprise ou boutique vérifiée par Afrixa" className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600"><BadgeCheck className="h-4 w-4" /> {profile.business_verification_type === 'shop' ? 'Boutique vérifiée' : 'Entreprise vérifiée'}</span>}
             <CreatorBadge level={creatorLevel(followersCount)} />
             {followersCount >= 500000 && (
               <span className="inline-flex items-center rounded-full border border-[#F59E0B]/30 bg-[#F59E0B]/15 px-3 py-1 text-xs font-bold text-[#F59E0B]">
