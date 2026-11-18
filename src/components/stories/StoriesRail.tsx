@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { mockUsers } from '@/data/mockData';
 
 export const StoriesRail = () => (
-  <div className="fixed left-0 right-0 top-14 z-40 flex gap-3 overflow-x-auto border-b border-border/20 bg-background/80 px-4 py-3 backdrop-blur">
+  <div className="afrixa-stories-rail fixed left-0 right-0 top-14 z-40 flex gap-3 overflow-x-auto border-b border-border/20 bg-background/80 px-4 py-3 backdrop-blur">
     <button className="flex w-16 shrink-0 flex-col items-center gap-1">
       <span className="flex h-14 w-14 items-center justify-center rounded-full border border-dashed border-primary bg-primary/10">
         <Plus className="h-5 w-5 text-primary" />
