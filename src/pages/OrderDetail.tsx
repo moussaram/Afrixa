@@ -92,7 +92,7 @@ const OrderDetail = () => {
       const params = new URLSearchParams({
         category: 'marketplace', topic, reference: orderRecord.id,
         order_id: orderRecord.id, dispute_id: disputeId,
-        subject: `Litige concernant la commande ${order.orderNumber}`,
+        subject: `Litige concernant la commande ${orderId}`,
         details: `Motif : ${disputeReason}\n\nDescription : ${disputeDesc.trim()}`,
       });
       setShowDisputeModal(false);
