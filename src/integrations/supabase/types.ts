@@ -622,6 +622,9 @@ export type Database = {
           email_verifie: boolean
           google_id: string | null
           id: string
+          identity_verified: boolean
+          business_verified: boolean
+          verified_at: string | null
           inscription_complete: boolean
           lieu_naissance: string | null
           mobile_verifie: boolean
@@ -645,6 +648,9 @@ export type Database = {
           email_verifie?: boolean
           google_id?: string | null
           id?: string
+          identity_verified?: boolean
+          business_verified?: boolean
+          verified_at?: string | null
           inscription_complete?: boolean
           lieu_naissance?: string | null
           mobile_verifie?: boolean
