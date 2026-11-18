@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, MessageCircle, Check, AlertTriangle, Package, Truck, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Check, AlertTriangle, Package, RefreshCw } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
