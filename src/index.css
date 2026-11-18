@@ -337,3 +337,110 @@
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+
+/* Responsive application frame: mobile keeps the existing navigation;
+   tablets and desktops use a persistent multi-column workspace. */
+.afrixa-desktop-shell { min-height: 100dvh; }
+.afrixa-desktop-left,
+.afrixa-desktop-right { display: none; }
+.afrixa-desktop-topbar { display: none; }
+
+@media (min-width: 768px) {
+  .afrixa-desktop-topbar { display: flex; }
+  .afrixa-mobile-nav { display: none !important; }
+  .afrixa-desktop-left {
+    display: block;
+    width: 76px;
+  }
+  .afrixa-desktop-nav-label,
+  .afrixa-desktop-brand { display: none; }
+  .afrixa-shell-main { margin-left: 76px; }
+  .afrixa-shell-content { width: 100%; }
+  .afrixa-shell-main header.sticky { top: 4rem; }
+  .afrixa-shell-main .min-h-screen { padding-bottom: 2rem; }
+  .afrixa-shell-main .afrixa-feed-page {
+    height: calc(100dvh - 4rem);
+    min-height: 34rem;
+  }
+  .afrixa-shell-main .afrixa-feed-page > header {
+    top: 4rem;
+    left: 76px;
+    right: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .afrixa-desktop-left { width: 248px; }
+  .afrixa-desktop-nav-label,
+  .afrixa-desktop-brand { display: inline; }
+  .afrixa-shell-main { margin-left: 248px; }
+  .afrixa-shell-content { max-width: 1120px; margin-inline: auto; }
+  .afrixa-shell-main .afrixa-feed-page > header { left: 248px; }
+}
+
+@media (min-width: 1440px) {
+  .afrixa-desktop-right { display: block; width: 280px; }
+  .afrixa-shell-main { margin-right: 280px; }
+  .afrixa-shell-content { max-width: 1120px; }
+  .afrixa-shell-main .afrixa-feed-page > header { right: 280px; }
+}
+
+@media (min-width: 768px) {
+  .afrixa-shell-main .afrixa-feed-page { position: relative; }
+  .afrixa-shell-main .afrixa-feed-scroll {
+    width: min(100%, 620px);
+    margin-inline: auto;
+    padding-bottom: 1rem;
+  }
+  .afrixa-shell-main .afrixa-feed-page > header > div:first-child {
+    max-width: 620px;
+    margin-inline: auto;
+  }
+}
+@media (min-width: 1024px) {
+  .afrixa-shell-main .afrixa-feed-scroll { width: min(100%, 560px); }
+}
+
+
+/* Mobile remains the original app layout; desktop chrome only occupies
+   space from the tablet breakpoint upward. */
+.afrixa-shell-main { margin-left: 0; margin-right: 0; padding-top: 0; }
+.afrixa-shell-content { min-height: 100vh; }
+@media (min-width: 768px) {
+  .afrixa-shell-main { padding-top: 4rem; }
+  .afrixa-shell-content { min-height: calc(100vh - 4rem); }
+  .afrixa-shell-main .afrixa-feed-scroll { padding-top: 10rem; }
+}
+@media (min-width: 1024px) {
+  .afrixa-shell-main .afrixa-feed-scroll { width: min(100%, 560px); }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .afrixa-desktop-topbar { padding-left: .5rem; padding-right: .5rem; }
+  .afrixa-desktop-topbar > a:first-child { width: 2.5rem; }
+  .afrixa-desktop-topbar > div:last-child { gap: .25rem; }
+}
+
+@media (min-width: 768px) {
+  .afrixa-stories-rail {
+    top: 7rem;
+    left: 76px;
+    right: 0;
+  }
+}
+@media (min-width: 1024px) {
+  .afrixa-stories-rail { left: 248px; }
+}
+@media (min-width: 1440px) {
+  .afrixa-stories-rail { right: 280px; }
+}
+
+@media (min-width: 768px) {
+  .afrixa-shell-main { margin-left: 76px; margin-right: 0; }
+}
+@media (min-width: 1024px) {
+  .afrixa-shell-main { margin-left: 248px; }
+}
+@media (min-width: 1440px) {
+  .afrixa-shell-main { margin-right: 280px; }
+}

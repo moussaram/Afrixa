@@ -1,11 +1,9 @@
 import { Home, Search, Plus, Bell, User } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { useNotifications } from '@/hooks/useNotifications';
 
-export const BottomNav = () => {
+export const BottomNav = ({ unreadCount }: { unreadCount: number }) => {
   const location = useLocation();
-  const { unreadCount } = useNotifications();
 
   const navItems = [
     { path: '/', icon: Home, label: 'Accueil' },
@@ -16,7 +14,7 @@ export const BottomNav = () => {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border/30 safe-area-pb">
+    <nav className="afrixa-mobile-nav fixed bottom-0 left-0 right-0 z-50 glass border-t border-border/30 safe-area-pb">
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;

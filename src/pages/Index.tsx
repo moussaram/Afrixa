@@ -43,7 +43,7 @@ const Index = () => {
   }, [activeTab]);
 
   return (
-    <div className="h-screen w-full bg-background overflow-hidden">
+    <div className="afrixa-feed-page h-screen w-full bg-background overflow-hidden">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 glass">
         <div className="flex items-center justify-center gap-8 h-14 px-4">
@@ -86,7 +86,7 @@ const Index = () => {
       {/* Video Feed */}
       <div
         ref={containerRef}
-        className="h-full w-full overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-14 pb-16"
+        className="afrixa-feed-scroll h-full w-full overflow-y-scroll snap-y snap-mandatory hide-scrollbar pt-14 pb-16"
       >
         {loading && (
           <div className="h-full w-full flex flex-col items-center justify-center gap-3">
