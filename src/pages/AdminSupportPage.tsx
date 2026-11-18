@@ -46,7 +46,8 @@ const AdminSupportPage = () => {
       setItems([]);
     } else {
       const priorityOrder: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
-      setItems([...(data ?? []) as SupportTicket[]].sort((left, right) =>
+      const rows = (data ?? []) as SupportTicket[];
+      setItems([...rows].sort((left, right) =>
         (priorityOrder[left.priority] ?? 2) - (priorityOrder[right.priority] ?? 2)
         || new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
       ));
