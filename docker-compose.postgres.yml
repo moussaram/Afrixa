@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: afrixa-postgres-standby
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-afrixa}
+      POSTGRES_USER: ${POSTGRES_USER:-afrixa_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGREST_DB_PASSWORD: ${POSTGREST_DB_PASSWORD:?Set POSTGREST_DB_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - afrixa_postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgresql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$${POSTGRES_USER} -d $$${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [afrixa-data]
+  postgrest:
+    image: postgrest/postgrest:v12.2.12
+    container_name: afrixa-postgrest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGREST_DB_PASSWORD}@db:5432/${POSTGRES_DB:-afrixa}
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${POSTGREST_JWT_SECRET:?Set POSTGREST_JWT_SECRET}
+      PGRST_JWT_SECRET_IS_BASE64: "true"
+      PGRST_SERVER_PORT: 3000
+      PGRST_OPENAPI_SERVER_PROXY_URI: ${POSTGREST_PUBLIC_URL:-http://localhost:3001}
+      PGRST_DB_POOL: ${POSTGREST_DB_POOL:-10}
+      PGRST_DB_POOL_ACQUISITION_TIMEOUT: 10
+      PGRST_DB_POOL_MAX_IDLETIME: 30
+      PGRST_LOG_LEVEL: info
+    ports:
+      - "127.0.0.1:${POSTGREST_PORT:-3001}:3000"
+    networks: [afrixa-data]
+networks:
+  afrixa-data:
+    name: afrixa-data
+    driver: bridge
+volumes:
+  afrixa_postgres_data:
+    name: afrixa_postgres_standby_data
