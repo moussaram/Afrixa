@@ -63,9 +63,19 @@ const FedaPayReturn = () => {
           {result.state === 'success' ? 'Paiement confirmé' : result.state === 'failed' ? 'Paiement non confirmé' : 'Vérification du paiement'}
         </h1>
         <p className="text-sm text-muted-foreground">{result.message}</p>
-        <Link to="/orders" className="inline-flex rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground">
-          Voir mes commandes
-        </Link>
+        <div className="flex flex-col gap-2">
+          <Link to="/orders" className="inline-flex justify-center rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground">
+            Voir mes commandes
+          </Link>
+          {result.state !== 'success' && (
+            <Link
+              to={`/help-support?category=payment&topic=payment_failed&reference=${encodeURIComponent(params.get('order_ref') ?? params.get('id') ?? '')}&subject=${encodeURIComponent('Vérification de mon paiement FedaPay')}`}
+              className="inline-flex justify-center rounded-xl border border-border px-5 py-3 text-sm font-semibold text-foreground"
+            >
+              Contacter le support pour ce paiement
+            </Link>
+          )}
+        </div>
       </section>
     </main>
   );

@@ -39,6 +39,7 @@ const OrderDetail = lazy(() => import("./pages/OrderDetail"));
 const Marketplace = lazy(() => import("./pages/Marketplace"));
 const GroupBuy = lazy(() => import("./pages/GroupBuy"));
 const HelpSupport = lazy(() => import("./pages/HelpSupport"));
+const AdminSupportPage = lazy(() => import("./pages/AdminSupportPage"));
 const SellerSales = lazy(() => import("./pages/SellerSales"));
 const SellerWallet = lazy(() => import("./pages/SellerWallet"));
 const Register = lazy(() => import("./pages/auth/Register"));
@@ -73,7 +74,7 @@ const AppContent = () => {
   }, [location.pathname]);
   const { user, loading } = useAuth();
 
-  const hideNavPaths = ['/create', '/settings', '/messages', '/chat', '/live', '/auth', '/onboarding'];
+  const hideNavPaths = ['/create', '/settings', '/messages', '/chat', '/live', '/auth', '/onboarding', '/admin'];
   const hideNav = hideNavPaths.some(path => location.pathname.startsWith(path));
 
   // Redirect to login if not authenticated (sauf pages auth)
@@ -104,6 +105,7 @@ const AppContent = () => {
           <Route path="/coins" element={<Coins />} />
           <Route path="/ads" element={<AdsManager />} />
           <Route path="/moderation" element={<ModerationPage />} />
+          <Route path="/admin/support" element={<AdminSupportPage />} />
 
           {/* App routes */}
           <Route path="/" element={<Index />} />

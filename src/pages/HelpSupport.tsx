@@ -1,6 +1,11 @@
-import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Headphones, Search, MessageCircle, Mail, BookOpen, ChevronDown, Send, FileText, Shield, Cookie, Info, Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  ArrowLeft, Headphones, Search, Mail, BookOpen, ChevronDown, Send, Loader2,
+  ShoppingBag, CreditCard, Truck, Store, Copyright, ShieldAlert, UserRound,
+  Video, Radio, MessageCircle, Wallet, Megaphone, Smartphone,
+  Ticket, AlertTriangle, LifeBuoy, RefreshCw,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,300 +15,307 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/useAuth';
 
-interface FaqItem {
-  question: string;
-  answer: string;
-}
+type SupportTopic = { value: string; label: string; description: string };
+type SupportCategory = {
+  value: string;
+  label: string;
+  icon: typeof ShoppingBag;
+  description: string;
+  topics: SupportTopic[];
+};
 
-interface FaqCategory {
-  icon: string;
-  title: string;
-  items: FaqItem[];
-}
-
-const faqData: FaqCategory[] = [
-  {
-    icon: '👤',
-    title: 'Compte & Connexion',
-    items: [
-      { question: 'Comment créer un compte Afrixa ?', answer: "Télécharge l'app Afrixa, appuie sur \"S'inscrire\", entre ton numéro de téléphone ou email, crée un mot de passe et confirme ton compte." },
-      { question: "J'ai oublié mon mot de passe, que faire ?", answer: "Sur la page de connexion, appuie sur \"Mot de passe oublié\", entre ton email ou numéro, tu recevras un code de réinitialisation par SMS ou email." },
-      { question: 'Comment modifier mon profil ?', answer: 'Va dans Profil → Modifier le profil. Tu peux changer ta photo, ton nom, ta bio et ton lien.' },
-      { question: 'Comment supprimer mon compte ?', answer: 'Va dans Paramètres → Compte → Supprimer mon compte. Attention, cette action est irréversible.' },
-    ],
-  },
-  {
-    icon: '💰',
-    title: 'Paiement & Afrixa Pay',
-    items: [
-      { question: 'Quels moyens de paiement sont acceptés ?', answer: "Afrixa Pay accepte Orange Money, Wave, MTN MoMo et Moov Money. D'autres moyens seront ajoutés bientôt." },
-      { question: 'Mon paiement a échoué, que faire ?', answer: "Vérifie que ton solde Mobile Money est suffisant. Si le problème persiste, contacte-nous sur WhatsApp avec une capture d'écran de l'erreur." },
-      { question: 'Comment voir mes commandes ?', answer: "Va dans Mon espace → Mes commandes pour voir l'historique complet de tes achats." },
-      { question: 'Combien de temps prend un remboursement ?', answer: 'Les remboursements sont traités en 24-72h selon ton opérateur Mobile Money.' },
-    ],
-  },
-  {
-    icon: '🏪',
-    title: 'Vendre sur Afrixa',
-    items: [
-      { question: 'Comment devenir vendeur sur Afrixa ?', answer: 'Va dans Mon espace → Ma Boutique → Créer ma boutique. Remplis les informations de ta boutique et soumets ta demande de vérification.' },
-      { question: 'Quels produits puis-je vendre ?', answer: 'Tu peux vendre tout produit physique légal. Les produits interdits incluent armes, drogues, produits contrefaits et contenus illégaux.' },
-      { question: 'Comment fonctionne le Group Buy ?', answer: "Le Group Buy permet à plusieurs acheteurs de se grouper pour obtenir un prix réduit. Plus le groupe est grand, plus le prix baisse. Si le groupe n'atteint pas le minimum requis, personne n'est débité." },
-      { question: 'Comment recevoir mes paiements de vente ?', answer: 'Les paiements sont versés sur ton Mobile Money dans les 24-48h après confirmation de livraison.' },
-    ],
-  },
-  {
-    icon: '🎥',
-    title: 'Vidéos & Contenu',
-    items: [
-      { question: "Quelle est la durée maximale d'une vidéo ?", answer: "Les vidéos peuvent durer jusqu'à 10 minutes sur Afrixa." },
-      { question: 'Ma vidéo a été supprimée, pourquoi ?', answer: "Ta vidéo a peut-être violé nos conditions d'utilisation. Va dans Notifications → Activité pour voir la raison. Tu peux faire appel dans les 30 jours." },
-      { question: 'Comment signaler une vidéo inappropriée ?', answer: 'Appuie longuement sur la vidéo ou tape l\'icône "..." puis "Signaler". Choisis la raison du signalement.' },
-    ],
-  },
-  {
-    icon: '🔴',
-    title: 'Live',
-    items: [
-      { question: 'Comment lancer un live ?', answer: 'Appuie sur le bouton ➕ en bas, puis sélectionne "Live". Donne un titre à ton live et appuie sur "Démarrer".' },
-      { question: 'Pourquoi je ne peux pas lancer de live ?', answer: "Le live est disponible pour les comptes ayant au moins 100 abonnés et dont le compte a plus de 30 jours." },
-    ],
-  },
+const supportCategories: SupportCategory[] = [
+  { value: 'marketplace', label: 'Marketplace & achats', icon: ShoppingBag, description: 'Achats, vendeurs et produits', topics: [
+    { value: 'seller_scam', label: 'Arnaque ou escroquerie d’un vendeur', description: 'Vendeur frauduleux, fausse boutique ou demande de paiement hors Afrixa' },
+    { value: 'buyer_scam', label: 'Fraude ou abus d’un acheteur', description: 'Faux justificatif, commande abusive ou comportement frauduleux' },
+    { value: 'product_not_received', label: 'Produit non reçu', description: 'La commande est payée mais jamais livrée' },
+    { value: 'product_not_as_described', label: 'Produit différent ou défectueux', description: 'Article non conforme, endommagé ou incomplet' },
+    { value: 'seller_unresponsive', label: 'Vendeur injoignable', description: 'Le vendeur ne répond plus après la commande' },
+    { value: 'counterfeit_product', label: 'Produit contrefait ou interdit', description: 'Produit suspect, contrefaçon ou article dangereux' },
+    { value: 'marketplace_other', label: 'Autre problème d’achat', description: 'Autre difficulté liée à une commande ou un produit' },
+  ]},
+  { value: 'payment', label: 'Paiements & remboursements', icon: CreditCard, description: 'Mobile Money, carte et transactions', topics: [
+    { value: 'debited_not_confirmed', label: 'Débité mais paiement non confirmé', description: 'Le compte ou portefeuille a été débité sans confirmation sur Afrixa' },
+    { value: 'payment_failed', label: 'Paiement échoué', description: 'Erreur opérateur, refus ou transaction interrompue' },
+    { value: 'duplicate_payment', label: 'Paiement en double', description: 'Plusieurs débits pour une seule commande' },
+    { value: 'refund_missing', label: 'Remboursement non reçu', description: 'Remboursement annoncé mais absent du portefeuille' },
+    { value: 'unauthorized_payment', label: 'Transaction non autorisée', description: 'Paiement que vous ne reconnaissez pas' },
+    { value: 'seller_payout', label: 'Paiement vendeur en attente', description: 'Solde vendeur ou versement non reçu' },
+    { value: 'payment_other', label: 'Autre problème de paiement', description: 'Question sur une transaction ou un remboursement' },
+  ]},
+  { value: 'delivery', label: 'Livraison & suivi', icon: Truck, description: 'Transport, livreur et adresse', topics: [
+    { value: 'delivery_late', label: 'Livraison en retard', description: 'La date prévue est dépassée' },
+    { value: 'delivery_lost', label: 'Colis perdu ou bloqué', description: 'Le suivi ne progresse plus ou le colis est introuvable' },
+    { value: 'delivery_wrong_address', label: 'Mauvaise adresse ou destinataire', description: 'Erreur d’adresse ou colis remis à la mauvaise personne' },
+    { value: 'delivery_damaged', label: 'Colis endommagé', description: 'Le colis est arrivé abîmé' },
+    { value: 'delivery_fee', label: 'Frais de livraison contestés', description: 'Montant ou frais supplémentaires inattendus' },
+  ]},
+  { value: 'digital_products', label: 'Produits numériques', icon: Smartphone, description: 'Fichiers, accès et téléchargements', topics: [
+    { value: 'digital_access_missing', label: 'Accès au fichier non reçu', description: 'Paiement confirmé mais téléchargement indisponible' },
+    { value: 'digital_file_broken', label: 'Fichier illisible ou incomplet', description: 'Fichier endommagé, mauvais format ou contenu manquant' },
+    { value: 'digital_wrong_item', label: 'Mauvais produit numérique', description: 'Le contenu livré ne correspond pas à la description' },
+    { value: 'digital_refund', label: 'Remboursement d’un produit numérique', description: 'Demande liée à un achat numérique' },
+  ]},
+  { value: 'seller_store', label: 'Boutique & vendeurs', icon: Store, description: 'Gestion de boutique et ventes', topics: [
+    { value: 'store_creation', label: 'Création ou validation de boutique', description: 'Ouverture, vérification ou modification de boutique' },
+    { value: 'store_suspended', label: 'Boutique suspendue', description: 'Contester une restriction ou comprendre une suspension' },
+    { value: 'seller_order', label: 'Gestion d’une commande vendeur', description: 'Commande, stock, retour ou annulation' },
+    { value: 'seller_balance', label: 'Solde ou retrait vendeur', description: 'Solde indisponible, retrait bloqué ou versement' },
+    { value: 'seller_fraud_report', label: 'Signaler un acheteur', description: 'Comportement suspect ou abusif d’un acheteur' },
+  ]},
+  { value: 'intellectual_property', label: 'Droits d’auteur & propriété intellectuelle', icon: Copyright, description: 'Contenu volé, marque et usurpation', topics: [
+    { value: 'copyright_infringement', label: 'Mon contenu a été copié', description: 'Vidéo, photo, musique ou texte publié sans autorisation' },
+    { value: 'trademark_infringement', label: 'Utilisation abusive de ma marque', description: 'Logo, nom commercial ou identité visuelle utilisée sans droit' },
+    { value: 'counterfeit_content', label: 'Contenu ou produit contrefait', description: 'Fausse marque ou imitation présentée comme authentique' },
+    { value: 'copyright_counter_notice', label: 'Contester un retrait pour droits d’auteur', description: 'Faire examiner une décision de retrait' },
+  ]},
+  { value: 'safety_abuse', label: 'Sécurité, fraude & signalements', icon: ShieldAlert, description: 'Menaces, harcèlement et comportements dangereux', topics: [
+    { value: 'harassment', label: 'Harcèlement ou intimidation', description: 'Messages, commentaires ou comportements répétés' },
+    { value: 'impersonation', label: 'Usurpation d’identité', description: 'Un compte se fait passer pour vous ou une organisation' },
+    { value: 'phishing', label: 'Hameçonnage ou tentative de vol', description: 'Lien suspect, demande de code ou tentative d’accès au compte' },
+    { value: 'threats', label: 'Menace ou contenu dangereux', description: 'Menace crédible, violence ou mise en danger' },
+    { value: 'privacy_violation', label: 'Atteinte à la vie privée', description: 'Publication de données personnelles sans autorisation' },
+    { value: 'scam_other', label: 'Autre fraude ou abus', description: 'Signaler un comportement suspect' },
+  ]},
+  { value: 'account', label: 'Compte & accès', icon: UserRound, description: 'Connexion, profil et vérification', topics: [
+    { value: 'account_hacked', label: 'Compte piraté ou compromis', description: 'Connexion inconnue ou compte contrôlé par un tiers' },
+    { value: 'login_problem', label: 'Impossible de me connecter', description: 'Mot de passe, code ou authentification' },
+    { value: 'account_restricted', label: 'Compte restreint ou suspendu', description: 'Demande d’explication ou de réexamen' },
+    { value: 'identity_verification', label: 'Vérification d’identité', description: 'Demande, justificatifs ou badge identité' },
+    { value: 'business_verification', label: 'Vérification entreprise/boutique', description: 'Documents commerciaux et badge professionnel' },
+    { value: 'account_data', label: 'Données personnelles ou suppression', description: 'Accès, correction ou suppression des données' },
+  ]},
+  { value: 'content', label: 'Vidéos, publications & modération', icon: Video, description: 'Publication, visibilité et règles communautaires', topics: [
+    { value: 'content_removed', label: 'Publication ou vidéo supprimée', description: 'Demander la raison ou contester une suppression' },
+    { value: 'content_not_visible', label: 'Contenu non visible ou bloqué', description: 'Problème de diffusion ou de visibilité' },
+    { value: 'content_report', label: 'Signaler un contenu', description: 'Contenu illégal, trompeur ou contraire aux règles' },
+    { value: 'moderation_appeal', label: 'Faire appel d’une modération', description: 'Contester une sanction ou restriction' },
+    { value: 'content_upload', label: 'Problème de publication', description: 'Échec d’envoi, traitement ou lecture' },
+  ]},
+  { value: 'live', label: 'Lives & diffusions', icon: Radio, description: 'Diffusion, spectateurs et cadeaux', topics: [
+    { value: 'live_access', label: 'Accès au Live', description: 'Impossible de démarrer ou rejoindre un Live' },
+    { value: 'live_abuse', label: 'Abus pendant un Live', description: 'Harcèlement, fraude ou contenu interdit' },
+    { value: 'live_gifts', label: 'Cadeaux ou gains Live', description: 'Cadeau non crédité ou anomalie de gains' },
+    { value: 'live_technical', label: 'Problème technique Live', description: 'Coupures, son, vidéo ou connexion' },
+  ]},
+  { value: 'messaging', label: 'Messagerie & interactions', icon: MessageCircle, description: 'Messages, commentaires et abonnements', topics: [
+    { value: 'message_not_sent', label: 'Message non envoyé', description: 'Échec d’envoi ou de réception' },
+    { value: 'blocked_user', label: 'Blocage ou restriction de contact', description: 'Problème de blocage ou d’interaction' },
+    { value: 'fake_engagement', label: 'Faux abonnés ou interactions', description: 'Activité artificielle ou manipulation' },
+  ]},
+  { value: 'creator', label: 'Créateurs, coins & retraits', icon: Wallet, description: 'Monétisation, revenus et portefeuille', topics: [
+    { value: 'creator_earnings', label: 'Gains non crédités', description: 'Revenus ou coins manquants' },
+    { value: 'creator_withdrawal', label: 'Retrait en attente ou refusé', description: 'Demande de retrait ou coordonnées de paiement' },
+    { value: 'creator_program', label: 'Programme créateur', description: 'Éligibilité, statistiques ou avantages' },
+    { value: 'creator_balance', label: 'Solde incorrect', description: 'Écart dans le portefeuille ou l’historique' },
+  ]},
+  { value: 'advertising', label: 'Publicité & promotions', icon: Megaphone, description: 'Campagnes, facturation et annonces', topics: [
+    { value: 'ad_rejected', label: 'Publicité refusée', description: 'Contester ou comprendre un refus' },
+    { value: 'ad_payment', label: 'Paiement de campagne', description: 'Débit, facture ou crédit publicitaire' },
+    { value: 'ad_delivery', label: 'Campagne non diffusée', description: 'Impressions ou résultats inattendus' },
+    { value: 'ad_report', label: 'Signaler une publicité', description: 'Annonce trompeuse, dangereuse ou frauduleuse' },
+  ]},
+  { value: 'technical', label: 'Application & problème technique', icon: Smartphone, description: 'Bugs, lenteurs et compatibilité', topics: [
+    { value: 'app_crash', label: 'Application se ferme ou bloque', description: 'Crash, écran figé ou erreur répétée' },
+    { value: 'performance', label: 'Lenteur ou chargement', description: 'Problème de performance ou de connexion' },
+    { value: 'feature_bug', label: 'Fonctionnalité défectueuse', description: 'Bouton ou parcours qui ne fonctionne pas' },
+  ]},
+  { value: 'other', label: 'Autre demande', icon: LifeBuoy, description: 'Question générale ou demande non classée', topics: [
+    { value: 'general_question', label: 'Question générale', description: 'Information sur Afrixa' },
+    { value: 'partnership', label: 'Partenariat ou proposition', description: 'Demande professionnelle' },
+    { value: 'other_issue', label: 'Autre problème', description: 'Sujet non listé ci-dessus' },
+  ]},
 ];
+
+const faqItems = [
+  { category: 'Achats', question: 'J’ai payé mais le vendeur ne livre pas. Que faire ?', answer: 'Ouvre le détail de ta commande, conserve les échanges et preuves de paiement, puis crée un ticket « Produit non reçu ». Ne paie jamais un supplément en dehors du parcours officiel Afrixa.' },
+  { category: 'Paiements', question: 'Mon compte Mobile Money a été débité, mais la commande reste impayée.', answer: 'Ne relance pas plusieurs paiements immédiatement. Note la référence de transaction, joins les informations utiles dans un ticket « Débité mais paiement non confirmé » et demande une vérification.' },
+  { category: 'Remboursements', question: 'Comment signaler un remboursement manquant ?', answer: 'Crée un ticket dans Paiements & remboursements, indique la référence de la transaction et le numéro de commande si tu en as un. Le support vérifiera le statut avant de confirmer le remboursement.' },
+  { category: 'Droits', question: 'Quelqu’un republie ma vidéo sans autorisation.', answer: 'Choisis Droits d’auteur & propriété intellectuelle puis « Mon contenu a été copié ». Fournis les liens du contenu original et de la copie ainsi que les éléments permettant d’établir tes droits.' },
+  { category: 'Sécurité', question: 'Un compte me demande mon code OTP ou mon mot de passe.', answer: 'Ne communique jamais ton mot de passe, ton code OTP, ton code PIN Mobile Money ou tes données bancaires. Signale immédiatement le compte dans Sécurité, fraude & signalements.' },
+  { category: 'Compte', question: 'Comment contester une suspension ?', answer: 'Sélectionne Compte & accès puis « Compte restreint ou suspendu ». Explique les faits et joins la référence de la notification de modération si elle est disponible.' },
+];
+
+const statusLabels: Record<string, string> = {
+  new: 'Reçu', in_progress: 'En cours', waiting_customer: 'Informations demandées',
+  resolved: 'Résolu', closed: 'Clôturé', non_lu: 'Reçu', lu: 'Reçu',
+};
+const priorityLabels: Record<string, string> = { low: 'Faible', normal: 'Normale', high: 'Élevée', urgent: 'Urgente' };
+
+type TicketRow = {
+  id: string; ticket_number: string; category: string; topic: string; subject: string;
+  status: string; priority: string; created_at: string; admin_reply: string | null;
+};
 
 const HelpSupport = () => {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [openItems, setOpenItems] = useState<Set<string>>(new Set());
-  const [reportCategory, setReportCategory] = useState('');
-  const [reportText, setReportText] = useState('');
-  const [reportSent, setReportSent] = useState(false);
+  const [openFaq, setOpenFaq] = useState<string | null>(null);
+  const [category, setCategory] = useState(params.get('category') ?? '');
+  const [topic, setTopic] = useState(params.get('topic') ?? '');
+  const [subject, setSubject] = useState(params.get('subject') ?? '');
+  const [description, setDescription] = useState(params.get('details') ?? '');
+  const [reference, setReference] = useState(params.get('reference') ?? '');
+  const [contactEmail, setContactEmail] = useState(user?.email ?? '');
+  const [priority, setPriority] = useState('normal');
   const [sending, setSending] = useState(false);
-  const faqRef = useRef<HTMLDivElement>(null);
+  const [tickets, setTickets] = useState<TicketRow[]>([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
+  const [sentTicket, setSentTicket] = useState<{ number: string } | null>(null);
+  const userId = user?.id;
 
-  const toggleItem = (key: string) => {
-    setOpenItems(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+  const selectedCategory = supportCategories.find((item) => item.value === category);
+  const selectedTopic = selectedCategory?.topics.find((item) => item.value === topic);
+  const filteredFaq = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return query ? faqItems.filter((item) =>
+      [item.category, item.question, item.answer].some((value) => value.toLowerCase().includes(query))
+    ) : faqItems;
+  }, [searchQuery]);
+
+  const loadTickets = useCallback(async () => {
+    if (!userId) { setTickets([]); return; }
+    setLoadingTickets(true);
+    const { data, error } = await supabase.from('help_messages')
+      .select('id,ticket_number,category,topic,subject,status,priority,created_at,admin_reply')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (error) {
+      console.error('Support ticket history failed', error);
+      toast.error('Impossible de charger l’historique du support.');
+    } else setTickets((data ?? []) as TicketRow[]);
+    setLoadingTickets(false);
+  }, [userId]);
+
+  useEffect(() => { void loadTickets(); }, [loadTickets]);
+
+  const resetForm = () => {
+    setCategory(''); setTopic(''); setSubject(''); setDescription('');
+    setReference(''); setPriority('normal'); setSentTicket(null);
   };
 
-  const filteredFaq = searchQuery.trim()
-    ? faqData.map(cat => ({
-        ...cat,
-        items: cat.items.filter(
-          i =>
-            i.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            i.answer.toLowerCase().includes(searchQuery.toLowerCase())
-        ),
-      })).filter(cat => cat.items.length > 0)
-    : faqData;
-
-  const handleSendReport = async () => {
-    if (!reportText.trim()) {
-      toast.error("Décris ton problème avant d'envoyer");
+  const submitTicket = async () => {
+    if (!user) {
+      toast.error('Connecte-toi pour créer et suivre un ticket.');
+      navigate('/auth/login');
       return;
+    }
+    if (!category || !topic) return toast.error('Choisis un domaine et un sujet précis.');
+    if (subject.trim().length < 5) return toast.error('Le sujet doit contenir au moins 5 caractères.');
+    if (description.trim().length < 20) return toast.error('Décris le problème avec au moins 20 caractères.');
+    if (contactEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) {
+      return toast.error('Adresse e-mail de contact invalide.');
     }
     setSending(true);
     try {
-      if (user) {
-        const { error } = await supabase.from('help_messages').insert({
-          user_id: user.id,
-          category: reportCategory || 'autre',
-          message: reportText.trim(),
-        });
-        if (error) throw error;
-      }
-      toast.success('✅ Message envoyé ! Nous te répondrons sous 24h');
-      setReportSent(true);
-    } catch (e) {
-      // In dev mode auth.uid() is null so RLS blocks the insert — still show success UX
-      toast.success('✅ Message envoyé ! Nous te répondrons sous 24h');
-      setReportSent(true);
+      const { data, error } = await supabase.from('help_messages').insert({
+        user_id: user.id,
+        category,
+        topic,
+        subject: subject.trim(),
+        message: description.trim(),
+        priority,
+        order_reference: reference.trim() || null,
+        contact_email: contactEmail.trim() || null,
+        status: 'new',
+      }).select('ticket_number').single();
+      if (error) throw error;
+      setSentTicket({ number: data.ticket_number });
+      setDescription(''); setReference(''); setSubject('');
+      await loadTickets();
+      toast.success('Demande transmise au support Afrixa.');
+    } catch (error) {
+      console.error('Support ticket submission failed', error);
+      toast.error('La demande n’a pas été envoyée. Réessaie après vérification de ta connexion.');
     } finally {
       setSending(false);
     }
   };
 
-  const scrollToFaq = () => {
-    faqRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
-      <header className="sticky top-0 z-50 glass border-b border-border/30">
-        <div className="flex items-center gap-4 px-4 py-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ArrowLeft className="w-6 h-6" />
-          </Button>
-          <h1 className="text-lg font-bold text-foreground flex-1">Aide & Support</h1>
-          <Headphones className="w-6 h-6 text-primary" />
+    <main className="min-h-screen bg-background pb-24">
+      <header className="sticky top-0 z-40 border-b border-border/50 bg-background/95 backdrop-blur">
+        <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Retour"><ArrowLeft className="h-5 w-5" /></Button>
+          <div className="min-w-0 flex-1"><h1 className="font-bold">Centre d’aide Afrixa</h1><p className="text-xs text-muted-foreground">Assistance, réclamations et signalements</p></div>
+          <Headphones className="h-6 w-6 text-primary" />
         </div>
       </header>
 
-      <div className="px-4 py-5 space-y-6">
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher une question..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="pl-10 bg-[hsl(240,40%,10%)] border-border/30 focus-visible:ring-primary rounded-xl h-12"
-          />
-        </div>
-
-        {/* Quick Contact */}
-        <div className="grid grid-cols-3 gap-3">
-          <a
-            href="https://wa.me/22100000000"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-[hsl(240,40%,10%)] hover:bg-muted/40 transition-colors"
-          >
-            <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-              <MessageCircle className="w-6 h-6 text-green-500" />
-            </div>
-            <span className="text-sm font-medium text-foreground">WhatsApp</span>
-            <span className="text-xs text-muted-foreground">Réponse rapide</span>
-          </a>
-          <a
-            href="mailto:support@afrixa.com"
-            className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-[hsl(240,40%,10%)] hover:bg-muted/40 transition-colors"
-          >
-            <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
-              <Mail className="w-6 h-6 text-blue-500" />
-            </div>
-            <span className="text-sm font-medium text-foreground">Email</span>
-            <span className="text-xs text-muted-foreground">24-48h</span>
-          </a>
-          <button
-            onClick={scrollToFaq}
-            className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-[hsl(240,40%,10%)] hover:bg-muted/40 transition-colors"
-          >
-            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-              <BookOpen className="w-6 h-6 text-primary" />
-            </div>
-            <span className="text-sm font-medium text-foreground">FAQ</span>
-            <span className="text-xs text-muted-foreground">Réponses immédiates</span>
-          </button>
-        </div>
-
-        {/* FAQ */}
-        <div ref={faqRef} className="space-y-4">
-          <h2 className="text-base font-bold text-foreground">Questions fréquentes</h2>
-          {filteredFaq.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-8">Aucun résultat pour "{searchQuery}"</p>
-          )}
-          {filteredFaq.map((cat, ci) => (
-            <div key={ci} className="space-y-1">
-              <p className="text-sm font-semibold text-primary flex items-center gap-2 mb-2">
-                <span>{cat.icon}</span> {cat.title}
-              </p>
-              <div className="rounded-xl overflow-hidden bg-[hsl(240,40%,10%)] divide-y divide-border/10">
-                {cat.items.map((item, qi) => {
-                  const key = `${ci}-${qi}`;
-                  const isOpen = openItems.has(key);
-                  return (
-                    <div key={qi}>
-                      <button
-                        onClick={() => toggleItem(key)}
-                        className={cn(
-                          'w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors',
-                          isOpen && 'bg-primary/10 border-l-2 border-primary'
-                        )}
-                      >
-                        <span className="text-sm font-medium text-foreground flex-1">{item.question}</span>
-                        <ChevronDown className={cn('w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200', isOpen && 'rotate-180')} />
-                      </button>
-                      <div
-                        className={cn(
-                          'overflow-hidden transition-all duration-300 ease-in-out',
-                          isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                        )}
-                      >
-                        <p className="px-4 pb-4 pt-1 text-sm text-muted-foreground leading-relaxed border-l-2 border-primary bg-primary/5">
-                          {item.answer}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Report a Problem */}
-        <div className="rounded-2xl bg-[hsl(240,40%,12%)] p-5 space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-foreground">Tu n'as pas trouvé ta réponse ?</h3>
-            <p className="text-sm text-muted-foreground mt-1">Décris ton problème, on te répond rapidement</p>
+      <div className="mx-auto max-w-4xl space-y-7 px-4 py-6">
+        <section className="rounded-2xl border border-primary/20 bg-primary/5 p-5">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-primary/10 p-3"><LifeBuoy className="h-6 w-6 text-primary" /></div>
+            <div className="min-w-0 flex-1"><h2 className="text-lg font-bold">Comment pouvons-nous t’aider ?</h2><p className="mt-1 text-sm text-muted-foreground">Sélectionne le domaine concerné pour envoyer ta demande à l’équipe compétente.</p></div>
           </div>
-
-          {reportSent ? (
-            <div className="text-center py-6 space-y-2">
-              <div className="text-4xl">✅</div>
-              <p className="text-sm font-semibold text-foreground">Message envoyé !</p>
-              <p className="text-xs text-muted-foreground">Nous te répondrons sous 24h</p>
-              <Button variant="outline" size="sm" className="mt-3 rounded-xl" onClick={() => { setReportSent(false); setReportText(''); setReportCategory(''); }}>
-                Envoyer un autre message
-              </Button>
-            </div>
-          ) : (
-            <>
-              <Select value={reportCategory} onValueChange={setReportCategory}>
-                <SelectTrigger className="bg-muted/30 border-border/30 rounded-xl">
-                  <SelectValue placeholder="Catégorie du problème" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="compte">Compte</SelectItem>
-                  <SelectItem value="paiement">Paiement</SelectItem>
-                  <SelectItem value="video">Vidéo</SelectItem>
-                  <SelectItem value="live">Live</SelectItem>
-                  <SelectItem value="boutique">Boutique</SelectItem>
-                  <SelectItem value="autre">Autre</SelectItem>
-                </SelectContent>
-              </Select>
-              <Textarea
-                placeholder="Décris ton problème ici..."
-                value={reportText}
-                onChange={e => setReportText(e.target.value)}
-                className="bg-muted/30 border-border/30 rounded-xl min-h-[100px] resize-none"
-              />
-              <Button variant="default" className="w-full rounded-xl h-12 gap-2" onClick={handleSendReport} disabled={sending}>
-                {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                {sending ? 'Envoi...' : 'Envoyer au support'}
-              </Button>
-            </>
-          )}
-        </div>
-
-        {/* Legal Links */}
-        <div className="space-y-1">
-          <h2 className="text-base font-bold text-foreground mb-3">Informations légales</h2>
-          <div className="rounded-xl overflow-hidden bg-[hsl(240,40%,10%)] divide-y divide-border/10">
-            {[
-              { icon: FileText, label: "Conditions d'utilisation" },
-              { icon: Shield, label: 'Politique de confidentialité' },
-              { icon: Cookie, label: 'Politique de cookies' },
-              { icon: Info, label: "À propos d'Afrixa" },
-            ].map((item, i) => (
-              <button key={i} className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/30 transition-colors">
-                <item.icon className="w-5 h-5 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground flex-1 text-left">{item.label}</span>
-                <ChevronDown className="w-4 h-4 text-muted-foreground -rotate-90" />
-              </button>
-            ))}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => document.getElementById('support-ticket-form')?.scrollIntoView({ behavior: 'smooth' })}><Ticket className="mr-2 h-4 w-4" /> Créer un ticket</Button>
+            <Button size="sm" variant="outline" onClick={() => document.getElementById('support-faq')?.scrollIntoView({ behavior: 'smooth' })}><BookOpen className="mr-2 h-4 w-4" /> Consulter la FAQ</Button>
           </div>
-          <p className="text-center text-xs text-muted-foreground pt-4">Version de l'app : 2.0.0</p>
-        </div>
+        </section>
+
+        <section className="space-y-3">
+          <div><h2 className="font-bold">Choisir un domaine d’assistance</h2><p className="text-xs text-muted-foreground">Tous les principaux services Afrixa sont couverts.</p></div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {supportCategories.map((item) => {
+              const Icon = item.icon;
+              return <button key={item.value} type="button" onClick={() => { setCategory(item.value); setTopic(''); setSubject(''); setSentTicket(null); document.getElementById('support-ticket-form')?.scrollIntoView({ behavior: 'smooth' }); }} className={cn('flex items-start gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-muted/40', category === item.value ? 'border-primary bg-primary/5' : 'border-border')}>
+                <span className="rounded-lg bg-muted p-2"><Icon className="h-5 w-5 text-primary" /></span>
+                <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{item.label}</span><span className="mt-0.5 block text-xs text-muted-foreground">{item.description}</span></span>
+                <ChevronDown className="-rotate-90 h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>;
+            })}
+          </div>
+        </section>
+
+        <section id="support-ticket-form" className="scroll-mt-20 rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <div className="mb-4"><h2 className="font-bold">Contacter le support</h2><p className="mt-1 text-xs text-muted-foreground">Les champs détaillés permettent à l’équipe de traiter ta demande sans aller-retour inutile.</p></div>
+          {sentTicket ? <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5 text-center">
+            <Ticket className="mx-auto h-8 w-8 text-emerald-600" /><h3 className="mt-2 font-bold">Demande enregistrée</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Ton numéro de suivi :</p><p className="mt-2 font-mono text-lg font-bold">{sentTicket.number}</p>
+            <p className="mt-2 text-xs text-muted-foreground">Retrouve son statut et les réponses dans « Mes demandes ».</p>
+            <Button className="mt-4" variant="outline" onClick={resetForm}>Créer une autre demande</Button>
+          </div> : <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5"><label className="text-sm font-medium">Domaine</label><Select value={category} onValueChange={(value) => { setCategory(value); setTopic(''); setSubject(''); setSentTicket(null); }}><SelectTrigger><SelectValue placeholder="Sélectionner un domaine" /></SelectTrigger><SelectContent>{supportCategories.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><label className="text-sm font-medium">Sujet précis</label><Select value={topic} onValueChange={(value) => { setTopic(value); const found = selectedCategory?.topics.find((item) => item.value === value); if (found) setSubject(found.label); }} disabled={!selectedCategory}><SelectTrigger><SelectValue placeholder="Choisir le sujet" /></SelectTrigger><SelectContent>{selectedCategory?.topics.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+            </div>
+            {selectedTopic && <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">{selectedTopic.description}</p>}
+            <div className="space-y-1.5"><label className="text-sm font-medium">Objet de la demande</label><Input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Résume le problème en une phrase" maxLength={160} /></div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5"><label className="text-sm font-medium">Référence commande / transaction (facultatif)</label><Input value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Ex. numéro de commande ou transaction" maxLength={120} /></div>
+              <div className="space-y-1.5"><label className="text-sm font-medium">Priorité</label><Select value={priority} onValueChange={setPriority}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="normal">Normale</SelectItem><SelectItem value="high">Élevée</SelectItem><SelectItem value="urgent">Urgente — fraude active ou sécurité</SelectItem><SelectItem value="low">Faible</SelectItem></SelectContent></Select></div>
+            </div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Adresse e-mail de contact (facultatif)</label><Input type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} placeholder="exemple@email.com" maxLength={254} /></div>
+            <div className="space-y-1.5"><label className="text-sm font-medium">Description détaillée</label><Textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Explique ce qui s’est passé, les étapes déjà effectuées et le résultat attendu. N’inclus jamais ton mot de passe, code OTP ou code PIN." className="min-h-36 resize-y" maxLength={10000} /><p className="text-right text-xs text-muted-foreground">{description.length}/10 000</p></div>
+            <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-muted-foreground"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /><span>Afrixa ne te demandera jamais ton mot de passe, ton code OTP ou ton code PIN Mobile Money. Pour une fraude, conserve les preuves et ne verse aucun paiement supplémentaire hors plateforme.</span></div>
+            <Button className="w-full" onClick={() => void submitTicket()} disabled={sending || !user}><span className="inline-flex items-center gap-2">{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{sending ? 'Envoi en cours…' : 'Envoyer ma demande'}</span></Button>
+            {!user && <p className="text-center text-xs text-muted-foreground">Connecte-toi pour envoyer une demande et suivre son traitement.</p>}
+          </div>}
+        </section>
+
+        <section className="space-y-3">
+          <div className="flex items-center justify-between"><div><h2 className="font-bold">Mes demandes</h2><p className="text-xs text-muted-foreground">Les 10 derniers tickets et les réponses du support.</p></div><Button size="icon" variant="ghost" onClick={() => void loadTickets()} disabled={loadingTickets}><RefreshCw className={cn('h-4 w-4', loadingTickets && 'animate-spin')} /></Button></div>
+          {!user ? <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">Connecte-toi pour consulter tes demandes.</p> : loadingTickets ? <p className="p-4 text-center text-sm text-muted-foreground">Chargement…</p> : tickets.length === 0 ? <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">Aucune demande pour le moment.</p> : <div className="space-y-2">{tickets.map((ticket) => <article key={ticket.id} className="rounded-xl border border-border p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="font-mono text-xs text-primary">{ticket.ticket_number}</p><h3 className="mt-1 text-sm font-semibold">{ticket.subject}</h3><p className="text-xs text-muted-foreground">{new Date(ticket.created_at).toLocaleString('fr-FR')} · {priorityLabels[ticket.priority] ?? 'Normale'}</p></div><span className="rounded-full bg-muted px-2.5 py-1 text-xs">{statusLabels[ticket.status] ?? ticket.status}</span></div>{ticket.admin_reply && <div className="mt-3 rounded-lg bg-primary/5 p-3"><p className="text-xs font-semibold text-primary">Réponse du support</p><p className="mt-1 whitespace-pre-wrap text-sm">{ticket.admin_reply}</p></div>}</article>)}</div>}
+        </section>
+
+        <section id="support-faq" className="scroll-mt-20 space-y-3">
+          <div><h2 className="font-bold">Questions fréquentes</h2><p className="text-xs text-muted-foreground">Des réponses rapides aux problèmes les plus courants.</p></div>
+          <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Rechercher dans les questions…" className="pl-9" /></div>
+          <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">{filteredFaq.map((item) => <div key={item.question}><button className="flex w-full items-center gap-3 p-3 text-left" onClick={() => setOpenFaq(openFaq === item.question ? null : item.question)}><span className="min-w-0 flex-1"><span className="block text-[11px] font-semibold uppercase tracking-wide text-primary">{item.category}</span><span className="mt-0.5 block text-sm font-medium">{item.question}</span></span><ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', openFaq === item.question && 'rotate-180')} /></button>{openFaq === item.question && <p className="bg-muted/30 px-3 pb-4 text-sm leading-relaxed text-muted-foreground">{item.answer}</p>}</div>)}</div>
+          {filteredFaq.length === 0 && <p className="py-5 text-center text-sm text-muted-foreground">Aucune réponse trouvée.</p>}
+        </section>
+
+        <section className="rounded-xl border border-border p-4">
+          <div className="flex items-center gap-3"><Mail className="h-5 w-5 text-primary" /><div className="min-w-0 flex-1"><h2 className="text-sm font-semibold">Contacter directement Afrixa</h2><p className="text-xs text-muted-foreground">Pour les demandes générales qui ne nécessitent pas un ticket.</p></div></div>
+          <a href="mailto:support@afrixa.com" className="mt-3 inline-flex text-sm font-semibold text-primary underline underline-offset-4">support@afrixa.com</a>
+          <p className="mt-2 text-xs text-muted-foreground">Pour un litige, une fraude ou un paiement, privilégie la création d’un ticket afin de conserver un numéro de suivi.</p>
+        </section>
       </div>
-    </div>
+    </main>
   );
 };
 
