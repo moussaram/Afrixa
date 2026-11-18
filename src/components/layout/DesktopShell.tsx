@@ -13,7 +13,7 @@ type DesktopShellProps = { children: ReactNode; enabled?: boolean };
 const primaryLinks = [
   { to: '/', label: 'Accueil', icon: Home },
   { to: '/discover', label: 'Découvrir', icon: Compass },
-  { to: '/marketplace', label: 'Marketplace', icon: Store },
+  { to: '/marketplace', label: 'Marketplace', icon: Store },\n  { to: '/live/setup', label: 'Afrixa Live', icon: Radio },
   { to: '/messages', label: 'Messages', icon: MessageCircle },
   { to: '/notifications', label: 'Notifications', icon: Bell },
   { to: '/create', label: 'Créer une publication', icon: PlusSquare },
@@ -22,7 +22,7 @@ const primaryLinks = [
 
 const toolsLinks = [
   { to: '/creators/studio', label: 'Studio créateur', icon: Clapperboard },
-  { to: '/coins', label: 'Mes pièces', icon: Coins },
+  { to: '/coins', label: 'Mes pièces', icon: Coins },\n  { to: '/creators/wallet', label: 'Portefeuille créateur', icon: Wallet },\n  { to: '/ads', label: 'Publicités', icon: Megaphone },\n  { to: '/my-shop', label: 'Ma boutique', icon: Store },
   { to: '/orders', label: 'Mes commandes', icon: ShoppingBag },
   { to: '/settings', label: 'Paramètres', icon: Settings },
 ];
@@ -71,11 +71,11 @@ export const DesktopShell = ({ children, enabled = true }: DesktopShellProps) =>
   return (
     <div className="afrixa-desktop-shell min-h-screen bg-background">
       <header className="afrixa-desktop-topbar fixed inset-x-0 top-0 z-[60] flex h-16 items-center justify-between border-b border-border/70 bg-background/95 px-4 backdrop-blur-xl">
-        <Link to="/" className="flex w-[220px] shrink-0 items-center gap-2 text-xl font-extrabold tracking-tight">
+        <Link to="/" className="flex w-10 shrink-0 items-center gap-2 text-xl font-extrabold tracking-tight lg:w-[220px]">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl gradient-primary text-lg text-white">A</span>
           <span className="afrixa-desktop-brand">Afrixa</span>
         </Link>
-        <div className="mx-5 hidden w-full max-w-xl md:block">
+        <div className="mx-2 hidden min-w-0 flex-1 md:block lg:mx-5 lg:max-w-xl">
           <Link to="/search" className="flex h-10 items-center gap-3 rounded-full bg-muted/80 px-4 text-sm text-muted-foreground transition-colors hover:bg-muted">
             <Search className="h-4 w-4" />
             Rechercher sur Afrixa
