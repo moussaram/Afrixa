@@ -57,7 +57,7 @@ const SellerWallet = () => {
       setAvailableBalance(Math.max(0, credited - payoutsReserved));
 
       const active = (ordersRes.data ?? []).filter((order) =>
-        !order.escrow_released && ['payee', 'en_preparation', 'expediee', 'livree'].includes(order.status),
+        !order.escrow_released && ['payee', 'en_preparation', 'expediee', 'livree', 'litige'].includes(order.status),
       );
       setPendingOrders(active.length);
       setPendingBalance(active.reduce((sum, order) => sum + Number(order.seller_amount || 0), 0));
