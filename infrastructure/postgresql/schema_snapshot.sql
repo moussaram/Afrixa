@@ -1349,3 +1349,9 @@ CREATE POLICY "Buyer can add evidence to open dispute" ON public."disputes" AS P
 CREATE POLICY "Seller can add evidence to open dispute" ON public."disputes" AS PERMISSIVE FOR UPDATE TO PUBLIC USING (((auth.uid() = seller_id) AND (status = 'ouvert'::text))) WITH CHECK (((auth.uid() = seller_id) AND (status = 'ouvert'::text)));
 CREATE POLICY "seller_wallet_ledger_owner_read" ON public."seller_wallet_ledger" AS PERMISSIVE FOR SELECT TO "authenticated" USING ((seller_id = ( SELECT auth.uid() AS uid)));
 CREATE POLICY "Order participants can update their own orders" ON public."orders" AS PERMISSIVE FOR UPDATE TO "authenticated" USING (((( SELECT auth.uid() AS uid) = buyer_id) OR (( SELECT auth.uid() AS uid) = seller_id))) WITH CHECK (((( SELECT auth.uid() AS uid) = buyer_id) OR (( SELECT auth.uid() AS uid) = seller_id)));
+
+-- Trusted backend role only; anon/authenticated receive no table grants by default.
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO service_role;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO service_role;
