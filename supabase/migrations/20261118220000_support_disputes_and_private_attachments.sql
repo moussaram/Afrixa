@@ -233,7 +233,7 @@ BEGIN
   ELSE
     UPDATE public.disputes
     SET buyer_evidence = concat_ws(
-      E'\\n\\n',
+      E'\n\n',
       NULLIF(btrim(COALESCE(v_existing_evidence, '')), ''),
       'Complément du demandeur : ' || btrim(p_evidence)
     )
