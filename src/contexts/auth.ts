@@ -19,6 +19,9 @@ export interface Profile {
   nationalite: string | null;
   nationalite_flag: string | null;
   inscription_complete: boolean;
+  identity_verified: boolean;
+  business_verified: boolean;
+  verified_at: string | null;
 }
 
 export interface AuthContextType {
