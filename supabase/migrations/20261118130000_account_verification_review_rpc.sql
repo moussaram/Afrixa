@@ -78,6 +78,25 @@ BEGIN
     END IF;
   END IF;
 
+  INSERT INTO public.notifications (user_id, title, message, type)
+  VALUES (
+    v_request.user_id,
+    CASE p_decision
+      WHEN 'in_review' THEN 'Votre demande est en cours d’examen'
+      WHEN 'approved' THEN 'Votre vérification Afrixa est approuvée'
+      ELSE 'Votre demande de vérification a été refusée'
+    END,
+    CASE p_decision
+      WHEN 'in_review' THEN 'L’équipe Afrixa examine vos justificatifs.'
+      WHEN 'approved' THEN CASE WHEN v_request.request_type = 'identity'
+        THEN 'Votre identité est vérifiée. Votre badge bleu est maintenant actif.'
+        ELSE 'Votre entreprise ou boutique est vérifiée. Votre badge est maintenant actif.'
+      END
+      ELSE coalesce(nullif(btrim(p_rejection_reason), ''), 'Consultez votre demande pour plus de détails.')
+    END,
+    'verification'
+  );
+
   RETURN jsonb_build_object(
     'id', v_request.id,
     'user_id', v_request.user_id,
