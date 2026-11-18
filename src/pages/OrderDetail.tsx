@@ -98,6 +98,9 @@ const OrderDetail = () => {
         status: 'ouvert',
       });
       if (error) throw error;
+      const { error: orderUpdateError } = await supabase.from('orders')
+        .update({ status: 'litige' }).eq('id', order.id).eq('buyer_id', user.id);
+      if (orderUpdateError) throw orderUpdateError;
       setShowDispute(false);
       toast.success('Litige ouvert. Les fonds restent bloqués pendant son examen.');
       await loadOrder();
