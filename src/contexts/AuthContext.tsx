@@ -40,6 +40,9 @@ const mockProfile: Profile = {
   nationalite: 'Ivoirienne',
   nationalite_flag: '🇨🇮',
   inscription_complete: true,
+  identity_verified: false,
+  business_verified: false,
+  verified_at: null,
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
