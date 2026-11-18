@@ -15,6 +15,7 @@ AS $$
 DECLARE
   v_request public.account_verification_requests%ROWTYPE;
   v_now timestamptz := now();
+  v_profile_rows integer := 0;
 BEGIN
   IF p_reviewer_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM public.platform_admins WHERE user_id = p_reviewer_id
@@ -75,6 +76,10 @@ BEGIN
       UPDATE public.profiles
       SET business_verified = true, verified_at = v_now
       WHERE user_id = v_request.user_id;
+    END IF;
+    GET DIAGNOSTICS v_profile_rows = ROW_COUNT;
+    IF v_profile_rows = 0 THEN
+      RAISE EXCEPTION 'Profil utilisateur introuvable : badge non attribué';
     END IF;
   END IF;
 
