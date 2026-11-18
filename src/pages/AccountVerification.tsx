@@ -107,7 +107,7 @@ const AccountVerification = () => {
       const metadata = [];
       for (const file of documents) {
         const safeName = file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g, '-').slice(-90);
-        const path = `${user.id}/${requestId}/${Date.now()}-${safeName}`;
+        const path = `${user.id}/${requestId}/${crypto.randomUUID()}-${safeName}`;
         const { error: uploadError } = await supabase.storage
           .from('account-verification-private')
           .upload(path, file, { contentType: file.type, upsert: false });
