@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { resilientFetch } from '../_shared/http.ts';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -30,15 +31,15 @@ const createGoogleAccessToken = async (serviceAccount: Record<string, string>) =
   );
   const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(unsigned));
   const assertion = `${unsigned}.${base64Url(new Uint8Array(signature))}`;
-  const response = await fetch(serviceAccount.token_uri || 'https://oauth2.googleapis.com/token', {
+  const response = await resilientFetch(serviceAccount.token_uri || 'https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
       assertion,
     }),
-  });
-  const result = await response.json();
+  }, { timeoutMs: 12000 });
+  const result = await response.json().catch(() => null);
   if (!response.ok || typeof result.access_token !== 'string') {
     throw new Error(`Google OAuth token request failed (${response.status})`);
   }
@@ -95,7 +96,7 @@ Deno.serve(async (req) => {
     let sent = 0;
     let failed = 0;
     for (const installation of installations) {
-      const response = await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/messages:send`, {
+      const response = await resilientFetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/messages:send`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -108,7 +109,7 @@ Deno.serve(async (req) => {
             data: { url: '/notifications', notification_id: notification.id },
           },
         }),
-      });
+      }, { timeoutMs: 12000 });
       if (response.ok) {
         sent += 1;
         continue;

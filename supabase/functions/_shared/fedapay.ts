@@ -1,3 +1,5 @@
+import { resilientFetch } from './http.ts';
+
 export type FedaPayObject = Record<string, unknown>;
 
 const getApiBaseUrl = () => {
@@ -16,14 +18,18 @@ export const fedapayRequest = async (
 ): Promise<FedaPayObject> => {
   const secret = Deno.env.get('FEDAPAY_SECRET_KEY');
   if (!secret) throw new Error('FedaPay secret is not configured');
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+  const method = (init.method ?? 'GET').toUpperCase();
+  const response = await resilientFetch(`${getApiBaseUrl()}${path}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${secret}`,
       'Content-Type': 'application/json',
       ...init.headers,
     },
-    signal: init.signal ?? AbortSignal.timeout(15_000),
+  }, {
+    timeoutMs: 15000,
+    attempts: 3,
+    retryable: method === 'GET' || method === 'HEAD',
   });
   const result = await response.json().catch(() => null);
   if (!response.ok || !result || typeof result !== 'object') {
