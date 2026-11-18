@@ -22,6 +22,7 @@ coverage
 # Environment files
 .env*
 !.env.example
+!.env.postgres.example
 *.local
 
 # Editor directories and files
