@@ -273,9 +273,9 @@ const UserProfile = () => {
               alt={username}
               className="w-24 h-24 rounded-full object-cover border-4 border-primary"
             />
-            {followersCount >= 50000 && (
-              <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full gradient-primary flex items-center justify-center border-2 border-background">
-                <span className="text-xs text-primary-foreground font-bold">✓</span>
+            {profile.identity_verified && (
+              <div className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-sky-500 text-white">
+                <BadgeCheck className="h-4 w-4" />
               </div>
             )}
           </div>
