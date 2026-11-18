@@ -23,5 +23,5 @@ CREATE TABLE IF NOT EXISTS infra.healthcheck (
 INSERT INTO infra.healthcheck (id, service, status)
 VALUES (1, 'afrixa-postgresql-standby', 'ready')
 ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, checked_at = now();
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 SQL
