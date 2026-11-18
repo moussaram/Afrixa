@@ -119,13 +119,27 @@ const MyInfo = () => {
             onClick={() => navigate('/auth/complete-profile')}
           >
             <ShieldCheck className="w-5 h-5" />
-            Vérifier maintenant
+            Compléter mon profil
           </Button>
           <p className="text-xs text-muted-foreground text-center mt-2">
-            Complétez vos informations pour un profil vérifié
+            Renseignez les informations manquantes de votre profil.
           </p>
         </div>
       )}
+
+      <div className="px-4 pt-5">
+        <Button
+          variant="outline"
+          className="w-full h-12 rounded-2xl gap-2"
+          onClick={() => navigate('/settings/verification')}
+        >
+          <ShieldCheck className="w-5 h-5" />
+          Demander une vérification officielle Afrixa
+        </Button>
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          Le badge est attribué uniquement après examen des justificatifs par l’équipe Afrixa.
+        </p>
+      </div>
 
       {allVerified && (
         <div className="px-4 pt-6 text-center">
