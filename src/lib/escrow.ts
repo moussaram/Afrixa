@@ -1,41 +1,33 @@
 import { supabase } from '@/integrations/supabase/client';
 
-export const getOperatorCode = (operator: string): string => {
-  const codes: Record<string, string> = {
-    orange_money: 'ORANGE',
-    wave: 'WAVE',
-    mtn: 'MTN',
-    moov: 'MOOV',
-  };
-  return codes[operator] || 'ORANGE';
-};
-
 export interface ReleaseEscrowResult {
   success: boolean;
-  pending?: boolean;
-  reference?: string;
+  duplicate?: boolean;
+  order_id?: string;
+  seller_amount?: number;
+  currency?: string;
   error?: string;
 }
 
 /**
- * Libère le paiement escrow vers le vendeur via l'edge function sécurisée.
- * Appelée quand l'acheteur confirme la réception de la commande.
+ * Confirme la réception côté serveur et crédite le portefeuille Afrixa du vendeur.
+ * Le serveur vérifie l'acheteur, le paiement, l'expédition et l'absence de litige.
  */
 export const releaseEscrow = async (orderId: string): Promise<ReleaseEscrowResult> => {
   try {
-    const { data, error } = await supabase.functions.invoke('release-escrow', {
+    const { data, error } = await supabase.functions.invoke('confirm-marketplace-order', {
       body: { order_id: orderId },
     });
-    if (error) {
-      return { success: false, error: error.message };
-    }
+    if (error) return { success: false, error: error.message };
     return {
       success: !!data?.success,
-      pending: !!data?.pending,
-      reference: data?.reference,
+      duplicate: !!data?.duplicate,
+      order_id: data?.order_id,
+      seller_amount: data?.seller_amount,
+      currency: data?.currency,
       error: data?.error,
     };
-  } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : 'Erreur inconnue' };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Erreur inconnue' };
   }
 };
