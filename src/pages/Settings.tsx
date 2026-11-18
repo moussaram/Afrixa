@@ -603,6 +603,7 @@ const Settings = () => {
 
               <SettingsSection title="Vérification">
                 <SettingsItem icon={ShieldCheck} label="Mes infos" description="Voir le statut de vérification" type="navigate" onClick={() => navigate('/settings/my-info')} />
+                <SettingsItem icon={ShieldCheck} label="Demander une vérification officielle" description="Identité, entreprise ou boutique" type="navigate" onClick={() => navigate('/settings/verification')} />
               </SettingsSection>
 
               <SettingsSection title="Informations du profil">
